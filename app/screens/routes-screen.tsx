@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Edit, MapPin, Clock, Truck, MoreVertical, Download, Search } from "lucide-react"
+import { Plus, Edit, MapPin, Clock, Truck, MoreVertical, Download, Search, Map } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -58,7 +58,36 @@ const mockRoutes = [
   },
 ]
 
-export default function RoutesScreen() {
+// Sample delivery data for each route
+const mockDeliveries = {
+  1: [ // Nairobi Central Route
+    { id: 1, farmerName: "John Kamau", location: "CBD Market", coordinates: [-1.2864, 36.8172] as [number, number], produce: "Tomatoes", dropTime: "09:00 AM", status: "completed", phone: "+254712345678" },
+    { id: 2, farmerName: "Mary Wanjiku", location: "City Hall", coordinates: [-1.2921, 36.8219] as [number, number], produce: "Carrots", dropTime: "09:30 AM", status: "completed", phone: "+254723456789" },
+    { id: 3, farmerName: "Peter Mutua", location: "Railway Station", coordinates: [-1.3067, 36.8321] as [number, number], produce: "Potatoes", dropTime: "10:00 AM", status: "in-progress", phone: "+254734567890" },
+    { id: 4, farmerName: "Grace Akinyi", location: "Central Park", coordinates: [-1.2884, 36.8233] as [number, number], produce: "Onions", dropTime: "10:30 AM", status: "pending", phone: "+254745678901" },
+  ],
+  2: [ // Westlands Circuit
+    { id: 5, farmerName: "Samuel Kiprotich", location: "Westlands Mall", coordinates: [-1.2676, 36.8099] as [number, number], produce: "Spinach", dropTime: "08:00 AM", status: "completed", phone: "+254756789012" },
+    { id: 6, farmerName: "Ruth Njeri", location: "Sarit Centre", coordinates: [-1.2689, 36.8076] as [number, number], produce: "Kales", dropTime: "08:45 AM", status: "completed", phone: "+254767890123" },
+    { id: 7, farmerName: "Joseph Mwangi", location: "ABC Place", coordinates: [-1.2643, 36.8123] as [number, number], produce: "Cabbages", dropTime: "09:30 AM", status: "completed", phone: "+254778901234" },
+  ],
+  3: [ // Eastlands Express
+    { id: 8, farmerName: "Agnes Wambui", location: "Eastleigh Market", coordinates: [-1.2741, 36.8441] as [number, number], produce: "Bananas", dropTime: "07:30 AM", status: "pending", phone: "+254789012345" },
+    { id: 9, farmerName: "David Omondi", location: "Donholm Shopping", coordinates: [-1.2945, 36.8876] as [number, number], produce: "Maize", dropTime: "08:15 AM", status: "pending", phone: "+254790123456" },
+    { id: 10, farmerName: "Helen Chebet", location: "Umoja Market", coordinates: [-1.2834, 36.8765] as [number, number], produce: "Beans", dropTime: "09:00 AM", status: "pending", phone: "+254701234567" },
+  ],
+  4: [ // Karen-Langata Loop
+    { id: 11, farmerName: "Michael Wekesa", location: "Karen Shopping", coordinates: [-1.3197, 36.7085] as [number, number], produce: "Avocados", dropTime: "10:00 AM", status: "in-progress", phone: "+254712345679" },
+    { id: 12, farmerName: "Susan Moraa", location: "Junction Mall", coordinates: [-1.3037, 36.7324] as [number, number], produce: "Mangoes", dropTime: "10:45 AM", status: "completed", phone: "+254723456780" },
+    { id: 13, farmerName: "Francis Kiplagat", location: "Langata Link", coordinates: [-1.3654, 36.7208] as [number, number], produce: "Oranges", dropTime: "11:30 AM", status: "pending", phone: "+254734567891" },
+  ],
+}
+
+interface RoutesScreenProps {
+  onViewRouteMap: (route: any, deliveries: any[]) => void
+}
+
+export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
   const [routes, setRoutes] = useState(mockRoutes)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState("all")
@@ -81,6 +110,11 @@ export default function RoutesScreen() {
       default:
         return "bg-gray-100 text-gray-600 border-gray-200"
     }
+  }
+
+  const handleViewMap = (route: typeof mockRoutes[0]) => {
+    const deliveries = mockDeliveries[route.id as keyof typeof mockDeliveries] || []
+    onViewRouteMap(route, deliveries)
   }
 
   return (
@@ -227,7 +261,9 @@ export default function RoutesScreen() {
                     size="sm"
                     variant="outline"
                     className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
+                    onClick={() => handleViewMap(route)}
                   >
+                    <Map className="h-4 w-4 mr-2" />
                     View Map
                   </Button>
                 </div>

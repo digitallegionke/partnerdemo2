@@ -29,6 +29,7 @@ import ScheduleScreen from "./screens/schedule-screen"
 import AnalyticsScreen from "./screens/analytics-screen"
 import SettingsScreen from "./screens/settings-screen"
 import AssignDriversScreen from "./screens/assign-drivers-screen"
+import RouteMapScreen from "./screens/route-map-screen"
 
 const sidebarItems = [
   { id: "routes", icon: Route, label: "Routes", count: 8 },
@@ -44,11 +45,25 @@ const sidebarItems = [
 export default function SafeMoonApp() {
   const [activeScreen, setActiveScreen] = useState("routes")
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [selectedRoute, setSelectedRoute] = useState<any>(null)
+  const [routeDeliveries, setRouteDeliveries] = useState<any[]>([])
+
+  const handleViewRouteMap = (route: any, deliveries: any[]) => {
+    setSelectedRoute(route)
+    setRouteDeliveries(deliveries)
+    setActiveScreen("route-map")
+  }
+
+  const handleBackToRoutes = () => {
+    setActiveScreen("routes")
+    setSelectedRoute(null)
+    setRouteDeliveries([])
+  }
 
   const renderScreen = () => {
     switch (activeScreen) {
       case "routes":
-        return <RoutesScreen />
+        return <RoutesScreen onViewRouteMap={handleViewRouteMap} />
       case "deliveries":
         return <DeliveriesScreen />
       case "drivers":
@@ -63,8 +78,16 @@ export default function SafeMoonApp() {
         return <AssignDriversScreen />
       case "settings":
         return <SettingsScreen />
+      case "route-map":
+        return selectedRoute && routeDeliveries ? (
+          <RouteMapScreen 
+            route={selectedRoute}
+            deliveries={routeDeliveries}
+            onBack={handleBackToRoutes}
+          />
+        ) : <RoutesScreen onViewRouteMap={handleViewRouteMap} />
       default:
-        return <RoutesScreen />
+        return <RoutesScreen onViewRouteMap={handleViewRouteMap} />
     }
   }
 

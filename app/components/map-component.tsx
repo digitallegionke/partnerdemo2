@@ -6,13 +6,13 @@ import { useEffect, useRef, useState } from "react"
 import type * as Leaflet from "leaflet" // purely for IntelliSense/TS safety
 
 //--------------------------------------------------------------------
-// Helper to lazily load Leaflet JS & CSS from the official CDN
+// Helper to lazily load Leaflet JS & CSS + Routing Machine from CDN
 //--------------------------------------------------------------------
 async function loadLeaflet(): Promise<typeof Leaflet> {
   // If we've already loaded it, return immediately.
-  if ((window as any).L) return (window as any).L as typeof Leaflet
+  if ((window as any).L && (window as any).L.Routing) return (window as any).L as typeof Leaflet
 
-  // 1. Inject CSS once
+  // 1. Inject Leaflet CSS once
   if (!document.getElementById("leaflet-css")) {
     const link = document.createElement("link")
     link.id = "leaflet-css"
@@ -21,7 +21,16 @@ async function loadLeaflet(): Promise<typeof Leaflet> {
     document.head.appendChild(link)
   }
 
-  // 2. Load the UMD script
+  // 2. Inject Routing Machine CSS
+  if (!document.getElementById("leaflet-routing-css")) {
+    const routingLink = document.createElement("link")
+    routingLink.id = "leaflet-routing-css"
+    routingLink.rel = "stylesheet"
+    routingLink.href = "https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css"
+    document.head.appendChild(routingLink)
+  }
+
+  // 3. Load the Leaflet UMD script
   await new Promise((resolve, reject) => {
     const script = document.createElement("script")
     script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -29,6 +38,16 @@ async function loadLeaflet(): Promise<typeof Leaflet> {
     script.onload = resolve
     script.onerror = reject
     document.body.appendChild(script)
+  })
+
+  // 4. Load the Routing Machine script
+  await new Promise((resolve, reject) => {
+    const routingScript = document.createElement("script")
+    routingScript.src = "https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"
+    routingScript.async = true
+    routingScript.onload = resolve
+    routingScript.onerror = reject
+    document.body.appendChild(routingScript)
   })
 
   return (window as any).L as typeof Leaflet
@@ -60,7 +79,7 @@ export default function MapComponent({ deliveries, selectedDelivery, onDeliveryS
   const mapDivRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<Leaflet.Map | null>(null)
   const markersRef = useRef<Leaflet.Marker[]>([])
-  const routeRef = useRef<Leaflet.Polyline | null>(null)
+  const routeRef = useRef<any>(null)
 
   const [leafletReady, setLeafletReady] = useState(false)
 
@@ -92,7 +111,7 @@ export default function MapComponent({ deliveries, selectedDelivery, onDeliveryS
     markersRef.current.forEach((m) => mapRef.current?.removeLayer(m))
     markersRef.current = []
 
-    // Clear previous polyline
+    // Clear previous route
     if (routeRef.current) {
       mapRef.current.removeLayer(routeRef.current)
       routeRef.current = null
@@ -163,17 +182,37 @@ export default function MapComponent({ deliveries, selectedDelivery, onDeliveryS
       markersRef.current.push(marker)
     })
 
-    // Draw simple polyline route
+    // Draw street routing between delivery points using OSRM
     if (deliveries.length > 1) {
-      routeRef.current = L.polyline(
-        deliveries.map((d) => d.coordinates),
-        {
-          color: "#3b82f6",
-          weight: 3,
-          opacity: 0.7,
-          dashArray: "8 6",
+      const LWithRouting = (window as any).L
+      
+      // Create waypoints from delivery coordinates
+      const waypoints = deliveries.map(d => LWithRouting.latLng(d.coordinates[0], d.coordinates[1]))
+      
+      routeRef.current = LWithRouting.Routing.control({
+        waypoints: waypoints,
+        routeWhileDragging: false,
+        addWaypoints: false,
+        createMarker: function() { return null; }, // Don't create default markers
+        lineOptions: {
+          styles: [{
+            color: "#3b82f6",
+            weight: 4,
+            opacity: 0.8
+          }]
         },
-      ).addTo(mapRef.current!)
+        router: LWithRouting.Routing.osrmv1({
+          serviceUrl: 'https://router.project-osrm.org/route/v1'
+        }),
+        formatter: new LWithRouting.Routing.Formatter({
+          language: 'en',
+          units: 'metric'
+        }),
+        show: false, // Hide the routing instructions panel
+        collapsible: true,
+        draggableWaypoints: false,
+        fitSelectedRoutes: false
+      }).addTo(mapRef.current!)
     }
 
     // Fit map bounds

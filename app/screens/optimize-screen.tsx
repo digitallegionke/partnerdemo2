@@ -23,68 +23,67 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
+import { optimizeMultipleRoutes, formatDistance, formatDuration, formatCost } from "@/lib/route-optimization"
 
-const mockOptimizationData = {
-  currentRoutes: [
-    {
+// Sample routes with delivery data
+const sampleRoutes = [
+  {
+    route: {
       id: 1,
-      name: "Route A",
-      distance: "45.2 km",
-      duration: "2h 30m",
-      stops: 8,
-      efficiency: 72,
-      cost: "KSh 2,400",
+      name: "Nairobi Central Route",
+      driver: "James Ochieng"
     },
-    {
+    deliveries: [
+      { id: 1, farmerName: "John Kamau", location: "CBD Market", coordinates: [-1.2864, 36.8172] as [number, number], produce: "Tomatoes", dropTime: "09:00 AM", status: "completed", phone: "+254712345678" },
+      { id: 2, farmerName: "Mary Wanjiku", location: "City Hall", coordinates: [-1.2921, 36.8219] as [number, number], produce: "Carrots", dropTime: "09:30 AM", status: "completed", phone: "+254723456789" },
+      { id: 3, farmerName: "Peter Mutua", location: "Railway Station", coordinates: [-1.3067, 36.8321] as [number, number], produce: "Potatoes", dropTime: "10:00 AM", status: "in-progress", phone: "+254734567890" },
+      { id: 4, farmerName: "Grace Akinyi", location: "Central Park", coordinates: [-1.2884, 36.8233] as [number, number], produce: "Onions", dropTime: "10:30 AM", status: "pending", phone: "+254745678901" },
+    ]
+  },
+  {
+    route: {
       id: 2,
-      name: "Route B",
-      distance: "38.7 km",
-      duration: "2h 10m",
-      stops: 6,
-      efficiency: 68,
-      cost: "KSh 2,100",
+      name: "Westlands Circuit", 
+      driver: "Sarah Muthoni"
     },
-  ],
-  optimizedRoutes: [
-    {
-      id: 1,
-      name: "Optimized Route A",
-      distance: "38.5 km",
-      duration: "2h 05m",
-      stops: 8,
-      efficiency: 89,
-      cost: "KSh 1,950",
-      savings: "KSh 450",
-    },
-    {
-      id: 2,
-      name: "Optimized Route B",
-      distance: "32.1 km",
-      duration: "1h 45m",
-      stops: 6,
-      efficiency: 92,
-      cost: "KSh 1,650",
-      savings: "KSh 450",
-    },
-  ],
-}
+    deliveries: [
+      { id: 5, farmerName: "Samuel Kiprotich", location: "Westlands Mall", coordinates: [-1.2676, 36.8099] as [number, number], produce: "Spinach", dropTime: "08:00 AM", status: "completed", phone: "+254756789012" },
+      { id: 6, farmerName: "Ruth Njeri", location: "Sarit Centre", coordinates: [-1.2689, 36.8076] as [number, number], produce: "Kales", dropTime: "08:45 AM", status: "completed", phone: "+254767890123" },
+      { id: 7, farmerName: "Joseph Mwangi", location: "ABC Place", coordinates: [-1.2643, 36.8123] as [number, number], produce: "Cabbages", dropTime: "09:30 AM", status: "completed", phone: "+254778901234" },
+    ]
+  }
+]
 
 export default function OptimizeScreen() {
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [optimizationComplete, setOptimizationComplete] = useState(false)
-  const [selectedAlgorithm, setSelectedAlgorithm] = useState("genetic")
+  const [selectedAlgorithm, setSelectedAlgorithm] = useState<'nearest-neighbor' | 'genetic' | '2-opt' | 'simulated-annealing'>("genetic")
   const [includeTraffic, setIncludeTraffic] = useState(true)
   const [prioritizeTime, setPrioritizeTime] = useState(false)
+  const [optimizationResults, setOptimizationResults] = useState<any[]>([])
 
   const handleOptimize = () => {
     setIsOptimizing(true)
     setOptimizationComplete(false)
 
-    // Simulate optimization process
+    // Run actual optimization
     setTimeout(() => {
+      const results = optimizeMultipleRoutes(sampleRoutes, selectedAlgorithm)
+      setOptimizationResults(results)
       setIsOptimizing(false)
       setOptimizationComplete(true)
     }, 3000)
+  }
+
+  // Calculate current route metrics
+  const getCurrentRouteMetrics = (routeData: typeof sampleRoutes[0]) => {
+    const result = optimizeMultipleRoutes([routeData], 'nearest-neighbor')[0]
+    return {
+      distance: formatDistance(result.originalDistance),
+      duration: formatDuration(result.originalDuration),
+      cost: formatCost(result.originalDistance * 50 + result.originalOrder.length * 100),
+      efficiency: Math.max(60, Math.round(90 - (result.originalDistance * 2))) // Mock efficiency based on distance
+    }
   }
 
   return (
@@ -131,7 +130,7 @@ export default function OptimizeScreen() {
                 <Label htmlFor="algorithm" className="text-gray-700">
                   Algorithm
                 </Label>
-                <Select value={selectedAlgorithm} onValueChange={setSelectedAlgorithm}>
+                <Select value={selectedAlgorithm} onValueChange={(value) => setSelectedAlgorithm(value as typeof selectedAlgorithm)}>
                   <SelectTrigger className="bg-white border-gray-300">
                     <SelectValue />
                   </SelectTrigger>
@@ -256,34 +255,37 @@ export default function OptimizeScreen() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {mockOptimizationData.currentRoutes.map((route) => (
-                    <div key={route.id} className="p-4 bg-gray-50 rounded-lg">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium text-gray-900">{route.name}</h4>
-                        <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">
-                          {route.efficiency}% efficient
-                        </Badge>
+                  {sampleRoutes.map((routeData) => {
+                    const metrics = getCurrentRouteMetrics(routeData)
+                    return (
+                      <div key={routeData.route.id} className="p-4 bg-gray-50 rounded-lg">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium text-gray-900">{routeData.route.name}</h4>
+                          <Badge variant="outline" className="bg-red-100 text-red-800 border-red-200">
+                            {metrics.efficiency}% efficient
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div className="flex items-center">
+                            <MapPin className="h-4 w-4 mr-2 text-gray-500" />
+                            <span className="text-gray-600">{metrics.distance}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <Clock className="h-4 w-4 mr-2 text-gray-500" />
+                            <span className="text-gray-600">{metrics.duration}</span>
+                          </div>
+                          <div className="flex items-center">
+                            <Truck className="h-4 w-4 mr-2 text-gray-500" />
+                            <span className="text-gray-600">{routeData.deliveries.length} stops</span>
+                          </div>
+                          <div className="flex items-center">
+                            <span className="text-gray-500">Cost:</span>
+                            <span className="text-gray-900 font-medium ml-1">{metrics.cost}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div className="flex items-center">
-                          <MapPin className="h-4 w-4 mr-2 text-gray-500" />
-                          <span className="text-gray-600">{route.distance}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Clock className="h-4 w-4 mr-2 text-gray-500" />
-                          <span className="text-gray-600">{route.duration}</span>
-                        </div>
-                        <div className="flex items-center">
-                          <Truck className="h-4 w-4 mr-2 text-gray-500" />
-                          <span className="text-gray-600">{route.stops} stops</span>
-                        </div>
-                        <div className="flex items-center">
-                          <span className="text-gray-500">Cost:</span>
-                          <span className="text-gray-900 font-medium ml-1">{route.cost}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -299,40 +301,46 @@ export default function OptimizeScreen() {
               <CardContent>
                 <div className="space-y-4">
                   {optimizationComplete ? (
-                    mockOptimizationData.optimizedRoutes.map((route) => (
-                      <div key={route.id} className="p-4 bg-green-50 rounded-lg border border-green-200">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-medium text-gray-900">{route.name}</h4>
-                          <Badge className="bg-green-100 text-green-800 border-green-200">
-                            {route.efficiency}% efficient
-                          </Badge>
+                    optimizationResults.map((result) => {
+                      const route = sampleRoutes.find(r => r.route.id === result.routeId)?.route
+                      const optimizedEfficiency = Math.min(95, Math.round(90 + result.improvementPercent))
+                      return (
+                        <div key={result.routeId} className="p-4 bg-green-50 rounded-lg border border-green-200">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-medium text-gray-900">Optimized {route?.name}</h4>
+                            <Badge className="bg-green-100 text-green-800 border-green-200">
+                              {optimizedEfficiency}% efficient
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div className="flex items-center">
+                              <MapPin className="h-4 w-4 mr-2 text-gray-500" />
+                              <span className="text-gray-600">{formatDistance(result.optimizedDistance)}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <Clock className="h-4 w-4 mr-2 text-gray-500" />
+                              <span className="text-gray-600">{formatDuration(result.optimizedDuration)}</span>
+                            </div>
+                            <div className="flex items-center">
+                              <Truck className="h-4 w-4 mr-2 text-gray-500" />
+                              <span className="text-gray-600">{result.optimizedOrder.length} stops</span>
+                            </div>
+                            <div className="flex items-center">
+                              <span className="text-gray-500">Cost:</span>
+                              <span className="text-gray-900 font-medium ml-1">
+                                {formatCost(result.optimizedDistance * 50 + result.optimizedOrder.length * 100)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="mt-2 pt-2 border-t border-green-200">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-green-700">Savings:</span>
+                              <span className="text-sm font-medium text-green-800">{formatCost(result.costSavings)}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                          <div className="flex items-center">
-                            <MapPin className="h-4 w-4 mr-2 text-gray-500" />
-                            <span className="text-gray-600">{route.distance}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <Clock className="h-4 w-4 mr-2 text-gray-500" />
-                            <span className="text-gray-600">{route.duration}</span>
-                          </div>
-                          <div className="flex items-center">
-                            <Truck className="h-4 w-4 mr-2 text-gray-500" />
-                            <span className="text-gray-600">{route.stops} stops</span>
-                          </div>
-                          <div className="flex items-center">
-                            <span className="text-gray-500">Cost:</span>
-                            <span className="text-gray-900 font-medium ml-1">{route.cost}</span>
-                          </div>
-                        </div>
-                        <div className="mt-2 pt-2 border-t border-green-200">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-green-700">Savings:</span>
-                            <span className="text-sm font-medium text-green-800">{route.savings}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))
+                      )
+                    })
                   ) : (
                     <div className="text-center py-8">
                       <AlertTriangle className="h-8 w-8 text-gray-400 mx-auto mb-2" />
