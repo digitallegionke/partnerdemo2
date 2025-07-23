@@ -1,7 +1,20 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Plus, Edit, MapPin, Clock, Truck, MoreVertical, Download, Search, Map, Loader2 } from "lucide-react"
+import { 
+  Plus, 
+  Edit, 
+  MapPin, 
+  Clock, 
+  Truck, 
+  MoreVertical, 
+  Download, 
+  Search, 
+  Map, 
+  Loader2,
+  RefreshCw,
+  AlertCircle 
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -11,79 +24,63 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { RouteService, type RouteWithDriver } from "@/lib/services/routes"
+import { DriverService } from "@/lib/services/drivers"
 import { DeliveryService } from "@/lib/services/deliveries"
 import { useToast } from "@/hooks/use-toast"
 
-const mockRoutes = [
-  {
-    id: 1,
-    name: "Nairobi Central Route",
-    distance: "45.2 km",
-    duration: "2h 30m",
-    stops: 8,
-    status: "active",
-    driver: "James Ochieng",
-    lastUpdated: "2 hours ago",
-    efficiency: 92,
-  },
-  {
-    id: 2,
-    name: "Westlands Circuit",
-    distance: "32.8 km",
-    duration: "1h 45m",
-    stops: 6,
-    status: "completed",
-    driver: "Sarah Muthoni",
-    lastUpdated: "4 hours ago",
-    efficiency: 88,
-  },
-  {
-    id: 3,
-    name: "Eastlands Express",
-    distance: "28.5 km",
-    duration: "1h 20m",
-    stops: 5,
-    status: "pending",
-    driver: "Unassigned",
-    lastUpdated: "1 day ago",
-    efficiency: 0,
-  },
-  {
-    id: 4,
-    name: "Karen-Langata Loop",
-    distance: "38.7 km",
-    duration: "2h 10m",
-    stops: 7,
-    status: "active",
-    driver: "David Kiprop",
-    lastUpdated: "30 minutes ago",
-    efficiency: 95,
-  },
-]
+// Transform Supabase route data to UI format
+const transformRouteForUI = async (route: RouteWithDriver) => {
+  const formatDuration = (minutes: number) => {
+    const hours = Math.floor(minutes / 60)
+    const mins = minutes % 60
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
+  }
 
-// Sample delivery data for each route
-const mockDeliveries = {
-  1: [ // Nairobi Central Route
-    { id: 1, farmerName: "John Kamau", location: "CBD Market", coordinates: [-1.2864, 36.8172] as [number, number], produce: "Tomatoes", dropTime: "09:00 AM", status: "completed", phone: "+254712345678" },
-    { id: 2, farmerName: "Mary Wanjiku", location: "City Hall", coordinates: [-1.2921, 36.8219] as [number, number], produce: "Carrots", dropTime: "09:30 AM", status: "completed", phone: "+254723456789" },
-    { id: 3, farmerName: "Peter Mutua", location: "Railway Station", coordinates: [-1.3067, 36.8321] as [number, number], produce: "Potatoes", dropTime: "10:00 AM", status: "in-progress", phone: "+254734567890" },
-    { id: 4, farmerName: "Grace Akinyi", location: "Central Park", coordinates: [-1.2884, 36.8233] as [number, number], produce: "Onions", dropTime: "10:30 AM", status: "pending", phone: "+254745678901" },
-  ],
-  2: [ // Westlands Circuit
-    { id: 5, farmerName: "Samuel Kiprotich", location: "Westlands Mall", coordinates: [-1.2676, 36.8099] as [number, number], produce: "Spinach", dropTime: "08:00 AM", status: "completed", phone: "+254756789012" },
-    { id: 6, farmerName: "Ruth Njeri", location: "Sarit Centre", coordinates: [-1.2689, 36.8076] as [number, number], produce: "Kales", dropTime: "08:45 AM", status: "completed", phone: "+254767890123" },
-    { id: 7, farmerName: "Joseph Mwangi", location: "ABC Place", coordinates: [-1.2643, 36.8123] as [number, number], produce: "Cabbages", dropTime: "09:30 AM", status: "completed", phone: "+254778901234" },
-  ],
-  3: [ // Eastlands Express
-    { id: 8, farmerName: "Agnes Wambui", location: "Eastleigh Market", coordinates: [-1.2741, 36.8441] as [number, number], produce: "Bananas", dropTime: "07:30 AM", status: "pending", phone: "+254789012345" },
-    { id: 9, farmerName: "David Omondi", location: "Donholm Shopping", coordinates: [-1.2945, 36.8876] as [number, number], produce: "Maize", dropTime: "08:15 AM", status: "pending", phone: "+254790123456" },
-    { id: 10, farmerName: "Helen Chebet", location: "Umoja Market", coordinates: [-1.2834, 36.8765] as [number, number], produce: "Beans", dropTime: "09:00 AM", status: "pending", phone: "+254701234567" },
-  ],
-  4: [ // Karen-Langata Loop
-    { id: 11, farmerName: "Michael Wekesa", location: "Karen Shopping", coordinates: [-1.3197, 36.7085] as [number, number], produce: "Avocados", dropTime: "10:00 AM", status: "in-progress", phone: "+254712345679" },
-    { id: 12, farmerName: "Susan Moraa", location: "Junction Mall", coordinates: [-1.3037, 36.7324] as [number, number], produce: "Mangoes", dropTime: "10:45 AM", status: "completed", phone: "+254723456780" },
-    { id: 13, farmerName: "Francis Kiplagat", location: "Langata Link", coordinates: [-1.3654, 36.7208] as [number, number], produce: "Oranges", dropTime: "11:30 AM", status: "pending", phone: "+254734567891" },
-  ],
+  const formatDistance = (distance: number) => {
+    return `${distance.toFixed(1)} km`
+  }
+
+  const getTimeAgo = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+    const diffDays = Math.floor(diffHours / 24)
+    
+    if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
+    if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+    return 'Just now'
+  }
+
+  // Get delivery count for this route
+  try {
+    const deliveries = await DeliveryService.getDeliveriesByRoute(route.id)
+    
+    return {
+      id: route.id,
+      name: route.name,
+      distance: route.total_distance ? formatDistance(route.total_distance) : '0 km',
+      duration: route.estimated_duration ? formatDuration(route.estimated_duration) : '0m',
+      stops: deliveries.length,
+      status: route.status,
+      driver: route.driver?.name || 'Unassigned',
+      lastUpdated: getTimeAgo(route.updated_at),
+      efficiency: route.efficiency_score || 0,
+    }
+  } catch (error) {
+    console.error('Error getting deliveries for route:', route.id, error)
+    return {
+      id: route.id,
+      name: route.name,
+      distance: route.total_distance ? formatDistance(route.total_distance) : '0 km',
+      duration: route.estimated_duration ? formatDuration(route.estimated_duration) : '0m',
+      stops: 0,
+      status: route.status,
+      driver: route.driver?.name || 'Unassigned',
+      lastUpdated: getTimeAgo(route.updated_at),
+      efficiency: route.efficiency_score || 0,
+    }
+  }
 }
 
 interface RoutesScreenProps {
@@ -91,12 +88,112 @@ interface RoutesScreenProps {
 }
 
 export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
-  const [routes, setRoutes] = useState<RouteWithDriver[]>([])
-  const [loading, setLoading] = useState(true)
+  const [routes, setRoutes] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formData, setFormData] = useState({
+    name: "",
+    start_location: "",
+    end_location: "",
+    driver_id: ""
+  })
+  const [drivers, setDrivers] = useState<any[]>([])
   const { toast } = useToast()
+
+  // Load routes from Supabase
+  const loadRoutes = async () => {
+    try {
+      setIsLoading(true)
+      setError(null)
+      
+      // Get all routes with driver information
+      const routesData = await RouteService.getAllRoutes()
+      
+      // Transform routes for UI display
+      const transformedRoutes = await Promise.all(
+        routesData.map(route => transformRouteForUI(route))
+      )
+      
+      setRoutes(transformedRoutes)
+    } catch (err) {
+      console.error('Error loading routes:', err)
+      setError('Failed to load routes. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Load drivers for the form dropdown
+  const loadDrivers = async () => {
+    try {
+      const driversData = await DriverService.getAllDrivers()
+      setDrivers(driversData)
+    } catch (error) {
+      console.error('Error loading drivers:', error)
+    }
+  }
+
+  // Load data on component mount
+  useEffect(() => {
+    loadRoutes()
+    loadDrivers()
+  }, [])
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }))
+  }
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      start_location: "",
+      end_location: "",
+      driver_id: ""
+    })
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      const routeData = {
+        name: formData.name,
+        start_location: formData.start_location,
+        end_location: formData.end_location,
+        driver_id: formData.driver_id ? parseInt(formData.driver_id) : null,
+        status: 'pending' as const,
+      }
+
+      await RouteService.createRoute(routeData)
+      
+      // Reset form and close dialog
+      resetForm()
+      setIsAddDialogOpen(false)
+      
+      // Refresh routes list
+      await loadRoutes()
+      
+      toast({
+        title: "Success",
+        description: "Route created successfully!",
+      })
+      
+    } catch (error) {
+      console.error('Error creating route:', error)
+      toast({
+        title: "Error",
+        description: "Failed to create route. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   const filteredRoutes = routes.filter((route) => {
     const matchesSearch = route.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -112,59 +209,23 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         return "bg-blue-100 text-blue-800 border-blue-200"
       case "pending":
         return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      case "cancelled":
+        return "bg-red-100 text-red-800 border-red-200"
       default:
         return "bg-gray-100 text-gray-600 border-gray-200"
     }
   }
 
-  // Load routes from Supabase
-  useEffect(() => {
-    loadRoutes()
-  }, [])
-
-  const loadRoutes = async () => {
+  const handleViewMap = async (route: any) => {
     try {
-      setLoading(true)
-      // Temporarily use simple method without joins
-      const simpleData = await RouteService.getAllRoutesSimple()
-      
-      // Transform to match expected interface
-      const data = simpleData.map(route => ({
-        ...route,
-        driver: null // We'll add driver info later
-      }))
-      
-      setRoutes(data)
-    } catch (error) {
-      console.error('Error loading routes:', error)
-      toast({
-        title: "Error",
-        description: "Failed to load routes. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleViewMap = async (route: RouteWithDriver) => {
-    try {
-      const deliveries = await DeliveryService.getDeliveriesByRoute(route.id)
-      
-      // Transform route to expected format
-      const transformedRoute = {
-        id: route.id,
-        name: route.name,
-        distance: route.total_distance ? `${route.total_distance.toFixed(1)} km` : '0 km',
-        duration: route.estimated_duration ? `${Math.floor(route.estimated_duration / 60)}h ${route.estimated_duration % 60}m` : '0h 0m',
-        stops: deliveries.length,
-        status: route.status,
-        driver: route.driver?.name || 'Unassigned',
-        lastUpdated: new Date(route.updated_at).toLocaleString(),
-        efficiency: route.efficiency_score || 0
+      // Find the full route data to get the database ID
+      const fullRoute = routes.find(r => r.id === route.id)
+      if (!fullRoute) {
+        throw new Error('Route not found')
       }
-      
-      onViewRouteMap(transformedRoute, deliveries)
+
+      const deliveries = await DeliveryService.getDeliveriesByRoute(fullRoute.id)
+      onViewRouteMap(route, deliveries)
     } catch (error) {
       console.error('Error loading route deliveries:', error)
       toast({
@@ -198,6 +259,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
               <SelectItem value="active">Active</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
               <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -206,6 +268,14 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
             <Download className="h-4 w-4 mr-2" />
             Export
           </Button>
+          <Button 
+            variant="outline" 
+            onClick={loadRoutes}
+            className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
+          >
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
           <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700 text-white">
@@ -213,60 +283,119 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                 Add Route
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-white border-gray-200">
+            <DialogContent className="bg-white border-gray-200 max-w-md">
               <DialogHeader>
                 <DialogTitle className="text-gray-900">Add New Route</DialogTitle>
               </DialogHeader>
-              <div className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <Label htmlFor="routeName" className="text-gray-700">
-                    Route Name
+                    Route Name *
                   </Label>
-                  <Input id="routeName" placeholder="Enter route name" className="bg-white border-gray-300" />
+                  <Input
+                    id="routeName"
+                    placeholder="Enter route name"
+                    className="bg-white border-gray-300"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange("name", e.target.value)}
+                    required
+                  />
                 </div>
                 <div>
-                  <Label htmlFor="description" className="text-gray-700">
-                    Description
+                  <Label htmlFor="startLocation" className="text-gray-700">
+                    Start Location *
                   </Label>
-                  <Textarea id="description" placeholder="Route description" className="bg-white border-gray-300" />
+                  <Input
+                    id="startLocation"
+                    placeholder="Starting point"
+                    className="bg-white border-gray-300"
+                    value={formData.start_location}
+                    onChange={(e) => handleInputChange("start_location", e.target.value)}
+                    required
+                  />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="startPoint" className="text-gray-700">
-                      Start Point
-                    </Label>
-                    <Input id="startPoint" placeholder="Starting location" className="bg-white border-gray-300" />
-                  </div>
-                  <div>
-                    <Label htmlFor="endPoint" className="text-gray-700">
-                      End Point
-                    </Label>
-                    <Input id="endPoint" placeholder="Ending location" className="bg-white border-gray-300" />
-                  </div>
+                <div>
+                  <Label htmlFor="endLocation" className="text-gray-700">
+                    End Location *
+                  </Label>
+                  <Input
+                    id="endLocation"
+                    placeholder="Ending point"
+                    className="bg-white border-gray-300"
+                    value={formData.end_location}
+                    onChange={(e) => handleInputChange("end_location", e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="driver" className="text-gray-700">
+                    Assign Driver (Optional)
+                  </Label>
+                  <Select value={formData.driver_id} onValueChange={(value) => handleInputChange("driver_id", value)}>
+                    <SelectTrigger className="bg-white border-gray-300">
+                      <SelectValue placeholder="Select a driver" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-gray-200">
+                      <SelectItem value="">Unassigned</SelectItem>
+                      {drivers.map((driver) => (
+                        <SelectItem key={driver.id} value={driver.id.toString()}>
+                          {driver.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex justify-end space-x-2">
                   <Button
+                    type="button"
                     variant="outline"
-                    onClick={() => setIsAddDialogOpen(false)}
+                    onClick={() => {
+                      resetForm()
+                      setIsAddDialogOpen(false)
+                    }}
                     className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
                   >
                     Cancel
                   </Button>
-                  <Button className="bg-blue-600 hover:bg-blue-700 text-white">Create Route</Button>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isSubmitting ? "Creating..." : "Create Route"}
+                  </Button>
                 </div>
-              </div>
+              </form>
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
-      {/* Routes Grid */}
-      {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-          <span className="ml-2 text-gray-600">Loading routes...</span>
+      {/* Loading State */}
+      {isLoading && (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Loading routes...</p>
         </div>
-      ) : (
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div className="text-center py-12">
+          <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Error loading routes</h3>
+          <p className="text-gray-500 mb-4">{error}</p>
+          <Button 
+            onClick={loadRoutes}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            Try Again
+          </Button>
+        </div>
+      )}
+
+      {/* Routes Grid */}
+      {!isLoading && !error && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredRoutes.map((route) => (
             <Card key={route.id} className="bg-white border border-gray-200 hover:shadow-md transition-shadow">
@@ -349,14 +478,17 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
       )}
 
       {/* Empty State */}
-      {filteredRoutes.length === 0 && (
+      {!isLoading && !error && filteredRoutes.length === 0 && (
         <div className="text-center py-12">
           <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">No routes found</h3>
           <p className="text-gray-500 mb-4">Try adjusting your search or filter criteria</p>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button 
+            onClick={() => setIsAddDialogOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white"
+          >
             <Plus className="h-4 w-4 mr-2" />
-            Create First Route
+            Add First Route
           </Button>
         </div>
       )}

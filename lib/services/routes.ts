@@ -17,69 +17,142 @@ export interface RouteWithDriver extends Route {
 
 export class RouteService {
   static async getAllRoutes(): Promise<RouteWithDriver[]> {
-    const { data, error } = await supabase
+    // First get all routes
+    const { data: routesData, error: routesError } = await supabase
       .from('routes')
-      .select(`
-        *,
-        drivers(id, name, phone, vehicle_type)
-      `)
+      .select('*')
       .order('created_at', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching routes:', error)
-      throw error
+    if (routesError) {
+      console.error('Error fetching routes:', routesError)
+      throw routesError
     }
 
+    if (!routesData || routesData.length === 0) {
+      return []
+    }
+
+    // Get all unique driver IDs
+    const driverIds = [...new Set(routesData
+      .map(route => route.driver_id)
+      .filter(id => id !== null)
+    )]
+
+    // Fetch drivers data if there are any driver IDs
+    let driversData: any[] = []
+    if (driverIds.length > 0) {
+      const { data: drivers, error: driversError } = await supabase
+        .from('drivers')
+        .select('id, name, phone, vehicle_type')
+        .in('id', driverIds)
+
+      if (driversError) {
+        console.error('Error fetching drivers:', driversError)
+        // Don't throw here, just continue without driver data
+      } else {
+        driversData = drivers || []
+      }
+    }
+
+    // Create a map for quick driver lookup
+    const driversMap = new Map(
+      driversData.map(driver => [driver.id, driver])
+    )
+
     // Transform the data to match our interface
-    return (data || []).map(route => ({
+    return routesData.map(route => ({
       ...route,
-      driver: route.drivers ? route.drivers : null
+      driver: route.driver_id ? driversMap.get(route.driver_id) || null : null
     }))
   }
 
   static async getRouteById(id: number): Promise<RouteWithDriver | null> {
-    const { data, error } = await supabase
+    // First get the route
+    const { data: routeData, error: routeError } = await supabase
       .from('routes')
-      .select(`
-        *,
-        drivers(id, name, phone, vehicle_type)
-      `)
+      .select('*')
       .eq('id', id)
       .single()
 
-    if (error && error.code !== 'PGRST116') {
-      console.error('Error fetching route:', error)
-      throw error
+    if (routeError && routeError.code !== 'PGRST116') {
+      console.error('Error fetching route:', routeError)
+      throw routeError
     }
 
-    if (!data) return null
+    if (!routeData) return null
+
+    // Get driver data if route has a driver assigned
+    let driverData = null
+    if (routeData.driver_id) {
+      const { data: driver, error: driverError } = await supabase
+        .from('drivers')
+        .select('id, name, phone, vehicle_type')
+        .eq('id', routeData.driver_id)
+        .single()
+
+      if (driverError && driverError.code !== 'PGRST116') {
+        console.error('Error fetching driver for route:', driverError)
+        // Don't throw here, just continue without driver data
+      } else {
+        driverData = driver
+      }
+    }
 
     // Transform the data to match our interface
     return {
-      ...data,
-      driver: data.drivers ? data.drivers : null
+      ...routeData,
+      driver: driverData
     }
   }
 
   static async getActiveRoutes(): Promise<RouteWithDriver[]> {
-    const { data, error } = await supabase
+    // First get active routes
+    const { data: routesData, error: routesError } = await supabase
       .from('routes')
-      .select(`
-        *,
-        drivers(id, name, phone, vehicle_type)
-      `)
+      .select('*')
       .eq('status', 'active')
       .order('created_at', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching active routes:', error)
-      throw error
+    if (routesError) {
+      console.error('Error fetching active routes:', routesError)
+      throw routesError
     }
 
+    if (!routesData || routesData.length === 0) {
+      return []
+    }
+
+    // Get all unique driver IDs
+    const driverIds = [...new Set(routesData
+      .map(route => route.driver_id)
+      .filter(id => id !== null)
+    )]
+
+    // Fetch drivers data if there are any driver IDs
+    let driversData: any[] = []
+    if (driverIds.length > 0) {
+      const { data: drivers, error: driversError } = await supabase
+        .from('drivers')
+        .select('id, name, phone, vehicle_type')
+        .in('id', driverIds)
+
+      if (driversError) {
+        console.error('Error fetching drivers:', driversError)
+        // Don't throw here, just continue without driver data
+      } else {
+        driversData = drivers || []
+      }
+    }
+
+    // Create a map for quick driver lookup
+    const driversMap = new Map(
+      driversData.map(driver => [driver.id, driver])
+    )
+
     // Transform the data to match our interface
-    return (data || []).map(route => ({
+    return routesData.map(route => ({
       ...route,
-      driver: route.drivers ? route.drivers : null
+      driver: route.driver_id ? driversMap.get(route.driver_id) || null : null
     }))
   }
 
@@ -165,24 +238,38 @@ export class RouteService {
   }
 
   static async getRoutesByDriver(driverId: number): Promise<RouteWithDriver[]> {
-    const { data, error } = await supabase
+    // First get routes for the driver
+    const { data: routesData, error: routesError } = await supabase
       .from('routes')
-      .select(`
-        *,
-        drivers(id, name, phone, vehicle_type)
-      `)
+      .select('*')
       .eq('driver_id', driverId)
       .order('created_at', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching routes by driver:', error)
-      throw error
+    if (routesError) {
+      console.error('Error fetching routes by driver:', routesError)
+      throw routesError
+    }
+
+    if (!routesData || routesData.length === 0) {
+      return []
+    }
+
+    // Get the driver data
+    const { data: driverData, error: driverError } = await supabase
+      .from('drivers')
+      .select('id, name, phone, vehicle_type')
+      .eq('id', driverId)
+      .single()
+
+    if (driverError && driverError.code !== 'PGRST116') {
+      console.error('Error fetching driver:', driverError)
+      // Don't throw here, just continue without driver data
     }
 
     // Transform the data to match our interface
-    return (data || []).map(route => ({
+    return routesData.map(route => ({
       ...route,
-      driver: route.drivers ? route.drivers : null
+      driver: driverData || null
     }))
   }
 
