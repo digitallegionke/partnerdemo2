@@ -2,6 +2,7 @@
 
 import { BarChart3, TrendingUp, Timer, Package, Truck, MapPin, ArrowUpRight } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
+import RoutesTest from "@/components/routes-test"
 
 export default function AnalyticsScreen() {
   // placeholder KPI data
@@ -16,6 +17,11 @@ export default function AnalyticsScreen() {
   return (
     <div className="p-6 bg-white space-y-6">
       <h2 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h2>
+      
+      {/* Temporary Routes Test */}
+      <div className="flex justify-start">
+        <RoutesTest />
+      </div>
 
       {/* KPI cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

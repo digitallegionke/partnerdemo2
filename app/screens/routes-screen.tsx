@@ -125,7 +125,15 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
   const loadRoutes = async () => {
     try {
       setLoading(true)
-      const data = await RouteService.getAllRoutes()
+      // Temporarily use simple method without joins
+      const simpleData = await RouteService.getAllRoutesSimple()
+      
+      // Transform to match expected interface
+      const data = simpleData.map(route => ({
+        ...route,
+        driver: null // We'll add driver info later
+      }))
+      
       setRoutes(data)
     } catch (error) {
       console.error('Error loading routes:', error)

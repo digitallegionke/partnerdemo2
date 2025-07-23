@@ -21,7 +21,7 @@ export class RouteService {
       .from('routes')
       .select(`
         *,
-        driver:drivers(id, name, phone, vehicle_type)
+        drivers(id, name, phone, vehicle_type)
       `)
       .order('created_at', { ascending: false })
 
@@ -30,7 +30,11 @@ export class RouteService {
       throw error
     }
 
-    return data || []
+    // Transform the data to match our interface
+    return (data || []).map(route => ({
+      ...route,
+      driver: route.drivers ? route.drivers : null
+    }))
   }
 
   static async getRouteById(id: number): Promise<RouteWithDriver | null> {
@@ -38,7 +42,7 @@ export class RouteService {
       .from('routes')
       .select(`
         *,
-        driver:drivers(id, name, phone, vehicle_type)
+        drivers(id, name, phone, vehicle_type)
       `)
       .eq('id', id)
       .single()
@@ -48,7 +52,13 @@ export class RouteService {
       throw error
     }
 
-    return data
+    if (!data) return null
+
+    // Transform the data to match our interface
+    return {
+      ...data,
+      driver: data.drivers ? data.drivers : null
+    }
   }
 
   static async getActiveRoutes(): Promise<RouteWithDriver[]> {
@@ -56,7 +66,7 @@ export class RouteService {
       .from('routes')
       .select(`
         *,
-        driver:drivers(id, name, phone, vehicle_type)
+        drivers(id, name, phone, vehicle_type)
       `)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
@@ -66,7 +76,11 @@ export class RouteService {
       throw error
     }
 
-    return data || []
+    // Transform the data to match our interface
+    return (data || []).map(route => ({
+      ...route,
+      driver: route.drivers ? route.drivers : null
+    }))
   }
 
   static async createRoute(route: RouteInsert): Promise<Route> {
@@ -155,13 +169,32 @@ export class RouteService {
       .from('routes')
       .select(`
         *,
-        driver:drivers(id, name, phone, vehicle_type)
+        drivers(id, name, phone, vehicle_type)
       `)
       .eq('driver_id', driverId)
       .order('created_at', { ascending: false })
 
     if (error) {
       console.error('Error fetching routes by driver:', error)
+      throw error
+    }
+
+    // Transform the data to match our interface
+    return (data || []).map(route => ({
+      ...route,
+      driver: route.drivers ? route.drivers : null
+    }))
+  }
+
+  // Fallback method without joins for testing
+  static async getAllRoutesSimple(): Promise<Route[]> {
+    const { data, error } = await supabase
+      .from('routes')
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching routes (simple):', error)
       throw error
     }
 
