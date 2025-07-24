@@ -5,9 +5,9 @@ import { Toaster } from "@/components/ui/toaster"
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
-  generator: 'v0.dev',
+  title: 'Roundi - Delivery Management Platform',
+  description: 'Streamline your delivery operations with smart route planning, driver management, and real-time tracking.',
+  generator: 'Roundi',
 }
 
 export default function RootLayout({

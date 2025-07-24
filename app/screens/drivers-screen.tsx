@@ -216,7 +216,11 @@ export default function DriversScreen() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-end mb-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Drivers</h1>
+              <p className="text-gray-600 mt-1">Manage your delivery team and assignments</p>
+            </div>
             <div className="flex items-center gap-3">
               <Button 
                 variant="outline" 

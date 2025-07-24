@@ -89,7 +89,11 @@ export default function OptimizeScreen() {
   return (
     <div className="p-6 bg-white">
       {/* Header */}
-      <div className="flex items-center justify-end mb-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Route Optimization</h1>
+          <p className="text-gray-600 mt-1">Optimize your routes for maximum efficiency</p>
+        </div>
         <div className="flex items-center space-x-2">
           <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white">
             <Download className="h-4 w-4 mr-2" />

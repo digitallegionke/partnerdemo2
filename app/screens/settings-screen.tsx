@@ -104,240 +104,248 @@ export default function SettingsScreen() {
   }
 
   return (
-    <div className="p-6 bg-white space-y-6 max-w-4xl">
-      {/* Profile Settings */}
-      <Card className="bg-white border border-gray-200">
-        <CardHeader>
-          <CardTitle className="text-gray-900 flex items-center">
-            <User className="h-5 w-5 mr-2" />
-            Profile Information
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center space-x-4">
-            <Avatar className="h-16 w-16">
-              <AvatarImage src="/placeholder.svg?height=64&width=64" />
-              <AvatarFallback className="bg-gray-100 text-gray-600 text-lg">DM</AvatarFallback>
-            </Avatar>
-            <div>
-              <h3 className="font-semibold text-gray-900">David Manager</h3>
-              <p className="text-sm text-gray-500">Operations Lead</p>
-              <Button variant="outline" size="sm" className="mt-2">
-                Change Photo
+    <div className="p-6 bg-white">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+        <p className="text-gray-600 mt-1">Manage your account, team, and app preferences</p>
+      </div>
+
+      <div className="max-w-4xl mx-auto space-y-8">
+        {/* Profile Settings */}
+        <Card className="bg-white border border-gray-200">
+          <CardHeader>
+            <CardTitle className="text-gray-900 flex items-center">
+              <User className="h-5 w-5 mr-2" />
+              Profile Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center space-x-4">
+              <Avatar className="h-16 w-16">
+                <AvatarImage src="/placeholder.svg?height=64&width=64" />
+                <AvatarFallback className="bg-gray-100 text-gray-600 text-lg">DM</AvatarFallback>
+              </Avatar>
+              <div>
+                <h3 className="font-semibold text-gray-900">David Manager</h3>
+                <p className="text-sm text-gray-500">Operations Lead</p>
+                <Button variant="outline" size="sm" className="mt-2">
+                  Change Photo
+                </Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="firstName" className="text-gray-700">First Name</Label>
+                <Input id="firstName" defaultValue="David" className="bg-white border-gray-300" />
+              </div>
+              <div>
+                <Label htmlFor="lastName" className="text-gray-700">Last Name</Label>
+                <Input id="lastName" defaultValue="Manager" className="bg-white border-gray-300" />
+              </div>
+              <div>
+                <Label htmlFor="email" className="text-gray-700">Email</Label>
+                <Input id="email" type="email" defaultValue="david@roundi.co" className="bg-white border-gray-300" />
+              </div>
+              <div>
+                <Label htmlFor="phone" className="text-gray-700">Phone</Label>
+                <Input id="phone" defaultValue="+254 712 345 678" className="bg-white border-gray-300" />
+              </div>
+            </div>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Profile</Button>
+          </CardContent>
+        </Card>
+
+        {/* Company Settings */}
+        <Card className="bg-white border border-gray-200">
+          <CardHeader>
+            <CardTitle className="text-gray-900 flex items-center">
+              <Building className="h-5 w-5 mr-2" />
+              Company Information
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="companyName" className="text-gray-700">Company Name</Label>
+                <Input id="companyName" defaultValue="Roundi Logistics" className="bg-white border-gray-300" />
+              </div>
+              <div>
+                <Label htmlFor="industry" className="text-gray-700">Industry</Label>
+                <Select defaultValue="logistics">
+                  <SelectTrigger className="bg-white border-gray-300">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="logistics">Logistics & Transportation</SelectItem>
+                    <SelectItem value="ecommerce">E-commerce</SelectItem>
+                    <SelectItem value="food">Food & Beverage</SelectItem>
+                    <SelectItem value="retail">Retail</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <Label htmlFor="address" className="text-gray-700">Address</Label>
+                <Input id="address" defaultValue="123 Logistics Avenue, Nairobi, Kenya" className="bg-white border-gray-300" />
+              </div>
+            </div>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Company Info</Button>
+          </CardContent>
+        </Card>
+
+        {/* Team Management */}
+        <Card className="bg-white border border-gray-200">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-gray-900 flex items-center">
+                <Users className="h-5 w-5 mr-2" />
+                Team Management
+              </CardTitle>
+              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+                <UserPlus className="h-4 w-4 mr-2" />
+                Invite User
               </Button>
             </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="firstName" className="text-gray-700">First Name</Label>
-              <Input id="firstName" defaultValue="David" className="bg-white border-gray-300" />
-            </div>
-            <div>
-              <Label htmlFor="lastName" className="text-gray-700">Last Name</Label>
-              <Input id="lastName" defaultValue="Manager" className="bg-white border-gray-300" />
-            </div>
-            <div>
-              <Label htmlFor="email" className="text-gray-700">Email</Label>
-              <Input id="email" type="email" defaultValue="david@roundi.co" className="bg-white border-gray-300" />
-            </div>
-            <div>
-              <Label htmlFor="phone" className="text-gray-700">Phone</Label>
-              <Input id="phone" defaultValue="+254 712 345 678" className="bg-white border-gray-300" />
-            </div>
-          </div>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Profile</Button>
-        </CardContent>
-      </Card>
-
-      {/* Company Settings */}
-      <Card className="bg-white border border-gray-200">
-        <CardHeader>
-          <CardTitle className="text-gray-900 flex items-center">
-            <Building className="h-5 w-5 mr-2" />
-            Company Information
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="companyName" className="text-gray-700">Company Name</Label>
-              <Input id="companyName" defaultValue="Roundi Logistics" className="bg-white border-gray-300" />
-            </div>
-            <div>
-              <Label htmlFor="industry" className="text-gray-700">Industry</Label>
-              <Select defaultValue="logistics">
-                <SelectTrigger className="bg-white border-gray-300">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="logistics">Logistics & Transportation</SelectItem>
-                  <SelectItem value="ecommerce">E-commerce</SelectItem>
-                  <SelectItem value="food">Food & Beverage</SelectItem>
-                  <SelectItem value="retail">Retail</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="md:col-span-2">
-              <Label htmlFor="address" className="text-gray-700">Address</Label>
-              <Input id="address" defaultValue="123 Logistics Avenue, Nairobi, Kenya" className="bg-white border-gray-300" />
-            </div>
-          </div>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Company Info</Button>
-        </CardContent>
-      </Card>
-
-      {/* Team Management */}
-      <Card className="bg-white border border-gray-200">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-gray-900 flex items-center">
-              <Users className="h-5 w-5 mr-2" />
-              Team Management
-            </CardTitle>
-            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
-              <UserPlus className="h-4 w-4 mr-2" />
-              Invite User
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {[
-              { name: "David Manager", role: "Admin", email: "david@roundi.co", status: "Active" },
-              { name: "Sarah Johnson", role: "Manager", email: "sarah@roundi.co", status: "Active" },
-              { name: "Mike Wilson", role: "Driver", email: "mike@roundi.co", status: "Pending" },
-            ].map((user, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <Avatar className="h-8 w-8">
-                    <AvatarFallback className="bg-gray-200 text-gray-600 text-sm">
-                      {user.name.split(' ').map(n => n[0]).join('')}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="font-medium text-gray-900">{user.name}</p>
-                    <p className="text-sm text-gray-500">{user.email}</p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {[
+                { name: "David Manager", role: "Admin", email: "david@roundi.co", status: "Active" },
+                { name: "Sarah Johnson", role: "Manager", email: "sarah@roundi.co", status: "Active" },
+                { name: "Mike Wilson", role: "Driver", email: "mike@roundi.co", status: "Pending" },
+              ].map((user, index) => (
+                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-gray-200 text-gray-600 text-sm">
+                        {user.name.split(' ').map(n => n[0]).join('')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium text-gray-900">{user.name}</p>
+                      <p className="text-sm text-gray-500">{user.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Badge variant={user.status === "Active" ? "default" : "secondary"} className="text-xs">
+                      {user.status}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">{user.role}</Badge>
+                    <Button variant="ghost" size="sm" className="text-gray-400">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Badge variant={user.status === "Active" ? "default" : "secondary"} className="text-xs">
-                    {user.status}
-                  </Badge>
-                  <Badge variant="outline" className="text-xs">{user.role}</Badge>
-                  <Button variant="ghost" size="sm" className="text-gray-400">
-                    <MoreVertical className="h-4 w-4" />
-                  </Button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Notifications */}
+        <Card className="bg-white border border-gray-200">
+          <CardHeader>
+            <CardTitle className="text-gray-900 flex items-center">
+              <Bell className="h-5 w-5 mr-2" />
+              Notification Preferences
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="emailNotifications" className="text-gray-700">Email Notifications</Label>
+                  <p className="text-sm text-gray-500">Receive delivery updates via email</p>
                 </div>
+                <Switch id="emailNotifications" defaultChecked />
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="smsNotifications" className="text-gray-700">SMS Notifications</Label>
+                  <p className="text-sm text-gray-500">Get urgent notifications via SMS</p>
+                </div>
+                <Switch id="smsNotifications" />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label htmlFor="pushNotifications" className="text-gray-700">Push Notifications</Label>
+                  <p className="text-sm text-gray-500">Browser push notifications</p>
+                </div>
+                <Switch id="pushNotifications" defaultChecked />
+              </div>
+            </div>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Preferences</Button>
+          </CardContent>
+        </Card>
 
-      {/* Notifications */}
-      <Card className="bg-white border border-gray-200">
-        <CardHeader>
-          <CardTitle className="text-gray-900 flex items-center">
-            <Bell className="h-5 w-5 mr-2" />
-            Notification Preferences
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="emailNotifications" className="text-gray-700">Email Notifications</Label>
-                <p className="text-sm text-gray-500">Receive delivery updates via email</p>
-              </div>
-              <Switch id="emailNotifications" defaultChecked />
+        {/* Help & Support */}
+        <Card className="bg-white border border-gray-200">
+          <CardHeader>
+            <CardTitle className="text-gray-900 flex items-center">
+              <HelpCircle className="h-5 w-5 mr-2" />
+              Help & Support
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
+                <FileText className="h-5 w-5 mb-1" />
+                Documentation
+              </Button>
+              <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
+                <MessageSquare className="h-5 w-5 mb-1" />
+                Contact Support
+              </Button>
+              <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
+                <Phone className="h-5 w-5 mb-1" />
+                Call: +254 712 345 678
+              </Button>
+              <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
+                <Mail className="h-5 w-5 mb-1" />
+                Email Support
+              </Button>
             </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="smsNotifications" className="text-gray-700">SMS Notifications</Label>
-                <p className="text-sm text-gray-500">Get urgent notifications via SMS</p>
-              </div>
-              <Switch id="smsNotifications" />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="pushNotifications" className="text-gray-700">Push Notifications</Label>
-                <p className="text-sm text-gray-500">Browser push notifications</p>
-              </div>
-              <Switch id="pushNotifications" defaultChecked />
-            </div>
-          </div>
-          <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Preferences</Button>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {/* Help & Support */}
-      <Card className="bg-white border border-gray-200">
-        <CardHeader>
-          <CardTitle className="text-gray-900 flex items-center">
-            <HelpCircle className="h-5 w-5 mr-2" />
-            Help & Support
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
-              <FileText className="h-5 w-5 mb-1" />
-              Documentation
-            </Button>
-            <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
-              <MessageSquare className="h-5 w-5 mb-1" />
-              Contact Support
-            </Button>
-            <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
-              <Phone className="h-5 w-5 mb-1" />
-              Call: +254 712 345 678
-            </Button>
-            <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
-              <Mail className="h-5 w-5 mb-1" />
-              Email Support
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Security */}
-      <Card className="bg-white border border-gray-200">
-        <CardHeader>
-          <CardTitle className="text-gray-900 flex items-center">
-            <Shield className="h-5 w-5 mr-2" />
-            Security & Privacy
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-gray-700">Two-Factor Authentication</Label>
-                <p className="text-sm text-gray-500">Add extra security to your account</p>
+        {/* Security */}
+        <Card className="bg-white border border-gray-200">
+          <CardHeader>
+            <CardTitle className="text-gray-900 flex items-center">
+              <Shield className="h-5 w-5 mr-2" />
+              Security & Privacy
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-gray-700">Two-Factor Authentication</Label>
+                  <p className="text-sm text-gray-500">Add extra security to your account</p>
+                </div>
+                <Button variant="outline" size="sm">Enable</Button>
               </div>
-              <Button variant="outline" size="sm">Enable</Button>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-gray-700">Password</Label>
-                <p className="text-sm text-gray-500">Last changed 3 months ago</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-gray-700">Password</Label>
+                  <p className="text-sm text-gray-500">Last changed 3 months ago</p>
+                </div>
+                <Button variant="outline" size="sm">Change Password</Button>
               </div>
-              <Button variant="outline" size="sm">Change Password</Button>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-gray-700">API Keys</Label>
-                <p className="text-sm text-gray-500">Manage integration keys</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-gray-700">API Keys</Label>
+                  <p className="text-sm text-gray-500">Manage integration keys</p>
+                </div>
+                <Button variant="outline" size="sm">Manage Keys</Button>
               </div>
-              <Button variant="outline" size="sm">Manage Keys</Button>
             </div>
-          </div>
-          <Button variant="destructive" className="w-full">
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete Account
-          </Button>
-        </CardContent>
-      </Card>
+            <Button variant="destructive" className="w-full">
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Account
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }

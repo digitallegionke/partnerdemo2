@@ -442,7 +442,11 @@ export default function DeliveriesScreen() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center justify-end mb-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Deliveries</h1>
+              <p className="text-gray-600 mt-1">Track and manage all your deliveries</p>
+            </div>
             <div className="flex items-center gap-3">
               <Button variant="outline" size="sm" className="text-gray-600">
                 <Download className="h-4 w-4 mr-2" />

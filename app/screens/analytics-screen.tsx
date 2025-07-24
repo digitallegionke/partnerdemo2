@@ -16,6 +16,12 @@ export default function AnalyticsScreen() {
 
   return (
     <div className="p-6 bg-white space-y-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
+        <p className="text-gray-600 mt-1">Track your delivery performance and insights</p>
+      </div>
+
       {/* Temporary Routes Test */}
       <div className="flex justify-start">
         <RoutesTest />
