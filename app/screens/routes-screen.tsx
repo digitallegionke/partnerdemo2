@@ -495,6 +495,114 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
               </form>
             </DialogContent>
           </Dialog>
+
+          {/* Edit Route Dialog */}
+          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+            <DialogContent className="bg-white border-gray-200 max-w-md overflow-visible">
+              <DialogHeader>
+                <DialogTitle className="text-gray-900">Edit Route</DialogTitle>
+                <DialogDescription>
+                  Update route information, locations, and driver assignment.
+                </DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleUpdateRoute} className="space-y-4 overflow-visible">
+                <div>
+                  <Label htmlFor="editRouteName" className="text-gray-700">
+                    Route Name *
+                  </Label>
+                  <Input
+                    id="editRouteName"
+                    placeholder="Enter route name"
+                    className="bg-white border-gray-300"
+                    value={formData.name}
+                    onChange={(e) => handleInputChange("name", e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editStartLocation" className="text-gray-700">
+                    Start Location
+                  </Label>
+                  <AddressSearch
+                    value={formData.start_location}
+                    onSelect={(result) => {
+                      handleInputChange("start_location", result.display_name);
+                      handleInputChange("start_latitude", result.coordinates[0].toString());
+                      handleInputChange("start_longitude", result.coordinates[1].toString());
+                    }}
+                    placeholder="Search for starting point"
+                    className="mt-1"
+                    countryCode="ke"
+                  />
+                  {formData.start_latitude && formData.start_longitude && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Coordinates: {parseFloat(formData.start_latitude).toFixed(4)}, {parseFloat(formData.start_longitude).toFixed(4)}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="editEndLocation" className="text-gray-700">
+                    End Location
+                  </Label>
+                  <AddressSearch
+                    value={formData.end_location}
+                    onSelect={(result) => {
+                      handleInputChange("end_location", result.display_name);
+                      handleInputChange("end_latitude", result.coordinates[0].toString());
+                      handleInputChange("end_longitude", result.coordinates[1].toString());
+                    }}
+                    placeholder="Search for ending point"
+                    className="mt-1"
+                    countryCode="ke"
+                  />
+                  {formData.end_latitude && formData.end_longitude && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Coordinates: {parseFloat(formData.end_latitude).toFixed(4)}, {parseFloat(formData.end_longitude).toFixed(4)}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <Label htmlFor="editDriver" className="text-gray-700">
+                    Assign Driver
+                  </Label>
+                  <Select value={formData.driver_id} onValueChange={(value) => handleInputChange("driver_id", value)}>
+                    <SelectTrigger className="bg-white border-gray-300">
+                      <SelectValue placeholder="Select a driver" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-white border-gray-200">
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {drivers.map((driver) => (
+                        <SelectItem key={driver.id} value={driver.id.toString()}>
+                          {driver.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      resetForm()
+                      setIsEditDialogOpen(false)
+                      setEditingRoute(null)
+                    }}
+                    className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isSubmitting ? "Updating..." : "Update Route"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -573,6 +681,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                       size="sm"
                       variant="outline"
                       className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
+                      onClick={() => handleEditRoute(route)}
                     >
                       <Edit className="h-4 w-4 mr-2" />
                       Edit
