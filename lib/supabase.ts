@@ -147,6 +147,44 @@ export interface Database {
           applied?: boolean
         }
       }
+      schedules: {
+        Row: {
+          id: number
+          title: string
+          route_id: number | null
+          driver_id: number | null
+          scheduled_date: string
+          start_time: string
+          end_time: string
+          status: 'scheduled' | 'in-progress' | 'completed' | 'cancelled'
+          priority: 'low' | 'medium' | 'high'
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          title: string
+          route_id?: number | null
+          driver_id?: number | null
+          scheduled_date: string
+          start_time: string
+          end_time: string
+          status?: 'scheduled' | 'in-progress' | 'completed' | 'cancelled'
+          priority?: 'low' | 'medium' | 'high'
+          notes?: string | null
+        }
+        Update: {
+          title?: string
+          route_id?: number | null
+          driver_id?: number | null
+          scheduled_date?: string
+          start_time?: string
+          end_time?: string
+          status?: 'scheduled' | 'in-progress' | 'completed' | 'cancelled'
+          priority?: 'low' | 'medium' | 'high'
+          notes?: string | null
+        }
+      }
     }
     Views: {
       [_ in never]: never
