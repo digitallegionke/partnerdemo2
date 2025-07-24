@@ -284,7 +284,7 @@ export class DeliveryService {
     start_time: string // HH:MM format
     end_time: string // HH:MM format
     notes?: string
-    status?: 'pending' | 'approved' | 'in-progress' | 'completed' | 'failed'
+    status?: 'pending' | 'in-progress' | 'completed' | 'failed'
   }): Promise<Delivery> {
     try {
       // Default coordinates to Nairobi if not provided
@@ -292,22 +292,18 @@ export class DeliveryService {
       const coords = delivery.coordinates || defaultCoordinates
 
       const deliveryData = {
-        customer_name: delivery.customer_name,
+        farmer_name: delivery.customer_name, // Map customer_name to farmer_name for DB
         location: delivery.location,
         coordinates: {
           type: 'Point',
           coordinates: [coords[1], coords[0]] // GeoJSON format: [longitude, latitude]
         },
-        item: delivery.item,
+        produce: delivery.item, // Map item to produce for DB
         estimated_value: delivery.estimated_value,
         weight: delivery.weight,
         phone: delivery.phone,
         drop_time: delivery.start_time, // Use start_time as drop_time for now
-        status: delivery.status || 'pending',
-        // Store calendar-specific data in a JSON field if available, or create separate table
-        scheduled_date: delivery.scheduled_date,
-        end_time: delivery.end_time,
-        notes: delivery.notes
+        status: delivery.status || 'pending'
       }
 
       console.log('Creating calendar delivery with data:', deliveryData)
@@ -335,7 +331,7 @@ export class DeliveryService {
     title: string
     start: Date
     end: Date
-    status: 'pending' | 'approved' | 'in-progress' | 'completed' | 'failed'
+    status: 'pending' | 'in-progress' | 'completed' | 'failed'
     location: string
     customer_name: string
     item: string

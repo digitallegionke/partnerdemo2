@@ -19,7 +19,8 @@ import {
   DollarSign,
   FileText,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Navigation
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -42,7 +43,7 @@ interface CalendarEvent {
   title: string
   start: Date
   end: Date
-  status: 'pending' | 'approved' | 'in-progress' | 'completed' | 'failed'
+  status: 'pending' | 'in-progress' | 'completed' | 'failed'
   location: string
   customer_name: string
   item: string
@@ -89,11 +90,32 @@ export default function ScheduleScreen() {
       setIsLoading(true)
       setError(null)
       
+      // Load data with proper error handling for each service
+      const deliveriesPromise = DeliveryService.getDeliveriesForCalendar().catch(err => {
+        console.warn('Error loading calendar deliveries:', err)
+        return []
+      })
+      
+      const routesPromise = RouteService.getAllRoutes().catch(err => {
+        console.warn('Error loading routes:', err)
+        return []
+      })
+      
+      const unscheduledPromise = DeliveryService.getDeliveriesByStatus('pending').catch(err => {
+        console.warn('Error loading unscheduled deliveries:', err)
+        return []
+      })
+      
+      const activeRoutesPromise = RouteService.getTodaysActiveRoutes().catch(err => {
+        console.warn('Error loading active routes:', err)
+        return []
+      })
+      
       const [deliveriesData, routesData, unscheduledData, activeRoutesData] = await Promise.all([
-        DeliveryService.getDeliveriesForCalendar(),
-        RouteService.getAllRoutes(),
-        DeliveryService.getDeliveriesByStatus('pending'),
-        RouteService.getTodaysActiveRoutes()
+        deliveriesPromise,
+        routesPromise,
+        unscheduledPromise,
+        activeRoutesPromise
       ])
       
       setEvents(deliveriesData)
@@ -244,21 +266,17 @@ export default function ScheduleScreen() {
     let borderColor = '#9ca3af'
     
     switch (event.status) {
-      case 'approved':
-        backgroundColor = '#d1fae5' // Green
-        borderColor = '#10b981'
-        break
       case 'pending':
         backgroundColor = '#fef3c7' // Yellow
         borderColor = '#f59e0b'
         break
       case 'in-progress':
-        backgroundColor = '#dbeafe' // Blue
-        borderColor = '#3b82f6'
+        backgroundColor = '#d1fae5' // Green (approved/in-progress)
+        borderColor = '#10b981'
         break
       case 'completed':
-        backgroundColor = '#d1fae5' // Green
-        borderColor = '#059669'
+        backgroundColor = '#e0f2fe' // Light blue
+        borderColor = '#0288d1'
         break
       case 'failed':
         backgroundColor = '#fee2e2' // Red
@@ -345,7 +363,7 @@ export default function ScheduleScreen() {
               <div>
                 <p className="text-sm text-gray-600">Approved</p>
                 <p className="text-2xl font-semibold text-green-600">
-                  {events.filter(e => e.status === 'approved').length}
+                  {events.filter(e => e.status === 'in-progress').length}
                 </p>
               </div>
               <Check className="h-8 w-8 text-green-500" />
@@ -357,9 +375,9 @@ export default function ScheduleScreen() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">In Progress</p>
+                <p className="text-sm text-gray-600">Completed</p>
                 <p className="text-2xl font-semibold text-blue-600">
-                  {events.filter(e => e.status === 'in-progress').length}
+                  {events.filter(e => e.status === 'completed').length}
                 </p>
               </div>
               <Package className="h-8 w-8 text-blue-500" />
@@ -371,12 +389,12 @@ export default function ScheduleScreen() {
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-600">Completed</p>
-                <p className="text-2xl font-semibold text-gray-600">
-                  {events.filter(e => e.status === 'completed').length}
+                <p className="text-sm text-gray-600">Failed</p>
+                <p className="text-2xl font-semibold text-red-600">
+                  {events.filter(e => e.status === 'failed').length}
                 </p>
               </div>
-              <AlertCircle className="h-8 w-8 text-gray-500" />
+              <AlertCircle className="h-8 w-8 text-red-500" />
             </div>
           </CardContent>
         </Card>
@@ -415,9 +433,9 @@ export default function ScheduleScreen() {
             endAccessor="end"
             style={{ height: 600 }}
             view={view}
-            onView={(newView) => setView(newView as 'month' | 'week' | 'day')}
+            onView={(newView: any) => setView(newView as 'month' | 'week' | 'day')}
             date={date}
-            onNavigate={(newDate) => setDate(newDate)}
+            onNavigate={(newDate: any) => setDate(newDate)}
             onSelectSlot={handleSelectSlot}
             onSelectEvent={handleSelectEvent}
             selectable
@@ -626,7 +644,7 @@ export default function ScheduleScreen() {
                   className={
                     selectedEvent.status === 'pending' 
                       ? 'bg-yellow-100 text-yellow-800 border-yellow-200'
-                      : selectedEvent.status === 'approved'
+                      : selectedEvent.status === 'in-progress'
                       ? 'bg-green-100 text-green-800 border-green-200'
                       : selectedEvent.status === 'completed'
                       ? 'bg-blue-100 text-blue-800 border-blue-200'
@@ -701,8 +719,7 @@ export default function ScheduleScreen() {
               {selectedEvent.status !== 'pending' && (
                 <div className="pt-4">
                   <p className="text-sm text-gray-600">
-                    {selectedEvent.status === 'approved' && 'This delivery has been approved and will be added to the next route.'}
-                    {selectedEvent.status === 'in-progress' && 'This delivery is currently in progress.'}
+                    {selectedEvent.status === 'in-progress' && 'This delivery has been approved and assigned to a route.'}
                     {selectedEvent.status === 'completed' && 'This delivery has been completed successfully.'}
                     {selectedEvent.status === 'failed' && 'This delivery was rejected or failed.'}
                   </p>

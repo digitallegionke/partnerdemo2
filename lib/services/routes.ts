@@ -315,7 +315,7 @@ export class RouteService {
         .from('deliveries')
         .update({ 
           route_id: routeId,
-          status: 'approved'
+          status: 'in-progress'
         })
         .eq('id', deliveryId)
 
