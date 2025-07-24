@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Search,
   Menu,
@@ -13,12 +13,14 @@ import {
   Calendar,
   BarChart3,
   UserPlus,
+  HelpCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
+import FeatureTour, { useFeatureTour } from "@/components/feature-tour"
 
 // Import all screen components
 import RoutesScreen from "./screens/routes-screen"
@@ -47,6 +49,25 @@ export default function SafeMoonApp() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [selectedRoute, setSelectedRoute] = useState<any>(null)
   const [routeDeliveries, setRouteDeliveries] = useState<any[]>([])
+  const [isFirstTime, setIsFirstTime] = useState(false)
+  
+  const { showTour, hasCompletedTour, startTour, closeTour, completeTour } = useFeatureTour()
+
+  // Check if this is a first-time user
+  useEffect(() => {
+    const hasVisited = localStorage.getItem('roundi-has-visited')
+    if (!hasVisited) {
+      setIsFirstTime(true)
+      localStorage.setItem('roundi-has-visited', 'true')
+      
+      // Auto-start tour for first-time users after a brief delay
+      setTimeout(() => {
+        if (!hasCompletedTour) {
+          startTour()
+        }
+      }, 1500)
+    }
+  }, [hasCompletedTour, startTour])
 
   const handleViewRouteMap = (route: any, deliveries: any[]) => {
     setSelectedRoute(route)
@@ -98,16 +119,61 @@ export default function SafeMoonApp() {
 
   return (
     <div className="h-screen bg-white flex overflow-hidden">
+      {/* Feature Tour */}
+      <FeatureTour 
+        isOpen={showTour}
+        onClose={closeTour}
+        onComplete={completeTour}
+      />
+
+      {/* First-time user welcome banner */}
+      {isFirstTime && !hasCompletedTour && !showTour && (
+        <div className="fixed top-0 left-0 right-0 z-40 bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 shadow-lg">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                <HelpCircle className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="font-semibold">Welcome to Roundi! 🎉</h3>
+                <p className="text-sm text-blue-100">Take a quick tour to learn about your delivery management dashboard</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3">
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={startTour}
+                className="bg-white text-blue-600 border-white hover:bg-blue-50"
+              >
+                Start Tour
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => setIsFirstTime(false)}
+                className="text-white hover:bg-white hover:bg-opacity-10"
+              >
+                Skip
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Left Sidebar */}
       <div
-        className={`bg-white border-r border-gray-200 transition-all duration-300 ${sidebarCollapsed ? "w-16" : "w-80"} flex flex-col shadow-sm`}
+        className={`bg-white border-r border-gray-200 transition-all duration-300 ${
+          sidebarCollapsed ? "w-16" : "w-80"
+        } flex flex-col shadow-sm ${isFirstTime && !hasCompletedTour ? 'mt-16' : ''}`}
+        id="sidebar"
       >
         {/* Header */}
         <div className="p-4 border-b border-gray-100">
           <div className="flex items-center justify-between">
             {!sidebarCollapsed && (
               <div>
-                <h1 className="text-xl font-bold text-gray-900">SafeMoon</h1>
+                <h1 className="text-xl font-bold text-gray-900">Roundi</h1>
                 <p className="text-sm text-gray-500">Delivery Management</p>
               </div>
             )}
@@ -135,6 +201,7 @@ export default function SafeMoonApp() {
                     ? "bg-blue-50 text-blue-700 border border-blue-200"
                     : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                 }`}
+                id={`${item.id}-section`}
               >
                 <item.icon className="h-5 w-5" />
                 {!sidebarCollapsed && (
@@ -165,13 +232,28 @@ export default function SafeMoonApp() {
                 <p className="text-xs text-gray-500">Completed</p>
               </div>
             </div>
-            <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm">Quick Actions</Button>
+            <div className="space-y-2">
+              <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm">
+                Quick Actions
+              </Button>
+              {hasCompletedTour && (
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={startTour}
+                  className="w-full text-xs"
+                >
+                  <HelpCircle className="w-3 h-3 mr-1" />
+                  Take Tour Again
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col bg-white">
+      <div className={`flex-1 flex flex-col bg-white ${isFirstTime && !hasCompletedTour ? 'mt-16' : ''}`}>
         {/* Top Bar */}
         <div className="bg-white border-b border-gray-200 p-4 shadow-sm">
           <div className="flex items-center justify-between">
@@ -189,6 +271,17 @@ export default function SafeMoonApp() {
               <Button variant="ghost" size="icon" className="text-gray-500 hover:text-gray-900 hover:bg-gray-50">
                 <Bell className="h-5 w-5" />
               </Button>
+              {!sidebarCollapsed && hasCompletedTour && (
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={startTour}
+                  className="text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                  title="Take feature tour"
+                >
+                  <HelpCircle className="h-5 w-5" />
+                </Button>
+              )}
               <Separator orientation="vertical" className="h-6" />
               <div className="flex items-center space-x-2">
                 <Avatar className="h-8 w-8">
