@@ -294,7 +294,7 @@ export default function DeliveriesScreen() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label htmlFor="farmer_name" className="text-sm font-medium text-gray-700">
-                      Farmer Name *
+                      Customer Name *
                     </Label>
                     <Input
                       id="farmer_name"
@@ -302,7 +302,7 @@ export default function DeliveriesScreen() {
                       required
                       value={formData.farmer_name}
                       onChange={(e) => handleInputChange("farmer_name", e.target.value)}
-                      placeholder="Enter farmer name"
+                      placeholder="Enter customer name"
                       className="mt-1 bg-white border-gray-300"
                     />
                   </div>
