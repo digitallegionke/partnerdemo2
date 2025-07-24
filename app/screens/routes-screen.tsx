@@ -89,6 +89,8 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStatus, setFilterStatus] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingRoute, setEditingRoute] = useState<any>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
     name: "",
@@ -279,6 +281,66 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         description: "Failed to load route deliveries. Please try again.",
         variant: "destructive",
       })
+    }
+  }
+
+  const handleEditRoute = (route: any) => {
+    const routeData = route.raw || route
+    setEditingRoute(routeData)
+    
+    // Pre-populate form with route data
+    setFormData({
+      name: routeData.name || "",
+      start_location: routeData.start_location || "",
+      start_latitude: "",
+      start_longitude: "",
+      end_location: routeData.end_location || "",
+      end_latitude: "",
+      end_longitude: "",
+      driver_id: routeData.driver_id ? routeData.driver_id.toString() : "unassigned"
+    })
+    
+    setIsEditDialogOpen(true)
+  }
+
+  const handleUpdateRoute = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingRoute) return
+
+    setIsSubmitting(true)
+
+    try {
+      const updateData: any = {
+        name: formData.name,
+        start_location: formData.start_location,
+        end_location: formData.end_location,
+        driver_id: formData.driver_id !== "unassigned" ? parseInt(formData.driver_id) : null,
+      }
+
+      await RouteService.updateRoute(editingRoute.id, updateData)
+      
+      // Reset form and close dialog
+      resetForm()
+      setIsEditDialogOpen(false)
+      setEditingRoute(null)
+      
+      // Refresh routes list
+      await loadRoutes()
+      
+      toast({
+        title: "Success",
+        description: "Route updated successfully!",
+      })
+      
+    } catch (error) {
+      console.error('Error updating route:', error)
+      toast({
+        title: "Error",
+        description: "Failed to update route. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
