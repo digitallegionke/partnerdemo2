@@ -4,6 +4,8 @@
 
 @layer base {
   :root {
+    --font-geist-sans: 'Geist Variable', sans-serif;
+    --font-geist-mono: 'Geist Mono Variable', monospace;
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
@@ -34,6 +36,35 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Dialog and Modal Layering */
+[data-radix-portal] {
+  z-index: 9999 !important;
+}
+
+[data-radix-dialog-overlay] {
+  z-index: 90 !important;
+  backdrop-filter: blur(4px);
+}
+
+[data-radix-dialog-content] {
+  z-index: 100 !important;
+}
+
+/* Prevent map interaction when dialog is open */
+.leaflet-container {
+  position: relative;
+  z-index: 1;
+}
+
+/* Ensure proper stacking for map components */
+.leaflet-control-container {
+  z-index: 10 !important;
+}
+
+.leaflet-popup {
+  z-index: 15 !important;
 }
 
 /* Custom Leaflet popup styling */

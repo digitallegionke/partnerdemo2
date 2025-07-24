@@ -26,30 +26,30 @@ import { Separator } from "@/components/ui/separator"
 import { optimizeMultipleRoutes, formatDistance, formatDuration, formatCost } from "@/lib/route-optimization"
 
 // Sample routes with delivery data
-const sampleRoutes = [
+const mockRoutes = [
   {
     route: {
       id: 1,
       name: "Nairobi Central Route",
-      driver: "James Ochieng"
+      driver: "David Kimani"
     },
     deliveries: [
-      { id: 1, farmerName: "John Kamau", location: "CBD Market", coordinates: [-1.2864, 36.8172] as [number, number], produce: "Tomatoes", dropTime: "09:00 AM", status: "completed", phone: "+254712345678" },
-      { id: 2, farmerName: "Mary Wanjiku", location: "City Hall", coordinates: [-1.2921, 36.8219] as [number, number], produce: "Carrots", dropTime: "09:30 AM", status: "completed", phone: "+254723456789" },
-      { id: 3, farmerName: "Peter Mutua", location: "Railway Station", coordinates: [-1.3067, 36.8321] as [number, number], produce: "Potatoes", dropTime: "10:00 AM", status: "in-progress", phone: "+254734567890" },
-      { id: 4, farmerName: "Grace Akinyi", location: "Central Park", coordinates: [-1.2884, 36.8233] as [number, number], produce: "Onions", dropTime: "10:30 AM", status: "pending", phone: "+254745678901" },
+      { id: 1, customer_name: "John Kamau", location: "CBD Market", coordinates: [-1.2864, 36.8172] as [number, number], item: "Tomatoes", drop_time: "09:00 AM", status: "completed", phone: "+254712345678" },
+      { id: 2, customer_name: "Mary Wanjiku", location: "City Hall", coordinates: [-1.2921, 36.8219] as [number, number], item: "Carrots", drop_time: "09:30 AM", status: "completed", phone: "+254723456789" },
+      { id: 3, customer_name: "Peter Mutua", location: "Railway Station", coordinates: [-1.3067, 36.8321] as [number, number], item: "Potatoes", drop_time: "10:00 AM", status: "in-progress", phone: "+254734567890" },
+      { id: 4, customer_name: "Grace Akinyi", location: "Central Park", coordinates: [-1.2884, 36.8233] as [number, number], item: "Onions", drop_time: "10:30 AM", status: "pending", phone: "+254745678901" },
     ]
   },
   {
     route: {
       id: 2,
-      name: "Westlands Circuit", 
-      driver: "Sarah Muthoni"
+      name: "Westlands Circuit",
+      driver: "Sarah Wanjiku"
     },
     deliveries: [
-      { id: 5, farmerName: "Samuel Kiprotich", location: "Westlands Mall", coordinates: [-1.2676, 36.8099] as [number, number], produce: "Spinach", dropTime: "08:00 AM", status: "completed", phone: "+254756789012" },
-      { id: 6, farmerName: "Ruth Njeri", location: "Sarit Centre", coordinates: [-1.2689, 36.8076] as [number, number], produce: "Kales", dropTime: "08:45 AM", status: "completed", phone: "+254767890123" },
-      { id: 7, farmerName: "Joseph Mwangi", location: "ABC Place", coordinates: [-1.2643, 36.8123] as [number, number], produce: "Cabbages", dropTime: "09:30 AM", status: "completed", phone: "+254778901234" },
+      { id: 5, customer_name: "Samuel Kiprotich", location: "Westlands Mall", coordinates: [-1.2676, 36.8099] as [number, number], item: "Spinach", drop_time: "08:00 AM", status: "completed", phone: "+254756789012" },
+      { id: 6, customer_name: "Ruth Njeri", location: "Sarit Centre", coordinates: [-1.2689, 36.8076] as [number, number], item: "Kales", drop_time: "08:45 AM", status: "completed", phone: "+254767890123" },
+      { id: 7, customer_name: "Joseph Mwangi", location: "ABC Place", coordinates: [-1.2643, 36.8123] as [number, number], item: "Cabbages", drop_time: "09:30 AM", status: "completed", phone: "+254778901234" },
     ]
   }
 ]
@@ -68,7 +68,7 @@ export default function OptimizeScreen() {
 
     // Run actual optimization
     setTimeout(() => {
-      const results = optimizeMultipleRoutes(sampleRoutes, selectedAlgorithm)
+      const results = optimizeMultipleRoutes(mockRoutes, selectedAlgorithm)
       setOptimizationResults(results)
       setIsOptimizing(false)
       setOptimizationComplete(true)
@@ -76,7 +76,7 @@ export default function OptimizeScreen() {
   }
 
   // Calculate current route metrics
-  const getCurrentRouteMetrics = (routeData: typeof sampleRoutes[0]) => {
+  const getCurrentRouteMetrics = (routeData: typeof mockRoutes[0]) => {
     const result = optimizeMultipleRoutes([routeData], 'nearest-neighbor')[0]
     return {
       distance: formatDistance(result.originalDistance),
@@ -255,7 +255,7 @@ export default function OptimizeScreen() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {sampleRoutes.map((routeData) => {
+                  {mockRoutes.map((routeData) => {
                     const metrics = getCurrentRouteMetrics(routeData)
                     return (
                       <div key={routeData.route.id} className="p-4 bg-gray-50 rounded-lg">
@@ -302,7 +302,7 @@ export default function OptimizeScreen() {
                 <div className="space-y-4">
                   {optimizationComplete ? (
                     optimizationResults.map((result) => {
-                      const route = sampleRoutes.find(r => r.route.id === result.routeId)?.route
+                      const route = mockRoutes.find(r => r.route.id === result.routeId)?.route
                       const optimizedEfficiency = Math.min(95, Math.round(90 + result.improvementPercent))
                       return (
                         <div key={result.routeId} className="p-4 bg-green-50 rounded-lg border border-green-200">

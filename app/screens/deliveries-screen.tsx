@@ -65,19 +65,19 @@ const transformDeliveryForUI = (delivery: any) => {
   }
 
   return {
-    id: `DEL-${delivery.id.toString().padStart(3, '0')}`,
-    recipient: delivery.farmer_name,
-    address: delivery.location,
-    phone: delivery.phone,
-    status: mapStatus(delivery.status),
+    id: `DEL-${(delivery.id || 0).toString().padStart(3, '0')}`,
+    recipient: delivery.customer_name || 'Unknown Customer',
+    address: delivery.location || 'Address not provided',
+    phone: delivery.phone || 'Not provided',
+    status: mapStatus(delivery.status || 'pending'),
     driver: "Unassigned", // TODO: Add driver assignment logic
     driverAvatar: "UN",
-    scheduledTime: formatTime(delivery.drop_time),
-    deliveredTime: delivery.status === 'completed' ? formatTime(delivery.drop_time) : null,
-    items: [delivery.produce + (delivery.weight ? ` (${delivery.weight})` : '')],
+    scheduledTime: delivery.drop_time ? formatTime(delivery.drop_time) : 'Not scheduled',
+    deliveredTime: delivery.status === 'completed' && delivery.drop_time ? formatTime(delivery.drop_time) : null,
+    items: [(delivery.item || 'No item specified') + (delivery.weight ? ` (${delivery.weight})` : '')],
     value: delivery.estimated_value || 'Not specified',
     priority: "medium", // TODO: Add priority logic
-    date: formatDate(delivery.created_at),
+    date: delivery.created_at ? formatDate(delivery.created_at) : 'Unknown date',
   }
 }
 
@@ -97,11 +97,11 @@ export default function DeliveriesScreen() {
     failed: 0
   })
   const [formData, setFormData] = useState({
-    farmer_name: "",
+    customer_name: "",
     location: "",
     latitude: "",
     longitude: "",
-    produce: "",
+    item: "",
     estimated_value: "",
     weight: "",
     phone: "",
@@ -144,11 +144,11 @@ export default function DeliveriesScreen() {
 
   const resetForm = () => {
     setFormData({
-      farmer_name: "",
+      customer_name: "",
       location: "",
       latitude: "",
       longitude: "",
-      produce: "",
+      item: "",
       estimated_value: "",
       weight: "",
       phone: "",
@@ -172,17 +172,19 @@ export default function DeliveriesScreen() {
       }
 
       const deliveryData = {
-        farmer_name: formData.farmer_name,
+        customer_name: formData.customer_name,
         location: formData.location,
-        coordinates: [longitude, latitude], // [lng, lat] for GeoJSON standard
-        produce: formData.produce,
+        coordinates: [latitude, longitude] as [number, number], // [lat, lng] format for frontend
+        item: formData.item,
         estimated_value: formData.estimated_value || null,
         weight: formData.weight || null,
         phone: formData.phone,
         drop_time: formData.drop_time,
         status: 'pending' as const,
-      }
+      } as const
 
+      console.log('Submitting delivery with data:', deliveryData)
+      
       await DeliveryService.createDelivery(deliveryData)
       
       // Reset form and close dialog
@@ -192,9 +194,11 @@ export default function DeliveriesScreen() {
       // Refresh deliveries list
       await loadDeliveries()
       
+      console.log('Delivery created successfully')
+      
     } catch (error) {
       console.error('Error creating delivery:', error)
-      // TODO: Show error toast notification
+      alert('Failed to create delivery. Please check the console for details.')
     } finally {
       setIsSubmitting(false)
     }
@@ -202,9 +206,9 @@ export default function DeliveriesScreen() {
 
   const filteredDeliveries = deliveries.filter((delivery) => {
     const matchesSearch =
-      delivery.recipient.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      delivery.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      delivery.id.toLowerCase().includes(searchTerm.toLowerCase())
+      (delivery.recipient?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (delivery.address?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+      (delivery.id?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     const matchesStatus = filterStatus === "all" || delivery.status === filterStatus
     const matchesDate = filterDate === "all" || delivery.date === filterDate
     return matchesSearch && matchesStatus && matchesDate
@@ -308,17 +312,16 @@ export default function DeliveriesScreen() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="farmer_name" className="text-sm font-medium text-gray-700">
+                    <Label htmlFor="customer_name" className="text-sm font-medium text-gray-700">
                       Customer Name *
                     </Label>
                     <Input
-                      id="farmer_name"
+                      id="customer_name"
                       type="text"
                       required
-                      value={formData.farmer_name}
-                      onChange={(e) => handleInputChange("farmer_name", e.target.value)}
-                      placeholder="Enter customer name"
-                      className="mt-1 bg-white border-gray-300"
+                      value={formData.customer_name}
+                      onChange={(e) => handleInputChange("customer_name", e.target.value)}
+                      className="w-full"
                     />
                   </div>
                   <div>
@@ -391,17 +394,16 @@ export default function DeliveriesScreen() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="produce" className="text-sm font-medium text-gray-700">
-                      Produce *
+                    <Label htmlFor="item" className="text-sm font-medium text-gray-700">
+                      Item *
                     </Label>
                     <Input
-                      id="produce"
+                      id="item"
                       type="text"
                       required
-                      value={formData.produce}
-                      onChange={(e) => handleInputChange("produce", e.target.value)}
-                      placeholder="Tomatoes, Carrots, etc."
-                      className="mt-1 bg-white border-gray-300"
+                      value={formData.item}
+                      onChange={(e) => handleInputChange("item", e.target.value)}
+                      className="w-full"
                     />
                   </div>
                   <div>

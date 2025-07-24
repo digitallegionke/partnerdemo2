@@ -76,23 +76,23 @@ async function loadLeaflet(): Promise<typeof Leaflet> {
 //--------------------------------------------------------------------
 // Component
 //--------------------------------------------------------------------
-interface Delivery {
+type DeliveryData = {
   id: number
-  farmerName: string
+  customer_name: string
   location: string
-  coordinates: [number, number]
-  produce: string
-  dropTime: string
-  status: string
+  coordinates: [number, number] // [lat, lng]
+  item: string
+  estimated_value?: string | null
+  weight?: string | null
   phone: string
-  estimatedValue?: string
-  weight?: string
+  drop_time: string
+  status: 'pending' | 'in-progress' | 'completed' | 'failed'
 }
 
 interface MapComponentProps {
-  deliveries: Delivery[]
-  selectedDelivery: Delivery | null
-  onDeliverySelect: (delivery: Delivery) => void
+  deliveries: DeliveryData[]
+  selectedDelivery: DeliveryData | null
+  onDeliverySelect: (delivery: DeliveryData) => void
   showGeocoder?: boolean // New prop to control geocoder visibility
   onLocationSelect?: (location: { lat: number; lng: number; address: string }) => void // Callback for location selection
 }
@@ -216,22 +216,22 @@ export default function MapComponent({
       const popupContent = `
         <div style="padding: 8px; min-width: 200px; font-family: system-ui;">
           <div style="font-weight: 600; font-size: 14px; color: #111827; margin-bottom: 4px;">
-            ${d.farmerName}
+            ${d.customer_name}
           </div>
           <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
             📍 ${d.location}
           </div>
           <div style="font-size: 12px; color: #374151; margin-bottom: 4px;">
-            📦 ${d.produce}
+            📦 ${d.item}
           </div>
           <div style="font-size: 12px; color: #374151; margin-bottom: 8px;">
-            ⏰ ${d.dropTime}
+            ⏰ ${d.drop_time}
           </div>
           ${
-            d.estimatedValue
+            d.estimated_value
               ? `
             <div style="font-size: 12px; color: #059669; font-weight: 500;">
-              💰 ${d.estimatedValue}
+              💰 ${d.estimated_value}
             </div>
           `
               : ""

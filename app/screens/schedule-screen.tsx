@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -73,8 +73,8 @@ export default function ScheduleScreen() {
   const [drivers, setDrivers] = useState<any[]>([])
   const [formData, setFormData] = useState({
     title: "",
-    route_id: "",
-    driver_id: "",
+    route_id: "none",
+    driver_id: "unassigned",
     scheduled_date: "",
     start_time: "",
     end_time: "",
@@ -127,8 +127,8 @@ export default function ScheduleScreen() {
   const resetForm = () => {
     setFormData({
       title: "",
-      route_id: "",
-      driver_id: "",
+      route_id: "none",
+      driver_id: "unassigned",
       scheduled_date: "",
       start_time: "",
       end_time: "",
@@ -144,8 +144,8 @@ export default function ScheduleScreen() {
     try {
       const scheduleData = {
         title: formData.title,
-        route_id: formData.route_id ? parseInt(formData.route_id) : null,
-        driver_id: formData.driver_id ? parseInt(formData.driver_id) : null,
+        route_id: formData.route_id !== "none" ? parseInt(formData.route_id) : null,
+        driver_id: formData.driver_id !== "unassigned" ? parseInt(formData.driver_id) : null,
         scheduled_date: formData.scheduled_date,
         start_time: formData.start_time,
         end_time: formData.end_time,
@@ -305,11 +305,14 @@ export default function ScheduleScreen() {
                 Schedule Delivery
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-white border-gray-200 max-w-md">
+            <DialogContent className="bg-white border-gray-200 max-w-md overflow-visible">
               <DialogHeader>
                 <DialogTitle className="text-gray-900">Schedule New Delivery</DialogTitle>
+                <DialogDescription>
+                  Schedule a new delivery with route, driver, and timing information.
+                </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4 overflow-visible">
                 <div>
                   <Label htmlFor="title" className="text-gray-700">
                     Title *
@@ -335,7 +338,7 @@ export default function ScheduleScreen() {
                       <SelectValue placeholder="Select route" />
                     </SelectTrigger>
                     <SelectContent className="bg-white border-gray-200">
-                      <SelectItem value="">No route assigned</SelectItem>
+                      <SelectItem value="none">No route assigned</SelectItem>
                       {routes.map((route) => (
                         <SelectItem key={route.id} value={route.id.toString()}>
                           {route.name}
@@ -356,7 +359,7 @@ export default function ScheduleScreen() {
                       <SelectValue placeholder="Select driver" />
                     </SelectTrigger>
                     <SelectContent className="bg-white border-gray-200">
-                      <SelectItem value="">Unassigned</SelectItem>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
                       {drivers.map((driver) => (
                         <SelectItem key={driver.id} value={driver.id.toString()}>
                           {driver.name}

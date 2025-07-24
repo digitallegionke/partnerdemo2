@@ -97,7 +97,7 @@ export default function AddressSearch({
 
       {/* Results dropdown */}
       {showResults && (results.length > 0 || error || (query.length >= 3 && !loading && results.length === 0)) && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
+        <div className="absolute z-[9999] w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
           {error && (
             <div className="px-4 py-2 text-sm text-red-600">
               {error}

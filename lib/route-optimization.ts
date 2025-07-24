@@ -1,19 +1,19 @@
-interface DeliveryPoint {
+interface Delivery {
   id: number
-  farmerName: string
+  customer_name: string
   location: string
-  coordinates: [number, number]
-  produce: string
-  dropTime: string
-  status: string
+  coordinates: [number, number] // [lat, lng]
+  item: string
+  estimated_value?: string | null
+  weight?: string | null
   phone: string
-  estimatedValue?: string
-  weight?: string
+  drop_time: string
+  status: 'pending' | 'in-progress' | 'completed' | 'failed'
 }
 
 interface OptimizationResult {
-  originalOrder: DeliveryPoint[]
-  optimizedOrder: DeliveryPoint[]
+  originalOrder: Delivery[]
+  optimizedOrder: Delivery[]
   originalDistance: number
   optimizedDistance: number
   originalDuration: number
@@ -38,7 +38,7 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 // Calculate total distance for a route
-function calculateRouteDistance(points: DeliveryPoint[]): number {
+function calculateRouteDistance(points: Delivery[]): number {
   if (points.length < 2) return 0
   
   let totalDistance = 0
@@ -51,10 +51,10 @@ function calculateRouteDistance(points: DeliveryPoint[]): number {
 }
 
 // Nearest Neighbor Algorithm
-function nearestNeighborOptimization(points: DeliveryPoint[]): DeliveryPoint[] {
+function nearestNeighborOptimization(points: Delivery[]): Delivery[] {
   if (points.length <= 2) return [...points]
   
-  const optimized: DeliveryPoint[] = []
+  const optimized: Delivery[] = []
   const remaining = [...points]
   
   // Start with the first point
@@ -88,7 +88,7 @@ function nearestNeighborOptimization(points: DeliveryPoint[]): DeliveryPoint[] {
 }
 
 // 2-opt improvement algorithm
-function twoOptImprovement(points: DeliveryPoint[]): DeliveryPoint[] {
+function twoOptImprovement(points: Delivery[]): Delivery[] {
   if (points.length <= 3) return [...points]
   
   let route = [...points]
@@ -140,7 +140,7 @@ function twoOptImprovement(points: DeliveryPoint[]): DeliveryPoint[] {
 
 // Main optimization function
 export function optimizeRoute(
-  deliveries: DeliveryPoint[], 
+  deliveries: Delivery[], 
   algorithm: 'nearest-neighbor' | 'genetic' | '2-opt' | 'simulated-annealing' = 'nearest-neighbor'
 ): OptimizationResult {
   if (deliveries.length <= 1) {
@@ -159,7 +159,7 @@ export function optimizeRoute(
   }
   
   const originalOrder = [...deliveries]
-  let optimizedOrder: DeliveryPoint[]
+  let optimizedOrder: Delivery[]
   
   switch (algorithm) {
     case 'nearest-neighbor':
@@ -212,7 +212,7 @@ export function optimizeRoute(
 
 // Optimize multiple routes
 export function optimizeMultipleRoutes(
-  routes: Array<{route: any, deliveries: DeliveryPoint[]}>,
+  routes: Array<{route: any, deliveries: Delivery[]}>,
   algorithm: 'nearest-neighbor' | 'genetic' | '2-opt' | 'simulated-annealing' = 'nearest-neighbor'
 ): Array<OptimizationResult & {routeId: number}> {
   return routes.map(({route, deliveries}) => ({

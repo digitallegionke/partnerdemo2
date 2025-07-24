@@ -11,44 +11,55 @@ import MapComponent from "./map-component"
 interface DeliveryFormData {
   customerName: string
   phone: string
-  produce: string
+  item: string
   deliveryAddress: string
   coordinates: { lat: number; lon: number } | null
+}
+
+interface LocalDelivery {
+  id: number
+  customerName: string
+  location: string
+  coordinates: [number, number]
+  item: string
+  dropTime: string
+  status: string
+  phone: string
 }
 
 export default function DeliveryFormDemo() {
   const [formData, setFormData] = useState<DeliveryFormData>({
     customerName: "",
     phone: "",
-    produce: "",
+    item: "",
     deliveryAddress: "",
     coordinates: null
   })
 
-  const [deliveries, setDeliveries] = useState([
+  const [deliveries, setDeliveries] = useState<LocalDelivery[]>([
     {
       id: 1,
-      farmerName: "John Kamau",
+      customerName: "John Kamau",
       location: "Westlands, Nairobi",
-      coordinates: [-1.2635, 36.8078] as [number, number],
-      produce: "Tomatoes - 50kg",
+      coordinates: [-1.2635, 36.8078],
+      item: "Tomatoes - 50kg",
       dropTime: "10:00 AM",
       status: "pending",
       phone: "+254712345678"
     },
     {
       id: 2,
-      farmerName: "Mary Wanjiku",
+      customerName: "Mary Wanjiku",
       location: "Karen, Nairobi",
-      coordinates: [-1.3197, 36.7085] as [number, number],
-      produce: "Maize - 100kg",
+      coordinates: [-1.3197, 36.7085],
+      item: "Maize - 100kg",
       dropTime: "11:30 AM",
       status: "in-progress",
       phone: "+254723456789"
     }
   ])
 
-  const [selectedDelivery, setSelectedDelivery] = useState(deliveries[0])
+  const [selectedDelivery, setSelectedDelivery] = useState<LocalDelivery>(deliveries[0])
 
   // Handle place selection from autocomplete
   const handlePlaceSelect = (place: { address: string; lat: number; lon: number }) => {
@@ -77,12 +88,12 @@ export default function DeliveryFormDemo() {
       return
     }
 
-    const newDelivery = {
+    const newDelivery: LocalDelivery = {
       id: deliveries.length + 1,
-      farmerName: formData.customerName,
+      customerName: formData.customerName,
       location: formData.deliveryAddress,
-      coordinates: [formData.coordinates.lat, formData.coordinates.lon] as [number, number],
-      produce: formData.produce,
+      coordinates: [formData.coordinates.lat, formData.coordinates.lon],
+      item: formData.item,
       dropTime: "12:00 PM",
       status: "pending",
       phone: formData.phone
@@ -94,7 +105,7 @@ export default function DeliveryFormDemo() {
     setFormData({
       customerName: "",
       phone: "",
-      produce: "",
+      item: "",
       deliveryAddress: "",
       coordinates: null
     })
@@ -137,11 +148,11 @@ export default function DeliveryFormDemo() {
               </div>
 
               <div>
-                <Label htmlFor="produce">Produce *</Label>
+                <Label htmlFor="item">Item *</Label>
                 <Input
-                  id="produce"
-                  value={formData.produce}
-                  onChange={(e) => setFormData(prev => ({ ...prev, produce: e.target.value }))}
+                  id="item"
+                  value={formData.item}
+                  onChange={(e) => setFormData(prev => ({ ...prev, item: e.target.value }))}
                   placeholder="e.g., Tomatoes - 50kg"
                   required
                 />
@@ -210,9 +221,9 @@ export default function DeliveryFormDemo() {
               >
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-medium">{delivery.farmerName}</h3>
+                    <h3 className="font-medium">{delivery.customerName}</h3>
                     <p className="text-sm text-gray-600">{delivery.location}</p>
-                    <p className="text-sm text-gray-500">{delivery.produce} • {delivery.dropTime}</p>
+                    <p className="text-sm text-gray-500">{delivery.item} • {delivery.dropTime}</p>
                   </div>
                   <span
                     className={`px-2 py-1 text-xs font-medium rounded-full ${

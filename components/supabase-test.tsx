@@ -1,18 +1,28 @@
 "use client"
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase, coordinatesToPoint, parsePointCoordinates } from '@/lib/supabase'
+import { DeliveryService } from '@/lib/services/deliveries'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle, XCircle, AlertCircle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { CheckCircle, XCircle, AlertCircle, TestTube } from 'lucide-react'
 
 export default function SupabaseTest() {
   const [connectionStatus, setConnectionStatus] = useState<'testing' | 'connected' | 'error'>('testing')
   const [error, setError] = useState<string | null>(null)
   const [drivers, setDrivers] = useState<any[]>([])
+  const [deliveries, setDeliveries] = useState<any[]>([])
+  const [coordTest, setCoordTest] = useState<{
+    original: [number, number]
+    postgis: string
+    parsed: [number, number]
+    success: boolean
+  } | null>(null)
 
   useEffect(() => {
     testConnection()
+    testCoordinates()
   }, [])
 
   const testConnection = async () => {
@@ -21,21 +31,87 @@ export default function SupabaseTest() {
       setError(null)
 
       // Test basic connection
-      const { data, error } = await supabase
+      const { data: driversData, error: driversError } = await supabase
         .from('drivers')
         .select('id, name, status')
         .limit(3)
 
-      if (error) {
-        throw error
+      if (driversError) {
+        throw driversError
       }
 
-      setDrivers(data || [])
+      // Test deliveries fetch
+      const { data: deliveriesData, error: deliveriesError } = await supabase
+        .from('deliveries')
+        .select('*')
+        .limit(3)
+
+      if (deliveriesError) {
+        throw deliveriesError
+      }
+
+      setDrivers(driversData || [])
+      setDeliveries(deliveriesData || [])
       setConnectionStatus('connected')
     } catch (err: any) {
       console.error('Supabase connection error:', err)
       setError(err.message || 'Unknown error')
       setConnectionStatus('error')
+    }
+  }
+
+  const testCoordinates = () => {
+    try {
+      const original: [number, number] = [-1.2921, 36.8219] // Nairobi coordinates [lat, lng]
+      const postgis = coordinatesToPoint(original)
+      const parsed = parsePointCoordinates(postgis)
+      
+      setCoordTest({
+        original,
+        postgis,
+        parsed,
+        success: original[0] === parsed[0] && original[1] === parsed[1]
+      })
+    } catch (err) {
+      console.error('Coordinate test error:', err)
+      setCoordTest({
+        original: [-1.2921, 36.8219],
+        postgis: 'ERROR',
+        parsed: [0, 0],
+        success: false
+      })
+    }
+  }
+
+  const testDeliveryCreation = async () => {
+    try {
+      const testDelivery = {
+        customer_name: 'Test Customer',
+        location: 'Test Location',
+        coordinates: {
+          type: 'Point',
+          coordinates: [36.8219, -1.2921] // GeoJSON format: [longitude, latitude]
+        },
+        item: 'Test Item',
+        estimated_value: 'KSh 1,000',
+        weight: '2kg',
+        phone: '+254700000000',
+        drop_time: '10:00',
+        status: 'pending'
+      }
+
+      console.log('Testing delivery creation with:', testDelivery)
+      const result = await DeliveryService.createDelivery(testDelivery)
+      console.log('Test delivery created successfully:', result)
+      
+      // Clean up - delete the test delivery
+      await DeliveryService.deleteDelivery(result.id)
+      console.log('Test delivery cleaned up')
+      
+      alert('✅ Delivery creation test passed!')
+    } catch (err: any) {
+      console.error('Delivery creation test failed:', err)
+      alert(`❌ Delivery creation test failed: ${err.message}`)
     }
   }
 
@@ -61,65 +137,87 @@ export default function SupabaseTest() {
     }
   }
 
-  const getStatusColor = () => {
-    switch (connectionStatus) {
-      case 'testing':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200'
-      case 'connected':
-        return 'bg-green-100 text-green-800 border-green-200'
-      case 'error':
-        return 'bg-red-100 text-red-800 border-red-200'
-    }
-  }
-
   return (
-    <Card className="w-full max-w-md">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {getStatusIcon()}
-          Supabase Connection Test
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <Badge className={getStatusColor()}>
-          {getStatusText()}
-        </Badge>
-
-        {error && (
-          <div className="p-3 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-sm text-red-800 font-medium">Error:</p>
-            <p className="text-sm text-red-700">{error}</p>
-          </div>
-        )}
-
-        {connectionStatus === 'connected' && (
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-gray-900">
-              Sample Drivers Found: {drivers.length}
-            </p>
-            {drivers.map((driver) => (
-              <div key={driver.id} className="flex items-center justify-between text-sm">
-                <span>{driver.name}</span>
-                <Badge variant="outline" className="text-xs">
-                  {driver.status}
-                </Badge>
+    <div className="p-6 space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            {getStatusIcon()}
+            Supabase Connection Test
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Badge variant={connectionStatus === 'connected' ? 'default' : connectionStatus === 'error' ? 'destructive' : 'secondary'}>
+                {getStatusText()}
+              </Badge>
+            </div>
+            
+            {error && (
+              <div className="text-sm text-red-600 bg-red-50 p-3 rounded">
+                <strong>Error:</strong> {error}
+                {error.includes('anon_key') && (
+                  <div className="mt-2">
+                    <strong>Fix:</strong> Add your Supabase anonymous key to .env.local
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-        )}
+            )}
 
-        {connectionStatus === 'error' && (
-          <div className="space-y-2">
-            <p className="text-sm text-gray-600">Common issues:</p>
-            <ul className="text-xs text-gray-500 space-y-1">
-              <li>• Check .env.local file exists</li>
-              <li>• Verify SUPABASE_URL and ANON_KEY</li>
-              <li>• Run SQL migrations in Supabase</li>
-              <li>• Check RLS policies</li>
-            </ul>
+            {connectionStatus === 'connected' && (
+              <div className="space-y-3">
+                <div>
+                  <h4 className="font-medium text-sm">Sample Drivers ({drivers.length})</h4>
+                  <div className="text-xs text-gray-600">
+                    {drivers.map(driver => driver.name).join(', ')}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm">Sample Deliveries ({deliveries.length})</h4>
+                  <div className="text-xs text-gray-600">
+                    {deliveries.map(delivery => delivery.customer_name).join(', ')}
+                  </div>
+                </div>
+
+                <Button 
+                  onClick={testDeliveryCreation}
+                  className="flex items-center gap-2"
+                  size="sm"
+                >
+                  <TestTube className="h-4 w-4" />
+                  Test Delivery Creation
+                </Button>
+              </div>
+            )}
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      {coordTest && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              {coordTest.success ? 
+                <CheckCircle className="h-5 w-5 text-green-500" /> : 
+                <XCircle className="h-5 w-5 text-red-500" />
+              }
+              Coordinate Conversion Test
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2 text-sm">
+              <div><strong>Original [lat, lng]:</strong> [{coordTest.original[0]}, {coordTest.original[1]}]</div>
+              <div><strong>PostGIS format:</strong> {coordTest.postgis}</div>
+              <div><strong>Parsed back:</strong> [{coordTest.parsed[0]}, {coordTest.parsed[1]}]</div>
+              <Badge variant={coordTest.success ? 'default' : 'destructive'}>
+                {coordTest.success ? 'Conversion OK' : 'Conversion Failed'}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   )
 } 

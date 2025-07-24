@@ -58,12 +58,7 @@ export default function AssignDriversScreen() {
                 <SelectContent className="bg-white border-gray-200">
                   {drivers.map((driver) => (
                     <SelectItem key={driver.id} value={driver.id}>
-                      <div className="flex items-center space-x-2">
-                        <Avatar className="h-5 w-5">
-                          <AvatarFallback className="bg-gray-100 text-gray-600 text-xs">{driver.avatar}</AvatarFallback>
-                        </Avatar>
-                        <span>{driver.name}</span>
-                      </div>
+                      {driver.name}
                     </SelectItem>
                   ))}
                 </SelectContent>

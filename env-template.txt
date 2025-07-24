@@ -1,0 +1,11 @@
+NEXT_PUBLIC_SUPABASE_URL=https://zolqvkpgiauqnjgujtvl.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_KEY_HERE
+
+# Instructions:
+# 1. Replace YOUR_KEY_HERE with your actual Supabase anonymous key
+# 2. Get your key from: https://supabase.com/dashboard/project/zolqvkpgiauqnjgujtvl/settings/api
+# 3. Copy the "anon public" key (starts with eyJhbGciOiJIUzI1NiIs...)
+# 4. Save this file as .env.local (replace the existing one)
+
+# Example of what it should look like:
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0 

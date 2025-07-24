@@ -3,6 +3,12 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://zolqvkpgiauqnjgujtvl.supabase.co'
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
+// Check for missing environment variables
+if (!supabaseAnonKey || supabaseAnonKey === 'your_actual_anon_key_here') {
+  console.warn('⚠️  MISSING SUPABASE_ANON_KEY: Please add your Supabase anonymous key to .env.local')
+  console.warn('   Get your key from: https://supabase.com/dashboard/project/YOUR_PROJECT/settings/api')
+}
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Database Types
@@ -80,10 +86,10 @@ export interface Database {
         Row: {
           id: number
           route_id: number | null
-          farmer_name: string
+          customer_name: string
           location: string
-          coordinates: number[] // [lat, lng]
-          produce: string
+          coordinates: string | number[] | object // PostGIS geometry as string, array, or GeoJSON object
+          item: string
           estimated_value: string | null
           weight: string | null
           phone: string
@@ -95,10 +101,10 @@ export interface Database {
         }
         Insert: {
           route_id?: number | null
-          farmer_name: string
+          customer_name: string
           location: string
-          coordinates: number[]
-          produce: string
+          coordinates: string | object // PostGIS geometry format
+          item: string
           estimated_value?: string | null
           weight?: string | null
           phone: string
@@ -108,10 +114,10 @@ export interface Database {
         }
         Update: {
           route_id?: number | null
-          farmer_name?: string
+          customer_name?: string
           location?: string
-          coordinates?: number[]
-          produce?: string
+          coordinates?: string | object // PostGIS geometry format
+          item?: string
           estimated_value?: string | null
           weight?: string | null
           phone?: string
@@ -201,4 +207,48 @@ export interface Database {
 // Helper function to get typed Supabase client
 export const getSupabaseClient = () => {
   return createClient<Database>(supabaseUrl, supabaseAnonKey)
+}
+
+// Helper functions for coordinate handling
+export const coordinatesToPoint = (coordinates: [number, number]): string => {
+  const [lat, lng] = coordinates
+  return `(${lng},${lat})` // PostgreSQL point literal format: (longitude,latitude)
+}
+
+export const parsePointCoordinates = (coordinates: string | number[] | object): [number, number] => {
+  // Handle GeoJSON format object
+  if (typeof coordinates === 'object' && coordinates !== null && 'coordinates' in coordinates) {
+    const geojson = coordinates as any
+    if (geojson.type === 'Point' && Array.isArray(geojson.coordinates)) {
+      const [lng, lat] = geojson.coordinates
+      return [lat, lng] // Convert to [lat, lng] for frontend
+    }
+  }
+  
+  // Handle array format (some Supabase configs return as array)
+  if (Array.isArray(coordinates) && coordinates.length >= 2) {
+    return [coordinates[1], coordinates[0]] // Convert [lng, lat] to [lat, lng]
+  }
+  
+  // Handle PostgreSQL POINT literal format: (lat,lng) or (lng,lat)
+  if (typeof coordinates === 'string') {
+    // Handle PostgreSQL point literal format: (lat,lng)
+    const pointMatch = coordinates.match(/\(([^,]+),([^)]+)\)/)
+    if (pointMatch) {
+      const lat = parseFloat(pointMatch[1])
+      const lng = parseFloat(pointMatch[2])
+      return [lat, lng] // Already in [lat, lng] format
+    }
+    
+    // Handle PostGIS WKT POINT format: POINT(lng lat)
+    const wktMatch = coordinates.match(/POINT\(([^)]+)\)/)
+    if (wktMatch) {
+      const [lng, lat] = wktMatch[1].split(' ').map(Number)
+      return [lat, lng] // Convert to [lat, lng] for frontend
+    }
+  }
+
+  // Fallback to Nairobi coordinates if parsing fails
+  console.warn('Failed to parse coordinates:', coordinates)
+  return [-1.2921, 36.8219] // Default to Nairobi
 } 

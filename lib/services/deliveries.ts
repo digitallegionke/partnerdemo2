@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase'
+import { supabase, coordinatesToPoint, parsePointCoordinates } from '@/lib/supabase'
 import type { Database } from '@/lib/supabase'
 
 type Delivery = Database['public']['Tables']['deliveries']['Row']
@@ -82,19 +82,47 @@ export class DeliveryService {
     return data || []
   }
 
-  static async createDelivery(delivery: DeliveryInsert): Promise<Delivery> {
-    const { data, error } = await supabase
-      .from('deliveries')
-      .insert([delivery])
-      .select()
-      .single()
+  static async createDelivery(delivery: {
+    customer_name: string
+    location: string
+    coordinates: [number, number] // [lat, lng]
+    item: string
+    estimated_value?: string | null
+    weight?: string | null
+    phone: string
+    drop_time: string
+    status?: string
+  }): Promise<Delivery> {
+    try {
+      // Convert coordinates to PostGIS geometry object
+      const [lat, lng] = delivery.coordinates
+      const deliveryData = {
+        ...delivery,
+        coordinates: {
+          type: 'Point',
+          coordinates: [lng, lat] // GeoJSON format: [longitude, latitude]
+        },
+        status: delivery.status || 'pending'
+      }
 
-    if (error) {
-      console.error('Error creating delivery:', error)
+      console.log('Creating delivery with data:', deliveryData)
+
+      const { data, error } = await supabase
+        .from('deliveries')
+        .insert([deliveryData])
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating delivery:', error)
+        throw error
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in createDelivery:', error)
       throw error
     }
-
-    return data
   }
 
   static async updateDelivery(id: number, updates: DeliveryUpdate): Promise<Delivery> {
@@ -174,20 +202,16 @@ export class DeliveryService {
 
   // Transform database delivery to frontend format
   static transformDeliveryForMap(delivery: Delivery): DeliveryForMap {
-    // Parse coordinates from PostGIS POINT format to array
-    let coordinates: [number, number] = [-1.2921, 36.8219] // Default to Nairobi
-    
-    if (Array.isArray(delivery.coordinates) && delivery.coordinates.length >= 2) {
-      coordinates = [delivery.coordinates[0], delivery.coordinates[1]]
-    }
+          // Parse coordinates from PostgreSQL POINT format to array
+          const coordinates = parsePointCoordinates(delivery.coordinates)
 
     return {
       id: delivery.id,
       route_id: delivery.route_id,
-      farmerName: delivery.farmer_name,
+      farmerName: delivery.customer_name,
       location: delivery.location,
       coordinates,
-      produce: delivery.produce,
+      produce: delivery.item,
       estimatedValue: delivery.estimated_value,
       weight: delivery.weight,
       phone: delivery.phone,
@@ -201,10 +225,10 @@ export class DeliveryService {
   static transformDeliveryForDB(delivery: DeliveryForMap): DeliveryInsert {
     return {
       route_id: delivery.route_id,
-      farmer_name: delivery.farmerName,
+      customer_name: delivery.farmerName,
       location: delivery.location,
-      coordinates: delivery.coordinates,
-      produce: delivery.produce,
+              coordinates: coordinatesToPoint(delivery.coordinates),
+      item: delivery.produce,
       estimated_value: delivery.estimatedValue,
       weight: delivery.weight,
       phone: delivery.phone,
@@ -236,7 +260,7 @@ export class DeliveryService {
     const { data, error } = await supabase
       .from('deliveries')
       .select('*')
-      .or(`farmer_name.ilike.%${query}%, location.ilike.%${query}%, produce.ilike.%${query}%`)
+              .or(`customer_name.ilike.%${query}%, location.ilike.%${query}%, item.ilike.%${query}%`)
       .order('created_at', { ascending: false })
 
     if (error) {

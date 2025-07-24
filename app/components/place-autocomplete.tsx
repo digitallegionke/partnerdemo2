@@ -31,7 +31,7 @@ export default function PlaceAutocomplete({
   const [suggestions, setSuggestions] = useState<PlaceResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const debounceRef = useRef<NodeJS.Timeout>()
+  const debounceRef = useRef<NodeJS.Timeout | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   // Search for places using Nominatim

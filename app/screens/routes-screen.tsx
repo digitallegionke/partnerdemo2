@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
@@ -27,6 +27,7 @@ import { RouteService, type RouteWithDriver } from "@/lib/services/routes"
 import { DriverService } from "@/lib/services/drivers"
 import { DeliveryService } from "@/lib/services/deliveries"
 import { useToast } from "@/hooks/use-toast"
+import AddressSearch from "@/components/address-search"
 
 // Transform Supabase route data to UI format
 const transformRouteForUI = async (route: RouteWithDriver) => {
@@ -53,33 +54,27 @@ const transformRouteForUI = async (route: RouteWithDriver) => {
   }
 
   // Get delivery count for this route
+  let deliveryCount = 0
   try {
     const deliveries = await DeliveryService.getDeliveriesByRoute(route.id)
-    
-    return {
-      id: route.id,
-      name: route.name,
-      distance: route.total_distance ? formatDistance(route.total_distance) : '0 km',
-      duration: route.estimated_duration ? formatDuration(route.estimated_duration) : '0m',
-      stops: deliveries.length,
-      status: route.status,
-      driver: route.driver?.name || 'Unassigned',
-      lastUpdated: getTimeAgo(route.updated_at),
-      efficiency: route.efficiency_score || 0,
-    }
+    deliveryCount = deliveries.length
   } catch (error) {
     console.error('Error getting deliveries for route:', route.id, error)
-    return {
-      id: route.id,
-      name: route.name,
-      distance: route.total_distance ? formatDistance(route.total_distance) : '0 km',
-      duration: route.estimated_duration ? formatDuration(route.estimated_duration) : '0m',
-      stops: 0,
-      status: route.status,
-      driver: route.driver?.name || 'Unassigned',
-      lastUpdated: getTimeAgo(route.updated_at),
-      efficiency: route.efficiency_score || 0,
-    }
+    // Don't throw, just use 0 as default
+  }
+  
+  return {
+    id: route.id,
+    name: route.name,
+    distance: route.total_distance ? formatDistance(route.total_distance) : '0.0 km',
+    duration: route.estimated_duration ? formatDuration(route.estimated_duration) : '0m',
+    stops: deliveryCount,
+    status: route.status,
+    driver: route.driver?.name || 'Unassigned',
+    lastUpdated: getTimeAgo(route.updated_at),
+    efficiency: route.efficiency_score || 0,
+    // Keep raw data for other operations
+    raw: route
   }
 }
 
@@ -98,8 +93,12 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
   const [formData, setFormData] = useState({
     name: "",
     start_location: "",
+    start_latitude: "",
+    start_longitude: "",
     end_location: "",
-    driver_id: ""
+    end_latitude: "",
+    end_longitude: "",
+    driver_id: "unassigned"
   })
   const [drivers, setDrivers] = useState<any[]>([])
   const { toast } = useToast()
@@ -113,11 +112,36 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
       // Get all routes with driver information
       const routesData = await RouteService.getAllRoutes()
       
-      // Transform routes for UI display
-      const transformedRoutes = await Promise.all(
-        routesData.map(route => transformRouteForUI(route))
-      )
+      if (routesData.length === 0) {
+        setRoutes([])
+        return
+      }
       
+      // Transform routes for UI display with better error handling
+      const transformPromises = routesData.map(async (route) => {
+        try {
+          return await transformRouteForUI(route)
+        } catch (error) {
+          console.error(`Error transforming route ${route.id}:`, error)
+          // Return basic route data if transformation fails
+          return {
+            id: route.id,
+            name: route.name,
+            distance: route.total_distance ? `${route.total_distance.toFixed(1)} km` : '0.0 km',
+            duration: route.estimated_duration ? 
+              `${Math.floor(route.estimated_duration / 60)}h ${route.estimated_duration % 60}m` : 
+              '0m',
+            stops: 0,
+            status: route.status,
+            driver: route.driver?.name || 'Unassigned',
+            lastUpdated: new Date(route.updated_at).toLocaleDateString(),
+            efficiency: route.efficiency_score || 0,
+            raw: route
+          }
+        }
+      })
+      
+      const transformedRoutes = await Promise.all(transformPromises)
       setRoutes(transformedRoutes)
     } catch (err) {
       console.error('Error loading routes:', err)
@@ -151,8 +175,12 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
     setFormData({
       name: "",
       start_location: "",
+      start_latitude: "",
+      start_longitude: "",
       end_location: "",
-      driver_id: ""
+      end_latitude: "",
+      end_longitude: "",
+      driver_id: "unassigned"
     })
   }
 
@@ -161,11 +189,32 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
     setIsSubmitting(true)
 
     try {
+      // Validate that locations have been selected with coordinates
+      if (!formData.start_latitude || !formData.start_longitude) {
+        toast({
+          title: "Error",
+          description: "Please select a valid start location with coordinates.",
+          variant: "destructive",
+        })
+        setIsSubmitting(false)
+        return
+      }
+
+      if (!formData.end_latitude || !formData.end_longitude) {
+        toast({
+          title: "Error",
+          description: "Please select a valid end location with coordinates.",
+          variant: "destructive",
+        })
+        setIsSubmitting(false)
+        return
+      }
+
       const routeData = {
         name: formData.name,
         start_location: formData.start_location,
         end_location: formData.end_location,
-        driver_id: formData.driver_id ? parseInt(formData.driver_id) : null,
+        driver_id: formData.driver_id !== "unassigned" ? parseInt(formData.driver_id) : null,
         status: 'pending' as const,
       }
 
@@ -218,14 +267,11 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
 
   const handleViewMap = async (route: any) => {
     try {
-      // Find the full route data to get the database ID
-      const fullRoute = routes.find(r => r.id === route.id)
-      if (!fullRoute) {
-        throw new Error('Route not found')
-      }
-
-      const deliveries = await DeliveryService.getDeliveriesByRoute(fullRoute.id)
-      onViewRouteMap(route, deliveries)
+      // Use the raw route data if available, otherwise find by ID
+      const routeData = route.raw || route
+      
+      const deliveries = await DeliveryService.getDeliveriesByRoute(routeData.id)
+      onViewRouteMap(routeData, deliveries)
     } catch (error) {
       console.error('Error loading route deliveries:', error)
       toast({
@@ -283,11 +329,14 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                 Add Route
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-white border-gray-200 max-w-md">
+            <DialogContent className="bg-white border-gray-200 max-w-md overflow-visible">
               <DialogHeader>
                 <DialogTitle className="text-gray-900">Add New Route</DialogTitle>
+                <DialogDescription>
+                  Create a new route with start and end locations, and optionally assign a driver.
+                </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-4 overflow-visible">
                 <div>
                   <Label htmlFor="routeName" className="text-gray-700">
                     Route Name *
@@ -305,27 +354,43 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                   <Label htmlFor="startLocation" className="text-gray-700">
                     Start Location *
                   </Label>
-                  <Input
-                    id="startLocation"
-                    placeholder="Starting point"
-                    className="bg-white border-gray-300"
+                  <AddressSearch
                     value={formData.start_location}
-                    onChange={(e) => handleInputChange("start_location", e.target.value)}
-                    required
+                    onSelect={(result) => {
+                      handleInputChange("start_location", result.display_name);
+                      handleInputChange("start_latitude", result.coordinates[0].toString());
+                      handleInputChange("start_longitude", result.coordinates[1].toString());
+                    }}
+                    placeholder="Search for starting point"
+                    className="mt-1"
+                    countryCode="ke"
                   />
+                  {formData.start_latitude && formData.start_longitude && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Coordinates: {parseFloat(formData.start_latitude).toFixed(4)}, {parseFloat(formData.start_longitude).toFixed(4)}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="endLocation" className="text-gray-700">
                     End Location *
                   </Label>
-                  <Input
-                    id="endLocation"
-                    placeholder="Ending point"
-                    className="bg-white border-gray-300"
+                  <AddressSearch
                     value={formData.end_location}
-                    onChange={(e) => handleInputChange("end_location", e.target.value)}
-                    required
+                    onSelect={(result) => {
+                      handleInputChange("end_location", result.display_name);
+                      handleInputChange("end_latitude", result.coordinates[0].toString());
+                      handleInputChange("end_longitude", result.coordinates[1].toString());
+                    }}
+                    placeholder="Search for ending point"
+                    className="mt-1"
+                    countryCode="ke"
                   />
+                  {formData.end_latitude && formData.end_longitude && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Coordinates: {parseFloat(formData.end_latitude).toFixed(4)}, {parseFloat(formData.end_longitude).toFixed(4)}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label htmlFor="driver" className="text-gray-700">
@@ -336,7 +401,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                       <SelectValue placeholder="Select a driver" />
                     </SelectTrigger>
                     <SelectContent className="bg-white border-gray-200">
-                      <SelectItem value="">Unassigned</SelectItem>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
                       {drivers.map((driver) => (
                         <SelectItem key={driver.id} value={driver.id.toString()}>
                           {driver.name}
@@ -415,40 +480,30 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex items-center text-sm">
                       <MapPin className="h-4 w-4 mr-2 text-gray-500" />
-                      <span className="text-gray-900">
-                        {route.total_distance ? `${route.total_distance.toFixed(1)} km` : '0 km'}
-                      </span>
+                      <span className="text-gray-900">{route.distance}</span>
                     </div>
                     <div className="flex items-center text-sm">
                       <Clock className="h-4 w-4 mr-2 text-gray-500" />
-                      <span className="text-gray-900">
-                        {route.estimated_duration 
-                          ? `${Math.floor(route.estimated_duration / 60)}h ${route.estimated_duration % 60}m` 
-                          : '0h 0m'}
-                      </span>
+                      <span className="text-gray-900">{route.duration}</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <div className="flex items-center">
                       <Truck className="h-4 w-4 mr-2 text-gray-500" />
-                      <span className="text-gray-900">Loading stops...</span>
+                      <span className="text-gray-900">{route.stops} stop{route.stops !== 1 ? 's' : ''}</span>
                     </div>
-                    {route.efficiency_score && route.efficiency_score > 0 && (
-                      <span className="text-green-600 font-medium">{route.efficiency_score}% efficient</span>
+                    {route.efficiency > 0 && (
+                      <span className="text-green-600 font-medium">{route.efficiency}% efficient</span>
                     )}
                   </div>
                   <div className="pt-2 border-t border-gray-100">
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-500">Driver:</span>
-                      <span className="text-gray-900 font-medium">
-                        {route.driver?.name || 'Unassigned'}
-                      </span>
+                      <span className="text-gray-900 font-medium">{route.driver}</span>
                     </div>
                     <div className="flex items-center justify-between text-sm mt-1">
                       <span className="text-gray-500">Updated:</span>
-                      <span className="text-gray-600">
-                        {new Date(route.updated_at).toLocaleDateString()}
-                      </span>
+                      <span className="text-gray-600">{route.lastUpdated}</span>
                     </div>
                   </div>
                   <div className="flex space-x-2 pt-2">
