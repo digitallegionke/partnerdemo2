@@ -6,11 +6,12 @@ import { useEffect, useRef, useState } from "react"
 import type * as Leaflet from "leaflet" // purely for IntelliSense/TS safety
 
 //--------------------------------------------------------------------
-// Helper to lazily load Leaflet JS & CSS + Routing Machine from CDN
+// Helper to lazily load Leaflet JS & CSS + Routing Machine + Geocoder from CDN
 //--------------------------------------------------------------------
 async function loadLeaflet(): Promise<typeof Leaflet> {
   // If we've already loaded it, return immediately.
-  if ((window as any).L && (window as any).L.Routing) return (window as any).L as typeof Leaflet
+  if ((window as any).L && (window as any).L.Routing && (window as any).L.Control.Geocoder) 
+    return (window as any).L as typeof Leaflet
 
   // 1. Inject Leaflet CSS once
   if (!document.getElementById("leaflet-css")) {
@@ -30,7 +31,16 @@ async function loadLeaflet(): Promise<typeof Leaflet> {
     document.head.appendChild(routingLink)
   }
 
-  // 3. Load the Leaflet UMD script
+  // 3. Inject Geocoder CSS
+  if (!document.getElementById("leaflet-geocoder-css")) {
+    const geocoderLink = document.createElement("link")
+    geocoderLink.id = "leaflet-geocoder-css"
+    geocoderLink.rel = "stylesheet"
+    geocoderLink.href = "https://unpkg.com/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.css"
+    document.head.appendChild(geocoderLink)
+  }
+
+  // 4. Load the Leaflet UMD script
   await new Promise((resolve, reject) => {
     const script = document.createElement("script")
     script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -40,7 +50,7 @@ async function loadLeaflet(): Promise<typeof Leaflet> {
     document.body.appendChild(script)
   })
 
-  // 4. Load the Routing Machine script
+  // 5. Load the Routing Machine script
   await new Promise((resolve, reject) => {
     const routingScript = document.createElement("script")
     routingScript.src = "https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"
@@ -48,6 +58,16 @@ async function loadLeaflet(): Promise<typeof Leaflet> {
     routingScript.onload = resolve
     routingScript.onerror = reject
     document.body.appendChild(routingScript)
+  })
+
+  // 6. Load the Geocoder script
+  await new Promise((resolve, reject) => {
+    const geocoderScript = document.createElement("script")
+    geocoderScript.src = "https://unpkg.com/leaflet-control-geocoder@2.4.0/dist/Control.Geocoder.js"
+    geocoderScript.async = true
+    geocoderScript.onload = resolve
+    geocoderScript.onerror = reject
+    document.body.appendChild(geocoderScript)
   })
 
   return (window as any).L as typeof Leaflet
@@ -73,13 +93,22 @@ interface MapComponentProps {
   deliveries: Delivery[]
   selectedDelivery: Delivery | null
   onDeliverySelect: (delivery: Delivery) => void
+  showGeocoder?: boolean // New prop to control geocoder visibility
+  onLocationSelect?: (location: { lat: number; lng: number; address: string }) => void // Callback for location selection
 }
 
-export default function MapComponent({ deliveries, selectedDelivery, onDeliverySelect }: MapComponentProps) {
+export default function MapComponent({ 
+  deliveries, 
+  selectedDelivery, 
+  onDeliverySelect,
+  showGeocoder = true,
+  onLocationSelect
+}: MapComponentProps) {
   const mapDivRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<Leaflet.Map | null>(null)
   const markersRef = useRef<Leaflet.Marker[]>([])
   const routeRef = useRef<any>(null)
+  const geocoderRef = useRef<any>(null)
 
   const [leafletReady, setLeafletReady] = useState(false)
 
@@ -100,7 +129,45 @@ export default function MapComponent({ deliveries, selectedDelivery, onDeliveryS
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       attribution: "© OpenStreetMap contributors",
     }).addTo(mapRef.current)
-  }, [leafletReady])
+
+    // Add geocoder control if enabled
+    if (showGeocoder && (window as any).L.Control.Geocoder) {
+      geocoderRef.current = (window as any).L.Control.geocoder({
+        defaultMarkGeocode: false,
+        placeholder: "Search for places...",
+        errorMessage: "Nothing found.",
+        iconLabel: "Search",
+        collapsed: false,
+        position: 'topright'
+      })
+      .on('markgeocode', function(e: any) {
+        const bbox = e.geocode.bbox
+        const poly = L.polygon([
+          bbox.getSouthEast(),
+          bbox.getNorthEast(),
+          bbox.getNorthWest(),
+          bbox.getSouthWest()
+        ])
+        mapRef.current?.fitBounds(poly.getBounds())
+        
+        // Add marker for selected location
+        const marker = L.marker([e.geocode.center.lat, e.geocode.center.lng])
+          .addTo(mapRef.current!)
+          .bindPopup(e.geocode.name)
+          .openPopup()
+
+        // Call callback if provided
+        if (onLocationSelect) {
+          onLocationSelect({
+            lat: e.geocode.center.lat,
+            lng: e.geocode.center.lng,
+            address: e.geocode.name
+          })
+        }
+      })
+      .addTo(mapRef.current)
+    }
+  }, [leafletReady, showGeocoder, onLocationSelect])
 
   // Render markers & route whenever deliveries change
   useEffect(() => {
@@ -235,6 +302,26 @@ export default function MapComponent({ deliveries, selectedDelivery, onDeliveryS
     }
   }, [selectedDelivery, leafletReady, deliveries])
 
+  // Public method to programmatically search for a location
+  const searchLocation = (query: string) => {
+    if (geocoderRef.current && leafletReady) {
+      geocoderRef.current.options.geocoder.geocode(query, function(results: any[]) {
+        if (results.length > 0) {
+          const result = results[0]
+          mapRef.current?.setView([result.center.lat, result.center.lng], 14)
+          
+          if (onLocationSelect) {
+            onLocationSelect({
+              lat: result.center.lat,
+              lng: result.center.lng,
+              address: result.name
+            })
+          }
+        }
+      })
+    }
+  }
+
   return (
     <div
       ref={mapDivRef}
@@ -246,3 +333,6 @@ export default function MapComponent({ deliveries, selectedDelivery, onDeliveryS
     />
   )
 }
+
+// Export the search function for external use
+export { MapComponent }
