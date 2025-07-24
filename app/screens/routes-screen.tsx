@@ -118,6 +118,8 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
   const [existingDeliveries, setExistingDeliveries] = useState<any[]>([])
   const [selectedExistingDeliveries, setSelectedExistingDeliveries] = useState<Set<number>>(new Set())
   const [drivers, setDrivers] = useState<any[]>([])
+  const [routeDeliveries, setRouteDeliveries] = useState<any[]>([])
+  const [loadingRouteDeliveries, setLoadingRouteDeliveries] = useState(false)
   const { toast } = useToast()
 
   // Load routes from Supabase
@@ -190,6 +192,24 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
     }
   }
 
+  // Load deliveries for a specific route
+  const loadRouteDeliveries = async (routeId: number) => {
+    try {
+      setLoadingRouteDeliveries(true)
+      const deliveries = await DeliveryService.getDeliveriesByRoute(routeId)
+      setRouteDeliveries(deliveries)
+    } catch (error) {
+      console.error('Error loading route deliveries:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load route deliveries. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setLoadingRouteDeliveries(false)
+    }
+  }
+
   // Load data on component mount
   useEffect(() => {
     loadRoutes()
@@ -224,6 +244,8 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
     }])
     setDeliveryMode('new')
     setSelectedExistingDeliveries(new Set())
+    setRouteDeliveries([])
+    setEditingRoute(null)
   }
 
   const addDelivery = () => {
@@ -444,7 +466,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
     }
   }
 
-  const handleEditRoute = (route: any) => {
+  const handleEditRoute = async (route: any) => {
     const routeData = route.raw || route
     setEditingRoute(routeData)
     
@@ -460,7 +482,67 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
       driver_id: routeData.driver_id ? routeData.driver_id.toString() : "unassigned"
     })
     
+    // Load deliveries for this route
+    await loadRouteDeliveries(routeData.id)
+    
     setIsEditDialogOpen(true)
+  }
+
+  // Remove delivery from route
+  const handleRemoveDeliveryFromRoute = async (deliveryId: number) => {
+    try {
+      await DeliveryService.updateDelivery(deliveryId, { 
+        route_id: null, 
+        status: 'pending' 
+      })
+      
+      // Refresh route deliveries
+      if (editingRoute) {
+        await loadRouteDeliveries(editingRoute.id)
+      }
+      
+      // Refresh unassigned deliveries
+      await loadUnassignedDeliveries()
+      
+      toast({
+        title: "Success",
+        description: "Delivery removed from route successfully!",
+      })
+    } catch (error) {
+      console.error('Error removing delivery from route:', error)
+      toast({
+        title: "Error",
+        description: "Failed to remove delivery from route. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Add delivery to current route
+  const handleAddDeliveryToRoute = async (deliveryId: number) => {
+    if (!editingRoute) return
+    
+    try {
+      await RouteService.addDeliveryToRoute(deliveryId, editingRoute.id)
+      
+      // Refresh route deliveries
+      await loadRouteDeliveries(editingRoute.id)
+      
+      // Refresh unassigned deliveries
+      await loadUnassignedDeliveries()
+      
+      toast({
+        title: "Success",
+        description: "Delivery added to route successfully!",
+      })
+    } catch (error) {
+      console.error('Error adding delivery to route:', error)
+      toast({
+        title: "Error",
+        description: "Failed to add delivery to route. Please try again.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleUpdateRoute = async (e: React.FormEvent) => {
@@ -483,6 +565,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
       resetForm()
       setIsEditDialogOpen(false)
       setEditingRoute(null)
+      setRouteDeliveries([])
       
       // Refresh routes list
       await loadRoutes()
@@ -793,95 +876,179 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
 
               {/* Edit Route Dialog */}
               <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
-                    <DialogTitle>Edit Route</DialogTitle>
+                    <DialogTitle>Edit Route - {editingRoute?.name}</DialogTitle>
                     <DialogDescription>
-                      Update route information and driver assignment.
+                      Update route information, manage deliveries, and assign drivers.
                     </DialogDescription>
                   </DialogHeader>
-                  <form onSubmit={handleUpdateRoute} className="space-y-4">
-                    <div>
-                      <Label htmlFor="editRouteName">Route Name *</Label>
-                      <Input
-                        id="editRouteName"
-                        placeholder="Enter route name"
-                        value={formData.name}
-                        onChange={(e) => handleInputChange("name", e.target.value)}
-                        required
-                      />
+                  
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Route Information Section */}
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-medium">Route Information</h3>
+                      <form onSubmit={handleUpdateRoute} className="space-y-4">
+                        <div>
+                          <Label htmlFor="editRouteName">Route Name *</Label>
+                          <Input
+                            id="editRouteName"
+                            placeholder="Enter route name"
+                            value={formData.name}
+                            onChange={(e) => handleInputChange("name", e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="editStartLocation">Start Location</Label>
+                          <AddressSearch
+                            value={formData.start_location}
+                            onSelect={(result) => {
+                              handleInputChange("start_location", result.display_name);
+                              handleInputChange("start_latitude", result.coordinates[0].toString());
+                              handleInputChange("start_longitude", result.coordinates[1].toString());
+                            }}
+                            placeholder="Search for starting point"
+                            className="mt-1"
+                            countryCode="ke"
+                          />
+                          {formData.start_latitude && formData.start_longitude && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Coordinates: {parseFloat(formData.start_latitude).toFixed(4)}, {parseFloat(formData.start_longitude).toFixed(4)}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <Label htmlFor="editEndLocation">End Location</Label>
+                          <AddressSearch
+                            value={formData.end_location}
+                            onSelect={(result) => {
+                              handleInputChange("end_location", result.display_name);
+                              handleInputChange("end_latitude", result.coordinates[0].toString());
+                              handleInputChange("end_longitude", result.coordinates[1].toString());
+                            }}
+                            placeholder="Search for ending point"
+                            className="mt-1"
+                            countryCode="ke"
+                          />
+                          {formData.end_latitude && formData.end_longitude && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Coordinates: {parseFloat(formData.end_latitude).toFixed(4)}, {parseFloat(formData.end_longitude).toFixed(4)}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <Label htmlFor="editDriver">Assign Driver</Label>
+                          <Select value={formData.driver_id} onValueChange={(value) => handleInputChange("driver_id", value)}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a driver" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="unassigned">Unassigned</SelectItem>
+                              {drivers.map((driver) => (
+                                <SelectItem key={driver.id} value={driver.id.toString()}>
+                                  {driver.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex justify-end gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => {
+                              resetForm()
+                              setIsEditDialogOpen(false)
+                              setEditingRoute(null)
+                              setRouteDeliveries([])
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? "Updating..." : "Update Route"}
+                          </Button>
+                        </div>
+                      </form>
                     </div>
-                    <div>
-                      <Label htmlFor="editStartLocation">Start Location</Label>
-                      <AddressSearch
-                        value={formData.start_location}
-                        onSelect={(result) => {
-                          handleInputChange("start_location", result.display_name);
-                          handleInputChange("start_latitude", result.coordinates[0].toString());
-                          handleInputChange("start_longitude", result.coordinates[1].toString());
-                        }}
-                        placeholder="Search for starting point"
-                        className="mt-1"
-                        countryCode="ke"
-                      />
-                      {formData.start_latitude && formData.start_longitude && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Coordinates: {parseFloat(formData.start_latitude).toFixed(4)}, {parseFloat(formData.start_longitude).toFixed(4)}
-                        </p>
-                      )}
+
+                    {/* Route Deliveries Section */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-medium">Route Deliveries</h3>
+                        {loadingRouteDeliveries && <Loader2 className="h-4 w-4 animate-spin" />}
+                      </div>
+                      
+                      {/* Current Route Deliveries */}
+                      <div className="border rounded-lg p-4">
+                        <h4 className="font-medium mb-3">Current Deliveries ({routeDeliveries.length})</h4>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {routeDeliveries.length === 0 ? (
+                            <p className="text-gray-500 text-sm text-center py-4">No deliveries assigned to this route</p>
+                          ) : (
+                            routeDeliveries.map((delivery) => (
+                              <div key={delivery.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div className="flex-1">
+                                  <p className="font-medium text-sm">{delivery.farmerName}</p>
+                                  <p className="text-xs text-gray-600">{delivery.location}</p>
+                                  <p className="text-xs text-gray-500">{delivery.produce} • {delivery.phone}</p>
+                                  <Badge variant={
+                                    delivery.status === 'completed' ? 'default' :
+                                    delivery.status === 'in-progress' ? 'secondary' :
+                                    'outline'
+                                  } className="text-xs">
+                                    {delivery.status}
+                                  </Badge>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleRemoveDeliveryFromRoute(delivery.id)}
+                                  className="ml-2"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Available Deliveries to Add */}
+                      <div className="border rounded-lg p-4">
+                        <h4 className="font-medium mb-3">Available Deliveries ({existingDeliveries.length})</h4>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {existingDeliveries.length === 0 ? (
+                            <p className="text-gray-500 text-sm text-center py-4">No unassigned deliveries available</p>
+                          ) : (
+                            existingDeliveries.map((delivery) => (
+                              <div key={delivery.id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                                <div className="flex-1">
+                                  <p className="font-medium text-sm">{delivery.farmer_name}</p>
+                                  <p className="text-xs text-gray-600">{delivery.location}</p>
+                                  <p className="text-xs text-gray-500">{delivery.produce} • {delivery.phone}</p>
+                                  <Badge variant="outline" className="text-xs">
+                                    {delivery.status}
+                                  </Badge>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleAddDeliveryToRoute(delivery.id)}
+                                  className="ml-2"
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <Label htmlFor="editEndLocation">End Location</Label>
-                      <AddressSearch
-                        value={formData.end_location}
-                        onSelect={(result) => {
-                          handleInputChange("end_location", result.display_name);
-                          handleInputChange("end_latitude", result.coordinates[0].toString());
-                          handleInputChange("end_longitude", result.coordinates[1].toString());
-                        }}
-                        placeholder="Search for ending point"
-                        className="mt-1"
-                        countryCode="ke"
-                      />
-                      {formData.end_latitude && formData.end_longitude && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Coordinates: {parseFloat(formData.end_latitude).toFixed(4)}, {parseFloat(formData.end_longitude).toFixed(4)}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <Label htmlFor="editDriver">Assign Driver</Label>
-                      <Select value={formData.driver_id} onValueChange={(value) => handleInputChange("driver_id", value)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a driver" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="unassigned">Unassigned</SelectItem>
-                          {drivers.map((driver) => (
-                            <SelectItem key={driver.id} value={driver.id.toString()}>
-                              {driver.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex justify-end gap-3">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          resetForm()
-                          setIsEditDialogOpen(false)
-                          setEditingRoute(null)
-                        }}
-                      >
-                        Cancel
-                      </Button>
-                      <Button type="submit" disabled={isSubmitting}>
-                        {isSubmitting ? "Updating..." : "Update Route"}
-                      </Button>
-                    </div>
-                  </form>
+                  </div>
                 </DialogContent>
               </Dialog>
             </div>

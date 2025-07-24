@@ -1,12 +1,15 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import PlaceAutocomplete from "./place-autocomplete"
 import MapComponent from "./map-component"
+import { RouteService } from "@/lib/services/routes"
+import { DeliveryService } from "@/lib/services/deliveries"
 
 interface DeliveryFormData {
   customerName: string
@@ -14,6 +17,7 @@ interface DeliveryFormData {
   item: string
   deliveryAddress: string
   coordinates: { lat: number; lon: number } | null
+  routeId: string | null
 }
 
 interface LocalDelivery {
@@ -25,6 +29,15 @@ interface LocalDelivery {
   dropTime: string
   status: string
   phone: string
+  routeId?: number | null
+  routeName?: string
+}
+
+interface RouteOption {
+  id: number
+  name: string
+  status: string
+  driverName?: string
 }
 
 export default function DeliveryFormDemo() {
@@ -33,8 +46,13 @@ export default function DeliveryFormDemo() {
     phone: "",
     item: "",
     deliveryAddress: "",
-    coordinates: null
+    coordinates: null,
+    routeId: null
   })
+
+  const [routes, setRoutes] = useState<RouteOption[]>([])
+  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const [deliveries, setDeliveries] = useState<LocalDelivery[]>([
     {
@@ -45,7 +63,9 @@ export default function DeliveryFormDemo() {
       item: "Tomatoes - 50kg",
       dropTime: "10:00 AM",
       status: "pending",
-      phone: "+254712345678"
+      phone: "+254712345678",
+      routeId: 1,
+      routeName: "Nairobi Central Route"
     },
     {
       id: 2,
@@ -55,11 +75,36 @@ export default function DeliveryFormDemo() {
       item: "Maize - 100kg",
       dropTime: "11:30 AM",
       status: "in-progress",
-      phone: "+254723456789"
+      phone: "+254723456789",
+      routeId: 2,
+      routeName: "Westlands Circuit"
     }
   ])
 
   const [selectedDelivery, setSelectedDelivery] = useState<LocalDelivery>(deliveries[0])
+
+  // Fetch available routes on component mount
+  useEffect(() => {
+    const fetchRoutes = async () => {
+      try {
+        setLoading(true)
+        const routesData = await RouteService.getAllRoutes()
+        const routeOptions = routesData.map(route => ({
+          id: route.id,
+          name: route.name,
+          status: route.status,
+          driverName: route.driver?.name
+        }))
+        setRoutes(routeOptions)
+      } catch (error) {
+        console.error('Error fetching routes:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchRoutes()
+  }, [])
 
   // Handle place selection from autocomplete
   const handlePlaceSelect = (place: { address: string; lat: number; lon: number }) => {
@@ -80,7 +125,7 @@ export default function DeliveryFormDemo() {
   }
 
   // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!formData.coordinates) {
@@ -88,29 +133,66 @@ export default function DeliveryFormDemo() {
       return
     }
 
-    const newDelivery: LocalDelivery = {
-      id: deliveries.length + 1,
-      customerName: formData.customerName,
-      location: formData.deliveryAddress,
-      coordinates: [formData.coordinates.lat, formData.coordinates.lon],
-      item: formData.item,
-      dropTime: "12:00 PM",
-      status: "pending",
-      phone: formData.phone
+    if (!formData.customerName || !formData.phone || !formData.item) {
+      alert("Please fill in all required fields")
+      return
     }
 
-    setDeliveries(prev => [...prev, newDelivery])
-    
-    // Reset form
-    setFormData({
-      customerName: "",
-      phone: "",
-      item: "",
-      deliveryAddress: "",
-      coordinates: null
-    })
+    try {
+      setSubmitting(true)
 
-    alert("Delivery added successfully!")
+      // Create delivery in database
+      const deliveryData = {
+        customer_name: formData.customerName,
+        location: formData.deliveryAddress,
+        coordinates: [formData.coordinates.lat, formData.coordinates.lon] as [number, number],
+        item: formData.item,
+        phone: formData.phone,
+        drop_time: "12:00", // Default time, could be made configurable
+        status: 'pending' as const
+      }
+
+      const createdDelivery = await DeliveryService.createDelivery(deliveryData)
+
+      // If route is selected, assign delivery to route
+      if (formData.routeId) {
+        await RouteService.addDeliveryToRoute(createdDelivery.id, parseInt(formData.routeId))
+      }
+
+      // Create local delivery object for immediate UI update
+      const selectedRoute = routes.find(r => r.id.toString() === formData.routeId)
+      const newDelivery: LocalDelivery = {
+        id: createdDelivery.id,
+        customerName: formData.customerName,
+        location: formData.deliveryAddress,
+        coordinates: [formData.coordinates.lat, formData.coordinates.lon],
+        item: formData.item,
+        dropTime: "12:00 PM",
+        status: formData.routeId ? "in-progress" : "pending",
+        phone: formData.phone,
+        routeId: formData.routeId ? parseInt(formData.routeId) : null,
+        routeName: selectedRoute?.name
+      }
+
+      setDeliveries(prev => [...prev, newDelivery])
+      
+      // Reset form
+      setFormData({
+        customerName: "",
+        phone: "",
+        item: "",
+        deliveryAddress: "",
+        coordinates: null,
+        routeId: null
+      })
+
+      alert("Delivery added successfully!")
+    } catch (error) {
+      console.error('Error creating delivery:', error)
+      alert("Error adding delivery. Please try again.")
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -173,8 +255,30 @@ export default function DeliveryFormDemo() {
                 )}
               </div>
 
-              <Button type="submit" className="w-full">
-                Add Delivery
+              <div>
+                <Label htmlFor="route">Assign to Route</Label>
+                <Select onValueChange={(value) => setFormData(prev => ({ ...prev, routeId: value }))} value={formData.routeId || ""} disabled={loading}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a route" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {loading ? (
+                      <SelectItem value="" disabled>Loading routes...</SelectItem>
+                    ) : routes.length === 0 ? (
+                      <SelectItem value="" disabled>No routes available</SelectItem>
+                    ) : (
+                      routes.map(route => (
+                        <SelectItem key={route.id} value={route.id.toString()}>
+                          {route.name} ({route.status}) {route.driverName && `- ${route.driverName}`}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={submitting}>
+                {submitting ? "Adding Delivery..." : "Add Delivery"}
               </Button>
             </form>
           </CardContent>
@@ -191,9 +295,30 @@ export default function DeliveryFormDemo() {
           <CardContent>
             <div className="h-[500px]">
               <MapComponent
-                deliveries={deliveries}
-                selectedDelivery={selectedDelivery}
-                onDeliverySelect={setSelectedDelivery}
+                deliveries={deliveries.map(delivery => ({
+                  id: delivery.id,
+                  customer_name: delivery.customerName,
+                  location: delivery.location,
+                  coordinates: delivery.coordinates,
+                  item: delivery.item,
+                  phone: delivery.phone,
+                  drop_time: delivery.dropTime.replace(' AM', '').replace(' PM', ''),
+                  status: delivery.status as 'pending' | 'in-progress' | 'completed' | 'failed'
+                }))}
+                selectedDelivery={selectedDelivery ? {
+                  id: selectedDelivery.id,
+                  customer_name: selectedDelivery.customerName,
+                  location: selectedDelivery.location,
+                  coordinates: selectedDelivery.coordinates,
+                  item: selectedDelivery.item,
+                  phone: selectedDelivery.phone,
+                  drop_time: selectedDelivery.dropTime.replace(' AM', '').replace(' PM', ''),
+                  status: selectedDelivery.status as 'pending' | 'in-progress' | 'completed' | 'failed'
+                } : null}
+                onDeliverySelect={(delivery) => {
+                  const localDelivery = deliveries.find(d => d.id === delivery.id)
+                  if (localDelivery) setSelectedDelivery(localDelivery)
+                }}
                 showGeocoder={true}
                 onLocationSelect={handleMapLocationSelect}
               />
@@ -224,6 +349,9 @@ export default function DeliveryFormDemo() {
                     <h3 className="font-medium">{delivery.customerName}</h3>
                     <p className="text-sm text-gray-600">{delivery.location}</p>
                     <p className="text-sm text-gray-500">{delivery.item} • {delivery.dropTime}</p>
+                    {delivery.routeName && (
+                      <p className="text-sm text-gray-500">Route: {delivery.routeName}</p>
+                    )}
                   </div>
                   <span
                     className={`px-2 py-1 text-xs font-medium rounded-full ${
