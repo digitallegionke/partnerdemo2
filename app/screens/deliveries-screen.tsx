@@ -28,6 +28,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -35,6 +36,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { DeliveryService } from "@/lib/services/deliveries"
+import AddressSearch from "@/components/address-search"
 
 // Transform Supabase delivery data to UI format
 const transformDeliveryForUI = (delivery: any) => {
@@ -159,10 +161,20 @@ export default function DeliveriesScreen() {
     setIsSubmitting(true)
 
     try {
+      // Validate coordinates
+      const latitude = parseFloat(formData.latitude)
+      const longitude = parseFloat(formData.longitude)
+      
+      if (isNaN(latitude) || isNaN(longitude)) {
+        alert('Please select a valid delivery location with coordinates.')
+        setIsSubmitting(false)
+        return
+      }
+
       const deliveryData = {
         farmer_name: formData.farmer_name,
         location: formData.location,
-        coordinates: [parseFloat(formData.latitude), parseFloat(formData.longitude)],
+        coordinates: [longitude, latitude], // [lng, lat] for GeoJSON standard
         produce: formData.produce,
         estimated_value: formData.estimated_value || null,
         weight: formData.weight || null,
@@ -289,6 +301,9 @@ export default function DeliveriesScreen() {
             <DialogContent className="max-w-2xl bg-white">
               <DialogHeader>
                 <DialogTitle className="text-xl font-semibold text-gray-900">Add New Delivery</DialogTitle>
+                <DialogDescription>
+                  Add a new delivery to the system. All fields are required.
+                </DialogDescription>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -326,14 +341,16 @@ export default function DeliveriesScreen() {
                   <Label htmlFor="location" className="text-sm font-medium text-gray-700">
                     Delivery Location *
                   </Label>
-                  <Input
-                    id="location"
-                    type="text"
-                    required
+                  <AddressSearch
                     value={formData.location}
-                    onChange={(e) => handleInputChange("location", e.target.value)}
+                    onSelect={(result) => {
+                      handleInputChange("location", result.display_name);
+                      handleInputChange("latitude", result.coordinates[0].toString());
+                      handleInputChange("longitude", result.coordinates[1].toString());
+                    }}
                     placeholder="Enter delivery address"
-                    className="mt-1 bg-white border-gray-300"
+                    className="mt-1"
+                    countryCode="ke"
                   />
                 </div>
 
@@ -352,6 +369,7 @@ export default function DeliveriesScreen() {
                       placeholder="-1.2921"
                       className="mt-1 bg-white border-gray-300"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Auto-filled when selecting an address above</p>
                   </div>
                   <div>
                     <Label htmlFor="longitude" className="text-sm font-medium text-gray-700">
@@ -367,6 +385,7 @@ export default function DeliveriesScreen() {
                       placeholder="36.8219"
                       className="mt-1 bg-white border-gray-300"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Auto-filled when selecting an address above</p>
                   </div>
                 </div>
 
