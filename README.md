@@ -1,30 +1,195 @@
-# Safe Moon UI clone
+# Roundi - Delivery Management Platform
 
-*Automatically synced with your [v0.dev](https://v0.dev) deployments*
+*Complete delivery management solution with onboarding and authentication*
 
-[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=for-the-badge&logo=vercel)](https://vercel.com/raondiapp-2261s-projects/v0-safe-moon-ui-clone)
-[![Built with v0](https://img.shields.io/badge/Built%20with-v0.dev-black?style=for-the-badge)](https://v0.dev/chat/projects/XQ9PRG8gMWP)
+[![Built with Next.js](https://img.shields.io/badge/Built%20with-Next.js-black?style=for-the-badge&logo=next.js)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
-## Overview
+## 🚀 Features
 
-This repository will stay in sync with your deployed chats on [v0.dev](https://v0.dev).
-Any changes you make to your deployed app will be automatically pushed to this repository from [v0.dev](https://v0.dev).
+### **Authentication & Onboarding**
+- **Complete authentication flow** with login/signup
+- **Organization setup wizard** for new companies
+- **Driver onboarding portal** with document upload
+- **Feature tour** for first-time users
+- **Team invitation system** with role management
 
-## Deployment
+### **Delivery Management**
+- **Smart route planning** with AI optimization
+- **Real-time driver tracking** and assignment
+- **Delivery status monitoring** with customer updates
+- **Performance analytics** and reporting
+- **Interactive maps** with route visualization
 
-Your project is live at:
+### **Team Management**
+- **Driver management** with status tracking
+- **Role-based access control** (Admin, Manager, Driver)
+- **Team invitations** via email or shareable links
+- **Performance monitoring** and analytics
 
-**[https://vercel.com/raondiapp-2261s-projects/v0-safe-moon-ui-clone](https://vercel.com/raondiapp-2261s-projects/v0-safe-moon-ui-clone)**
+## 🔐 Authentication Flow
 
-## Build your app
+### **New Users (First Visit)**
+1. **Landing Page** (`/`) - Login/Signup forms with feature showcase
+2. **Organization Setup** - Company details and configuration
+3. **Welcome Screen** - Next steps and onboarding completion
+4. **Dashboard Access** (`/dashboard`) - Main application interface
 
-Continue building your app on:
+### **Existing Users**
+1. **Login** (`/`) - Direct authentication
+2. **Dashboard** (`/dashboard`) - Immediate access to main app
 
-**[https://v0.dev/chat/projects/XQ9PRG8gMWP](https://v0.dev/chat/projects/XQ9PRG8gMWP)**
+### **Driver Onboarding**
+- **Dedicated portal** (`/onboarding/driver`) for new drivers
+- **Multi-step process**: Personal info → Vehicle details → Document upload → Verification
+- **Professional completion** with next steps and support
 
-## How It Works
+## 🎯 Getting Started
 
-1. Create and modify your project using [v0.dev](https://v0.dev)
-2. Deploy your chats from the v0 interface
-3. Changes are automatically pushed to this repository
-4. Vercel deploys the latest version from this repository
+### Prerequisites
+- Node.js 18+ and npm
+- Supabase account (for database)
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd roundi_v2
+   ```
+
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Environment setup**
+   ```bash
+   cp env-template.txt .env.local
+   # Add your Supabase credentials
+   ```
+
+4. **Database setup**
+   ```bash
+   # Run the SQL migrations in order:
+   # 01_create_drivers_table.sql
+   # 02_create_routes_table.sql
+   # 03_create_deliveries_table.sql
+   # ... (see sql/ directory)
+   ```
+
+5. **Start development server**
+   ```bash
+   npm run dev
+   ```
+
+6. **Visit** `http://localhost:3000` to see the authentication flow
+
+## 📁 Project Structure
+
+```
+roundi_v2/
+├── app/
+│   ├── page.tsx                 # Authentication landing page
+│   ├── dashboard/
+│   │   └── page.tsx            # Main dashboard (protected)
+│   ├── onboarding/
+│   │   └── driver/
+│   │       └── page.tsx        # Driver registration portal
+│   └── screens/                # Dashboard screens
+├── components/
+│   ├── feature-tour.tsx        # Interactive feature tour
+│   └── ui/                     # Reusable UI components
+├── lib/
+│   ├── supabase.ts            # Database client
+│   └── services/              # Data services
+└── sql/                       # Database migrations
+```
+
+## 🎪 User Journey
+
+### **Company Admin**
+1. Sign up at landing page
+2. Complete organization setup
+3. Access dashboard with full permissions
+4. Invite drivers and team members
+5. Manage routes, deliveries, and analytics
+
+### **Driver**
+1. Receive invitation link or use public registration
+2. Complete driver onboarding process
+3. Upload required documents
+4. Wait for approval
+5. Access driver mobile app (future feature)
+
+### **Team Member**
+1. Receive email invitation
+2. Sign up with role-specific permissions
+3. Access relevant dashboard sections
+4. Collaborate on delivery operations
+
+## 🔧 Key Components
+
+### **Authentication System**
+- **Unified login/signup** with beautiful UI
+- **Organization setup** for business configuration
+- **Role-based permissions** (Admin, Manager, Driver)
+- **Secure state management** with localStorage
+
+### **Onboarding Experience**
+- **Feature tour** with step-by-step guidance
+- **Welcome banners** for first-time users
+- **Progress tracking** through setup process
+- **Help system** with tour replay and support
+
+### **Dashboard Features**
+- **Route management** with map integration
+- **Driver assignment** and tracking
+- **Delivery monitoring** with status updates
+- **Analytics and reporting** for performance insights
+- **Settings and team management**
+
+## 🛠️ Customization
+
+### **Branding**
+- Update logo and colors in components
+- Modify feature descriptions in onboarding
+- Customize email templates for invitations
+
+### **Features**
+- Add new dashboard screens in `app/screens/`
+- Extend the feature tour in `components/feature-tour.tsx`
+- Create new user roles and permissions
+
+### **Database**
+- Add new tables in `sql/` directory
+- Extend services in `lib/services/`
+- Update TypeScript types in `lib/supabase.ts`
+
+## 🚀 Deployment
+
+### **Production Build**
+```bash
+npm run build
+npm start
+```
+
+### **Environment Variables**
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+```
+
+## 🆘 Support
+
+- **Documentation**: Check `/SUPABASE_SETUP.md` for database setup
+- **Issues**: Create issues for bugs or feature requests
+- **Customization**: Modify according to your business needs
+
+## 📄 License
+
+This project is licensed under the MIT License.
+
+---
+
+**Built with ❤️ for delivery businesses worldwide**
