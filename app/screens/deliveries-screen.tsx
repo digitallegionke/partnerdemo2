@@ -270,50 +270,36 @@ export default function DeliveriesScreen() {
   }
 
   return (
-    <div className="p-6 bg-white">
-      {/* Header Actions */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Search deliveries..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 w-64 bg-white border-gray-300"
-            />
-          </div>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-40 bg-white border-gray-300">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent className="bg-white border-gray-200">
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="delivered">Delivered</SelectItem>
-              <SelectItem value="in-transit">In Transit</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="failed">Failed</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filterDate} onValueChange={setFilterDate}>
-            <SelectTrigger className="w-40 bg-white border-gray-300">
-              <SelectValue placeholder="Date" />
-            </SelectTrigger>
-            <SelectContent className="bg-white border-gray-200">
-              <SelectItem value="all">All Dates</SelectItem>
-              <SelectItem value="2024-01-15">Today</SelectItem>
-              <SelectItem value="2024-01-14">Yesterday</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                <Plus className="h-4 w-4 mr-2" />
-                Add New Delivery
+    <div className="p-6 bg-gray-50 min-h-screen">
+      {/* Header Section */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div className="p-6">
+          {/* Title and Main Actions */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">Deliveries</h1>
+              <p className="text-sm text-gray-600 mt-1">Manage and track all your deliveries</p>
+            </div>
+            <div className="flex items-center space-x-3">
+              <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white shadow-sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export
               </Button>
-            </DialogTrigger>
+                             <Button 
+                 variant="outline" 
+                 className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white shadow-sm"
+                 onClick={loadDeliveries}
+               >
+                 <RefreshCw className="h-4 w-4 mr-2" />
+                 Refresh
+               </Button>
+               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                 <DialogTrigger asChild>
+                   <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm">
+                     <Plus className="h-4 w-4 mr-2" />
+                     Add New Delivery
+                   </Button>
+                 </DialogTrigger>
             <DialogContent className="max-w-2xl bg-white">
               <DialogHeader>
                 <DialogTitle className="text-xl font-semibold text-gray-900">Add New Delivery</DialogTitle>
@@ -483,66 +469,105 @@ export default function DeliveriesScreen() {
                   </Button>
                 </div>
               </form>
-            </DialogContent>
-          </Dialog>
-          <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white">
-            <Filter className="h-4 w-4 mr-2" />
-            More Filters
-          </Button>
-          <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white" onClick={loadDeliveries}>
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-        </div>
-      </div>
+                 </DialogContent>
+               </Dialog>
+             </div>
+           </div>
+
+           {/* Search and Filters */}
+           <div className="flex items-center justify-between">
+             <div className="flex items-center space-x-4">
+               <div className="relative">
+                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                 <Input
+                   placeholder="Search deliveries..."
+                   value={searchTerm}
+                   onChange={(e) => setSearchTerm(e.target.value)}
+                   className="pl-10 w-72 bg-white border-gray-300 shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                 />
+               </div>
+               <Select value={filterStatus} onValueChange={setFilterStatus}>
+                 <SelectTrigger className="w-44 bg-white border-gray-300 shadow-sm">
+                   <SelectValue placeholder="All Status" />
+                 </SelectTrigger>
+                 <SelectContent className="bg-white border-gray-200">
+                   <SelectItem value="all">All Status</SelectItem>
+                   <SelectItem value="delivered">Delivered</SelectItem>
+                   <SelectItem value="in-transit">In Transit</SelectItem>
+                   <SelectItem value="pending">Pending</SelectItem>
+                   <SelectItem value="failed">Failed</SelectItem>
+                 </SelectContent>
+               </Select>
+               <Select value={filterDate} onValueChange={setFilterDate}>
+                 <SelectTrigger className="w-44 bg-white border-gray-300 shadow-sm">
+                   <SelectValue placeholder="All Dates" />
+                 </SelectTrigger>
+                 <SelectContent className="bg-white border-gray-200">
+                   <SelectItem value="all">All Dates</SelectItem>
+                   <SelectItem value="2024-01-15">Today</SelectItem>
+                   <SelectItem value="2024-01-14">Yesterday</SelectItem>
+                 </SelectContent>
+               </Select>
+             </div>
+             <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white shadow-sm">
+               <Filter className="h-4 w-4 mr-2" />
+               More Filters
+             </Button>
+           </div>
+         </div>
+       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-4 gap-4 mb-6">
-        <Card className="bg-white border border-gray-200">
-          <CardContent className="p-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Total Deliveries</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                <p className="text-sm font-medium text-gray-500">Total Deliveries</p>
+                <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total}</p>
               </div>
-              <Package className="h-8 w-8 text-blue-600" />
+              <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Package className="h-6 w-6 text-blue-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-white border border-gray-200">
-          <CardContent className="p-4">
+        <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Delivered</p>
-                <p className="text-2xl font-bold text-green-600">{stats.delivered}</p>
+                <p className="text-sm font-medium text-gray-500">Delivered</p>
+                <p className="text-3xl font-bold text-green-600 mt-2">{stats.delivered}</p>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-600" />
+              <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center">
+                <CheckCircle className="h-6 w-6 text-green-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-white border border-gray-200">
-          <CardContent className="p-4">
+        <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">In Transit</p>
-                <p className="text-2xl font-bold text-blue-600">{stats.inTransit}</p>
+                <p className="text-sm font-medium text-gray-500">In Transit</p>
+                <p className="text-3xl font-bold text-blue-600 mt-2">{stats.inTransit}</p>
               </div>
-              <Truck className="h-8 w-8 text-blue-600" />
+              <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Truck className="h-6 w-6 text-blue-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-white border border-gray-200">
-          <CardContent className="p-4">
+        <Card className="bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-gray-500">Failed</p>
-                <p className="text-2xl font-bold text-red-600">{stats.failed}</p>
+                <p className="text-sm font-medium text-gray-500">Failed</p>
+                <p className="text-3xl font-bold text-red-600 mt-2">{stats.failed}</p>
               </div>
-              <XCircle className="h-8 w-8 text-red-600" />
+              <div className="h-12 w-12 bg-red-100 rounded-lg flex items-center justify-center">
+                <XCircle className="h-6 w-6 text-red-600" />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -573,10 +598,18 @@ export default function DeliveriesScreen() {
 
       {/* Deliveries List */}
       {!isLoading && !error && (
-        <div className="space-y-4">
-          {filteredDeliveries.map((delivery) => (
-          <Card key={delivery.id} className="bg-white border border-gray-200 hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <h2 className="text-lg font-semibold text-gray-900">
+              Deliveries ({filteredDeliveries.length})
+            </h2>
+            <p className="text-sm text-gray-600 mt-1">
+              {filteredDeliveries.length === 0 ? 'No deliveries found' : 'Manage your delivery orders'}
+            </p>
+          </div>
+          <div className="divide-y divide-gray-200">
+            {filteredDeliveries.map((delivery) => (
+                        <div key={delivery.id} className="p-6 hover:bg-gray-50 transition-colors">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
                   <div className="flex items-center space-x-3 mb-3">
