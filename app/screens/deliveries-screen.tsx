@@ -834,39 +834,21 @@ export default function DeliveriesScreen() {
                   <SelectItem value="failed">Failed</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={filterDate} onValueChange={setFilterDate}>
-                <SelectTrigger className="w-48">
-                  <SelectValue placeholder="All Dates" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Dates</SelectItem>
-                  <SelectItem value="2024-01-15">Today</SelectItem>
-                  <SelectItem value="2024-01-14">Yesterday</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex bg-gray-100 rounded-lg p-1">
-                <Button
-                  variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('grid')}
-                  className="text-xs px-3"
-                >
-                  Grid
-                </Button>
-                <Button
-                  variant={viewMode === 'list' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('list')}
-                  className="text-xs px-3"
-                >
-                  List
-                </Button>
-              </div>
-              <Button variant="outline" size="sm" className="text-gray-600">
-                <Filter className="h-4 w-4 mr-2" />
-                Filters
+            <div className="flex items-center gap-2">
+              <Button
+                variant={viewMode === 'grid' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('grid')}
+              >
+                Grid
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+              >
+                List
               </Button>
             </div>
           </div>

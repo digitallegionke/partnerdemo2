@@ -10,7 +10,7 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
+    --primary: 221.2 83.2% 53.3%;
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96%;
     --secondary-foreground: 222.2 84% 4.9%;
@@ -22,7 +22,7 @@
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --ring: 221.2 83.2% 53.3%;
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
@@ -38,8 +38,8 @@
     --card-foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
@@ -50,7 +50,7 @@
     --destructive-foreground: 210 40% 98%;
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --ring: 224.3 76.3% 94.1%;
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
@@ -66,6 +66,130 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* React Big Calendar Custom Styles */
+.rbc-calendar {
+  @apply bg-white;
+}
+
+.rbc-header {
+  @apply bg-gray-50 border-b border-gray-200 text-sm font-medium text-gray-700 p-3;
+}
+
+.rbc-month-view,
+.rbc-time-view {
+  @apply border border-gray-200 rounded-lg;
+}
+
+.rbc-date-cell {
+  @apply text-sm text-gray-600 p-2;
+}
+
+.rbc-date-cell.rbc-off-range {
+  @apply text-gray-400;
+}
+
+.rbc-date-cell.rbc-now {
+  @apply bg-blue-50 text-blue-700 font-semibold;
+}
+
+.rbc-today {
+  @apply bg-blue-50;
+}
+
+.rbc-event {
+  @apply text-xs font-medium px-2 py-1 rounded shadow-sm;
+}
+
+.rbc-event:focus {
+  @apply outline-none ring-2 ring-blue-500 ring-offset-1;
+}
+
+.rbc-slot-selection {
+  @apply bg-blue-100 border border-blue-300;
+}
+
+.rbc-day-slot .rbc-time-slot {
+  @apply border-t border-gray-100;
+}
+
+.rbc-time-header-gutter,
+.rbc-time-content > * + * > * {
+  @apply border-l border-gray-200;
+}
+
+.rbc-timeslot-group {
+  @apply border-b border-gray-100;
+}
+
+.rbc-time-header-content {
+  @apply border-l border-gray-200;
+}
+
+.rbc-toolbar {
+  @apply flex items-center justify-between p-4 bg-gray-50 border-b border-gray-200 rounded-t-lg;
+}
+
+.rbc-toolbar button {
+  @apply px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1;
+}
+
+.rbc-toolbar button:active,
+.rbc-toolbar button.rbc-active {
+  @apply bg-blue-600 text-white border-blue-600;
+}
+
+.rbc-toolbar-label {
+  @apply text-lg font-semibold text-gray-900;
+}
+
+/* Week view specific styles */
+.rbc-time-view .rbc-time-gutter {
+  @apply bg-gray-50 border-r border-gray-200;
+}
+
+.rbc-time-view .rbc-time-header {
+  @apply border-b border-gray-200;
+}
+
+.rbc-time-view .rbc-allday-cell {
+  @apply bg-gray-50;
+}
+
+/* Month view specific styles */
+.rbc-month-view .rbc-date-cell {
+  @apply min-h-[100px];
+}
+
+.rbc-month-view .rbc-event {
+  @apply mb-1;
+}
+
+/* Status-specific event styles - enhanced */
+.rbc-event[data-status="pending"] {
+  @apply bg-yellow-100 border-l-4 border-yellow-500 text-yellow-800;
+}
+
+.rbc-event[data-status="approved"] {
+  @apply bg-green-100 border-l-4 border-green-500 text-green-800;
+}
+
+.rbc-event[data-status="in-progress"] {
+  @apply bg-blue-100 border-l-4 border-blue-500 text-blue-800;
+}
+
+.rbc-event[data-status="completed"] {
+  @apply bg-emerald-100 border-l-4 border-emerald-500 text-emerald-800;
+}
+
+.rbc-event[data-status="failed"] {
+  @apply bg-red-100 border-l-4 border-red-500 text-red-800;
+}
+
+/* Overdue events (for pending deliveries past their time) */
+.rbc-event.overdue {
+  @apply bg-red-200 border-l-4 border-red-600 text-red-900 animate-pulse;
 }
 
 /* Custom scrollbar */

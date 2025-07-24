@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import type { Database } from '@/lib/supabase'
+import moment from 'moment'
 
 type Route = Database['public']['Tables']['routes']['Row']
 type RouteInsert = Database['public']['Tables']['routes']['Insert']
@@ -299,5 +300,178 @@ export class RouteService {
       estimated_duration: duration,
       efficiency_score: efficiency
     })
+  }
+
+  // Method to add approved delivery to a route
+  static async addDeliveryToRoute(deliveryId: number, routeId?: number): Promise<void> {
+    try {
+      // If no route ID provided, find the best route or create a new one
+      if (!routeId) {
+        routeId = await this.findBestRouteForDelivery(deliveryId)
+      }
+
+      // Update the delivery with the route assignment
+      const { error } = await supabase
+        .from('deliveries')
+        .update({ 
+          route_id: routeId,
+          status: 'approved'
+        })
+        .eq('id', deliveryId)
+
+      if (error) {
+        console.error('Error adding delivery to route:', error)
+        throw error
+      }
+
+      // Update route status to active if it was pending
+      const { error: routeError } = await supabase
+        .from('routes')
+        .update({ status: 'active' })
+        .eq('id', routeId)
+        .eq('status', 'pending')
+
+      if (routeError) {
+        console.error('Error updating route status:', routeError)
+      }
+    } catch (error) {
+      console.error('Error in addDeliveryToRoute:', error)
+      throw error
+    }
+  }
+
+  // Find the best route for a delivery based on location and capacity
+  static async findBestRouteForDelivery(deliveryId: number): Promise<number> {
+    try {
+      // Get the delivery details
+      const { data: delivery, error: deliveryError } = await supabase
+        .from('deliveries')
+        .select('*')
+        .eq('id', deliveryId)
+        .single()
+
+      if (deliveryError || !delivery) {
+        throw new Error('Delivery not found')
+      }
+
+      // Get all active routes with delivery counts
+      const { data: routes, error: routesError } = await supabase
+        .from('routes')
+        .select(`
+          *,
+          deliveries:deliveries(count)
+        `)
+        .in('status', ['active', 'pending'])
+
+      if (routesError) {
+        throw routesError
+      }
+
+      // For now, use a simple algorithm:
+      // 1. Find routes with capacity (less than 10 deliveries)
+      // 2. Prefer routes that are already active
+      // 3. If no suitable route, create a new one
+
+      const suitableRoutes = (routes || []).filter(route => {
+        const deliveryCount = Array.isArray(route.deliveries) ? route.deliveries.length : (route.deliveries?.count || 0)
+        return deliveryCount < 10 // Max 10 deliveries per route
+      })
+
+      if (suitableRoutes.length > 0) {
+        // Prefer active routes over pending ones
+        const activeRoutes = suitableRoutes.filter(r => r.status === 'active')
+        return activeRoutes.length > 0 ? activeRoutes[0].id : suitableRoutes[0].id
+      } else {
+        // Create a new route
+        return await this.createRouteForDelivery(delivery)
+      }
+    } catch (error) {
+      console.error('Error in findBestRouteForDelivery:', error)
+      throw error
+    }
+  }
+
+  // Create a new route for a delivery
+  static async createRouteForDelivery(delivery: any): Promise<number> {
+    try {
+      const routeName = `Route ${moment().format('MMM D, YYYY')} - ${delivery.location.split(',')[0]}`
+      
+      const { data, error } = await supabase
+        .from('routes')
+        .insert([{
+          name: routeName,
+          status: 'pending',
+          start_location: 'Distribution Center', // Default start location
+          end_location: delivery.location,
+          total_distance: 0, // Will be calculated later
+          estimated_duration: 60, // Default 1 hour
+          efficiency_score: 0
+        }])
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating new route:', error)
+        throw error
+      }
+
+      return data.id
+    } catch (error) {
+      console.error('Error in createRouteForDelivery:', error)
+      throw error
+    }
+  }
+
+  // Get route with delivery details for map display
+  static async getRouteWithDeliveries(routeId: number): Promise<any> {
+    try {
+      const { data, error } = await supabase
+        .from('routes')
+        .select(`
+          *,
+          driver:drivers(*),
+          deliveries:deliveries(*)
+        `)
+        .eq('id', routeId)
+        .single()
+
+      if (error) {
+        console.error('Error fetching route with deliveries:', error)
+        throw error
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in getRouteWithDeliveries:', error)
+      throw error
+    }
+  }
+
+  // Get today's active routes with deliveries
+  static async getTodaysActiveRoutes(): Promise<any[]> {
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      
+      const { data, error } = await supabase
+        .from('routes')
+        .select(`
+          *,
+          driver:drivers(*),
+          deliveries:deliveries(*)
+        `)
+        .eq('status', 'active')
+        .gte('created_at', `${today}T00:00:00`)
+        .lte('created_at', `${today}T23:59:59`)
+
+      if (error) {
+        console.error('Error fetching today\'s routes:', error)
+        throw error
+      }
+
+      return data || []
+    } catch (error) {
+      console.error('Error in getTodaysActiveRoutes:', error)
+      throw error
+    }
   }
 } 

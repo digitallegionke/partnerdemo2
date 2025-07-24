@@ -270,4 +270,185 @@ export class DeliveryService {
 
     return data || []
   }
+
+  // Calendar-specific methods for delivery scheduling
+  static async createDeliveryForCalendar(delivery: {
+    customer_name: string
+    location: string
+    coordinates?: [number, number] // [lat, lng] - optional for now
+    item: string
+    estimated_value?: string | null
+    weight?: string | null
+    phone: string
+    scheduled_date: string // YYYY-MM-DD format
+    start_time: string // HH:MM format
+    end_time: string // HH:MM format
+    notes?: string
+    status?: 'pending' | 'approved' | 'in-progress' | 'completed' | 'failed'
+  }): Promise<Delivery> {
+    try {
+      // Default coordinates to Nairobi if not provided
+      const defaultCoordinates: [number, number] = [-1.2921, 36.8219] // Nairobi city center
+      const coords = delivery.coordinates || defaultCoordinates
+
+      const deliveryData = {
+        customer_name: delivery.customer_name,
+        location: delivery.location,
+        coordinates: {
+          type: 'Point',
+          coordinates: [coords[1], coords[0]] // GeoJSON format: [longitude, latitude]
+        },
+        item: delivery.item,
+        estimated_value: delivery.estimated_value,
+        weight: delivery.weight,
+        phone: delivery.phone,
+        drop_time: delivery.start_time, // Use start_time as drop_time for now
+        status: delivery.status || 'pending',
+        // Store calendar-specific data in a JSON field if available, or create separate table
+        scheduled_date: delivery.scheduled_date,
+        end_time: delivery.end_time,
+        notes: delivery.notes
+      }
+
+      console.log('Creating calendar delivery with data:', deliveryData)
+
+      const { data, error } = await supabase
+        .from('deliveries')
+        .insert([deliveryData])
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error creating calendar delivery:', error)
+        throw error
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in createDeliveryForCalendar:', error)
+      throw error
+    }
+  }
+
+  static async getDeliveriesForCalendar(startDate?: string, endDate?: string): Promise<Array<{
+    id: number
+    title: string
+    start: Date
+    end: Date
+    status: 'pending' | 'approved' | 'in-progress' | 'completed' | 'failed'
+    location: string
+    customer_name: string
+    item: string
+    phone: string
+    estimated_value?: string | null
+    weight?: string | null
+    notes?: string
+  }>> {
+    try {
+      let query = supabase
+        .from('deliveries')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      // Filter by date range if provided
+      if (startDate && endDate) {
+        query = query
+          .gte('created_at', `${startDate}T00:00:00`)
+          .lte('created_at', `${endDate}T23:59:59`)
+      }
+
+      const { data, error } = await query
+
+      if (error) {
+        console.error('Error fetching calendar deliveries:', error)
+        throw error
+      }
+
+      // Transform to calendar format
+      return (data || []).map(delivery => {
+        // Parse the date - for now, use created_at date + drop_time
+        const deliveryDate = new Date(delivery.created_at)
+        const [hours, minutes] = delivery.drop_time.split(':')
+        
+        const start = new Date(deliveryDate)
+        start.setHours(parseInt(hours), parseInt(minutes), 0)
+        
+        const end = new Date(start)
+        end.setHours(start.getHours() + 1) // Default 1 hour duration
+
+        return {
+          id: delivery.id,
+          title: `${delivery.customer_name || delivery.farmer_name} - ${delivery.item || delivery.produce}`,
+          start,
+          end,
+          status: delivery.status,
+          location: delivery.location,
+          customer_name: delivery.customer_name || delivery.farmer_name,
+          item: delivery.item || delivery.produce,
+          phone: delivery.phone,
+          estimated_value: delivery.estimated_value,
+          weight: delivery.weight,
+          notes: undefined // Add notes field if available
+        }
+      })
+    } catch (error) {
+      console.error('Error in getDeliveriesForCalendar:', error)
+      throw error
+    }
+  }
+
+  static async approveDelivery(id: number, routeId?: number): Promise<Delivery> {
+    try {
+      // Import RouteService here to avoid circular dependency
+      const { RouteService } = await import('./routes')
+      
+      // Use the route service to properly assign delivery to route
+      await RouteService.addDeliveryToRoute(id, routeId)
+
+      // Fetch and return the updated delivery
+      const { data, error } = await supabase
+        .from('deliveries')
+        .select('*')
+        .eq('id', id)
+        .single()
+
+      if (error) {
+        console.error('Error fetching approved delivery:', error)
+        throw error
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in approveDelivery:', error)
+      throw error
+    }
+  }
+
+  static async rejectDelivery(id: number, reason?: string): Promise<Delivery> {
+    try {
+      const updates: any = { status: 'failed' }
+      
+      // Store rejection reason if available
+      if (reason) {
+        updates.notes = reason
+      }
+
+      const { data, error } = await supabase
+        .from('deliveries')
+        .update(updates)
+        .eq('id', id)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error rejecting delivery:', error)
+        throw error
+      }
+
+      return data
+    } catch (error) {
+      console.error('Error in rejectDelivery:', error)
+      throw error
+    }
+  }
 } 

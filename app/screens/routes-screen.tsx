@@ -13,7 +13,8 @@ import {
   Map, 
   Loader2,
   RefreshCw,
-  AlertCircle 
+  AlertCircle,
+  Trash2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,6 +29,7 @@ import { DriverService } from "@/lib/services/drivers"
 import { DeliveryService } from "@/lib/services/deliveries"
 import { useToast } from "@/hooks/use-toast"
 import AddressSearch from "@/components/address-search"
+import { supabase } from "@/lib/supabase"
 
 // Transform Supabase route data to UI format
 const transformRouteForUI = async (route: RouteWithDriver) => {
@@ -102,6 +104,19 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
     end_longitude: "",
     driver_id: "unassigned"
   })
+  const [deliveries, setDeliveries] = useState([{
+    id: Date.now(),
+    customer_name: "",
+    location: "",
+    latitude: "",
+    longitude: "",
+    item: "",
+    phone: "",
+    notes: ""
+  }])
+  const [deliveryMode, setDeliveryMode] = useState<'new' | 'existing'>('new')
+  const [existingDeliveries, setExistingDeliveries] = useState<any[]>([])
+  const [selectedExistingDeliveries, setSelectedExistingDeliveries] = useState<Set<number>>(new Set())
   const [drivers, setDrivers] = useState<any[]>([])
   const { toast } = useToast()
 
@@ -153,7 +168,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
     }
   }
 
-  // Load drivers for the form dropdown
+  // Load drivers from Supabase
   const loadDrivers = async () => {
     try {
       const driversData = await DriverService.getAllDrivers()
@@ -163,10 +178,23 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
     }
   }
 
+  // Load unassigned deliveries
+  const loadUnassignedDeliveries = async () => {
+    try {
+      const allDeliveries = await DeliveryService.getAllDeliveries()
+      // Filter deliveries that are not assigned to any route
+      const unassigned = allDeliveries.filter(delivery => !delivery.route_id && delivery.status === 'pending')
+      setExistingDeliveries(unassigned)
+    } catch (error) {
+      console.error('Error loading unassigned deliveries:', error)
+    }
+  }
+
   // Load data on component mount
   useEffect(() => {
     loadRoutes()
     loadDrivers()
+    loadUnassignedDeliveries()
   }, [])
 
   const handleInputChange = (field: string, value: string) => {
@@ -184,6 +212,61 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
       end_longitude: "",
       driver_id: "unassigned"
     })
+    setDeliveries([{
+      id: Date.now(),
+      customer_name: "",
+      location: "",
+      latitude: "",
+      longitude: "",
+      item: "",
+      phone: "",
+      notes: ""
+    }])
+    setDeliveryMode('new')
+    setSelectedExistingDeliveries(new Set())
+  }
+
+  const addDelivery = () => {
+    setDeliveries([...deliveries, {
+      id: Date.now(),
+      customer_name: "",
+      location: "",
+      latitude: "",
+      longitude: "",
+      item: "",
+      phone: "",
+      notes: ""
+    }])
+  }
+
+  const removeDelivery = (id: number) => {
+    if (deliveries.length > 1) {
+      setDeliveries(deliveries.filter(delivery => delivery.id !== id))
+    }
+  }
+
+  const updateDelivery = (id: number, field: string, value: string) => {
+    setDeliveries(deliveries.map(delivery => 
+      delivery.id === id ? { ...delivery, [field]: value } : delivery
+    ))
+  }
+
+  const toggleExistingDelivery = (deliveryId: number) => {
+    const newSelection = new Set(selectedExistingDeliveries)
+    if (newSelection.has(deliveryId)) {
+      newSelection.delete(deliveryId)
+    } else {
+      newSelection.add(deliveryId)
+    }
+    setSelectedExistingDeliveries(newSelection)
+  }
+
+  const handleAddDialogChange = (open: boolean) => {
+    setIsAddDialogOpen(open)
+    if (open) {
+      // Refresh unassigned deliveries when dialog opens
+      loadUnassignedDeliveries()
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -212,6 +295,33 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         return
       }
 
+      // Validate deliveries based on mode
+      let deliveryCount = 0
+      if (deliveryMode === 'new') {
+        const validDeliveries = deliveries.filter(delivery => 
+          delivery.customer_name.trim() && 
+          delivery.location.trim() && 
+          delivery.latitude && 
+          delivery.longitude
+        )
+        deliveryCount = validDeliveries.length
+      } else {
+        deliveryCount = selectedExistingDeliveries.size
+      }
+
+      if (deliveryCount === 0) {
+        toast({
+          title: "Error",
+          description: deliveryMode === 'new' 
+            ? "Please add at least one delivery with customer name and location."
+            : "Please select at least one existing delivery.",
+          variant: "destructive",
+        })
+        setIsSubmitting(false)
+        return
+      }
+
+      // Create the route first
       const routeData = {
         name: formData.name,
         start_location: formData.start_location,
@@ -220,7 +330,57 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         status: 'pending' as const,
       }
 
-      await RouteService.createRoute(routeData)
+      const createdRoute = await RouteService.createRoute(routeData)
+      
+      if (deliveryMode === 'new') {
+        // Create new deliveries for this route
+        const validDeliveries = deliveries.filter(delivery => 
+          delivery.customer_name.trim() && 
+          delivery.location.trim() && 
+          delivery.latitude && 
+          delivery.longitude
+        )
+
+        const deliveryPromises = validDeliveries.map(async (delivery, index) => {
+          const deliveryData = {
+            customer_name: delivery.customer_name,
+            location: delivery.location,
+            coordinates: [parseFloat(delivery.latitude), parseFloat(delivery.longitude)] as [number, number],
+            item: delivery.item || 'Package',
+            phone: delivery.phone || '',
+            drop_time: new Date().toISOString(), // Default to current time, can be enhanced later
+            status: 'pending'
+          }
+          
+          const createdDelivery = await DeliveryService.createDelivery(deliveryData)
+          
+          // Associate delivery with route if route creation was successful
+          if (createdRoute?.id && createdDelivery?.id) {
+            await supabase
+              .from('deliveries')
+              .update({ route_id: createdRoute.id, order_index: index })
+              .eq('id', createdDelivery.id)
+          }
+          
+          return createdDelivery
+        })
+
+        await Promise.all(deliveryPromises)
+      } else {
+        // Assign existing deliveries to this route
+        const selectedIds = Array.from(selectedExistingDeliveries)
+        const updatePromises = selectedIds.map(async (deliveryId, index) => {
+          return await supabase
+            .from('deliveries')
+            .update({ route_id: createdRoute.id, order_index: index })
+            .eq('id', deliveryId)
+        })
+
+        await Promise.all(updatePromises)
+        
+        // Refresh the unassigned deliveries list
+        await loadUnassignedDeliveries()
+      }
       
       // Reset form and close dialog
       resetForm()
@@ -231,7 +391,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
       
       toast({
         title: "Success",
-        description: "Route created successfully!",
+        description: `Route created successfully with ${deliveryCount} deliveries!`,
       })
       
     } catch (error) {
@@ -359,85 +519,259 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
               </Button>
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
                 <DialogTrigger asChild>
                   <Button size="sm">
                     <Plus className="h-4 w-4 mr-2" />
                     Add Route
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Add Route</DialogTitle>
                     <DialogDescription>
-                      Create a new route with start and end locations.
+                      Create a new route with multiple delivery stops.
                     </DialogDescription>
                   </DialogHeader>
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                      <Label htmlFor="routeName">Route Name *</Label>
-                      <Input
-                        id="routeName"
-                        placeholder="Enter route name"
-                        value={formData.name}
-                        onChange={(e) => handleInputChange("name", e.target.value)}
-                        required
-                      />
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    {/* Route Basic Information */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="routeName">Route Name *</Label>
+                        <Input
+                          id="routeName"
+                          placeholder="Enter route name"
+                          value={formData.name}
+                          onChange={(e) => handleInputChange("name", e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="driver">Assign Driver (Optional)</Label>
+                        <Select value={formData.driver_id} onValueChange={(value) => handleInputChange("driver_id", value)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a driver" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="unassigned">Unassigned</SelectItem>
+                            {drivers.map((driver) => (
+                              <SelectItem key={driver.id} value={driver.id.toString()}>
+                                {driver.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div>
-                      <Label htmlFor="startLocation">Start Location *</Label>
-                      <AddressSearch
-                        value={formData.start_location}
-                        onSelect={(result) => {
-                          handleInputChange("start_location", result.display_name);
-                          handleInputChange("start_latitude", result.coordinates[0].toString());
-                          handleInputChange("start_longitude", result.coordinates[1].toString());
-                        }}
-                        placeholder="Search for starting point"
-                        className="mt-1"
-                        countryCode="ke"
-                      />
-                      {formData.start_latitude && formData.start_longitude && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Coordinates: {parseFloat(formData.start_latitude).toFixed(4)}, {parseFloat(formData.start_longitude).toFixed(4)}
-                        </p>
+
+                    {/* Start and End Locations */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="startLocation">Start Location *</Label>
+                        <AddressSearch
+                          value={formData.start_location}
+                          onSelect={(result) => {
+                            handleInputChange("start_location", result.display_name);
+                            handleInputChange("start_latitude", result.coordinates[0].toString());
+                            handleInputChange("start_longitude", result.coordinates[1].toString());
+                          }}
+                          placeholder="Search for starting point"
+                          className="mt-1"
+                          countryCode="ke"
+                        />
+                        {formData.start_latitude && formData.start_longitude && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Coordinates: {parseFloat(formData.start_latitude).toFixed(4)}, {parseFloat(formData.start_longitude).toFixed(4)}
+                          </p>
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="endLocation">End Location *</Label>
+                        <AddressSearch
+                          value={formData.end_location}
+                          onSelect={(result) => {
+                            handleInputChange("end_location", result.display_name);
+                            handleInputChange("end_latitude", result.coordinates[0].toString());
+                            handleInputChange("end_longitude", result.coordinates[1].toString());
+                          }}
+                          placeholder="Search for ending point"
+                          className="mt-1"
+                          countryCode="ke"
+                        />
+                        {formData.end_latitude && formData.end_longitude && (
+                          <p className="text-xs text-gray-500 mt-1">
+                            Coordinates: {parseFloat(formData.end_latitude).toFixed(4)}, {parseFloat(formData.end_longitude).toFixed(4)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Deliveries Section */}
+                    <div className="border-t pt-6">
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <Label className="text-base font-medium">Delivery Stops</Label>
+                          <p className="text-sm text-gray-600">Add delivery locations for this route</p>
+                        </div>
+                      </div>
+
+                      {/* Delivery Mode Toggle */}
+                      <div className="flex gap-2 mb-4">
+                        <Button
+                          type="button"
+                          variant={deliveryMode === 'new' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setDeliveryMode('new')}
+                        >
+                          Create New Deliveries
+                        </Button>
+                        <Button
+                          type="button"
+                          variant={deliveryMode === 'existing' ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setDeliveryMode('existing')}
+                        >
+                          Select Existing Deliveries ({existingDeliveries.length} available)
+                        </Button>
+                      </div>
+                      
+                      {deliveryMode === 'new' ? (
+                        // New Deliveries Interface
+                        <>
+                          <div className="flex justify-end mb-4">
+                            <Button type="button" variant="outline" size="sm" onClick={addDelivery}>
+                              <Plus className="h-4 w-4 mr-2" />
+                              Add Delivery
+                            </Button>
+                          </div>
+                          
+                          <div className="space-y-4 max-h-60 overflow-y-auto">
+                            {deliveries.map((delivery, index) => (
+                              <div key={delivery.id} className="p-4 border rounded-lg bg-gray-50">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h4 className="font-medium text-gray-900">Delivery #{index + 1}</h4>
+                                  {deliveries.length > 1 && (
+                                    <Button 
+                                      type="button" 
+                                      variant="ghost" 
+                                      size="sm"
+                                      onClick={() => removeDelivery(delivery.id)}
+                                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                  <div>
+                                    <Label>Customer Name *</Label>
+                                    <Input
+                                      placeholder="Customer name"
+                                      value={delivery.customer_name}
+                                      onChange={(e) => updateDelivery(delivery.id, "customer_name", e.target.value)}
+                                      required
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label>Phone Number</Label>
+                                    <Input
+                                      placeholder="+254 712 345 678"
+                                      value={delivery.phone}
+                                      onChange={(e) => updateDelivery(delivery.id, "phone", e.target.value)}
+                                    />
+                                  </div>
+                                  <div className="md:col-span-2">
+                                    <Label>Delivery Location *</Label>
+                                    <AddressSearch
+                                      value={delivery.location}
+                                      onSelect={(result) => {
+                                        updateDelivery(delivery.id, "location", result.display_name);
+                                        updateDelivery(delivery.id, "latitude", result.coordinates[0].toString());
+                                        updateDelivery(delivery.id, "longitude", result.coordinates[1].toString());
+                                      }}
+                                      placeholder="Search for delivery location"
+                                      className="mt-1"
+                                      countryCode="ke"
+                                    />
+                                    {delivery.latitude && delivery.longitude && (
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Coordinates: {parseFloat(delivery.latitude).toFixed(4)}, {parseFloat(delivery.longitude).toFixed(4)}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <Label>Item/Package</Label>
+                                    <Input
+                                      placeholder="What to deliver"
+                                      value={delivery.item}
+                                      onChange={(e) => updateDelivery(delivery.id, "item", e.target.value)}
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label>Notes</Label>
+                                    <Input
+                                      placeholder="Special instructions"
+                                      value={delivery.notes}
+                                      onChange={(e) => updateDelivery(delivery.id, "notes", e.target.value)}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        // Existing Deliveries Interface
+                        <div className="max-h-60 overflow-y-auto">
+                          {existingDeliveries.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500">
+                              <p>No unassigned deliveries available.</p>
+                              <p className="text-sm mt-1">Create new deliveries or check the Deliveries page.</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              {existingDeliveries.map((delivery) => (
+                                <div 
+                                  key={delivery.id} 
+                                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                                    selectedExistingDeliveries.has(delivery.id) 
+                                      ? 'bg-blue-50 border-blue-200' 
+                                      : 'bg-gray-50 hover:bg-gray-100'
+                                  }`}
+                                  onClick={() => toggleExistingDelivery(delivery.id)}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-3">
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedExistingDeliveries.has(delivery.id)}
+                                          onChange={() => toggleExistingDelivery(delivery.id)}
+                                          className="rounded border-gray-300"
+                                        />
+                                        <div>
+                                          <h4 className="font-medium text-gray-900">{delivery.customer_name}</h4>
+                                          <p className="text-sm text-gray-600">{delivery.location}</p>
+                                          <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
+                                            {delivery.item && <span>📦 {delivery.item}</span>}
+                                            {delivery.phone && <span>📞 {delivery.phone}</span>}
+                                            <span className={`px-2 py-1 rounded-full ${delivery.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
+                                              {delivery.status}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
-                    <div>
-                      <Label htmlFor="endLocation">End Location *</Label>
-                      <AddressSearch
-                        value={formData.end_location}
-                        onSelect={(result) => {
-                          handleInputChange("end_location", result.display_name);
-                          handleInputChange("end_latitude", result.coordinates[0].toString());
-                          handleInputChange("end_longitude", result.coordinates[1].toString());
-                        }}
-                        placeholder="Search for ending point"
-                        className="mt-1"
-                        countryCode="ke"
-                      />
-                      {formData.end_latitude && formData.end_longitude && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Coordinates: {parseFloat(formData.end_latitude).toFixed(4)}, {parseFloat(formData.end_longitude).toFixed(4)}
-                        </p>
-                      )}
-                    </div>
-                    <div>
-                      <Label htmlFor="driver">Assign Driver (Optional)</Label>
-                      <Select value={formData.driver_id} onValueChange={(value) => handleInputChange("driver_id", value)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a driver" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="unassigned">Unassigned</SelectItem>
-                          {drivers.map((driver) => (
-                            <SelectItem key={driver.id} value={driver.id.toString()}>
-                              {driver.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+
                     <div className="flex justify-end gap-3">
                       <Button
                         type="button"
