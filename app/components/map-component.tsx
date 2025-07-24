@@ -227,35 +227,135 @@ export default function MapComponent({
       }).addTo(mapRef.current!)
 
       const popupContent = `
-        <div style="padding: 8px; min-width: 200px; font-family: system-ui;">
-          <div style="font-weight: 600; font-size: 14px; color: #111827; margin-bottom: 4px;">
+        <div style="
+          padding: 12px; 
+          min-width: 240px; 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: white;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        ">
+          <div style="
+            font-weight: 600; 
+            font-size: 16px; 
+            color: #111827; 
+            margin-bottom: 8px;
+            line-height: 1.2;
+          ">
             ${getCustomerDisplayName(d)}
           </div>
-          <div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">
-            📍 ${d.location}
-          </div>
-          <div style="font-size: 12px; color: #374151; margin-bottom: 4px;">
-            📦 ${d.item}
-          </div>
-          <div style="font-size: 12px; color: #374151; margin-bottom: 8px;">
-            ⏰ ${d.drop_time}
-          </div>
-          ${
-            d.estimated_value
-              ? `
-            <div style="font-size: 12px; color: #059669; font-weight: 500;">
-              💰 ${d.estimated_value}
+          
+          <div style="
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            margin-bottom: 8px;
+            padding: 6px 0;
+            border-bottom: 1px solid #f3f4f6;
+          ">
+            <span style="color: #6b7280; font-size: 14px;">📍</span>
+            <div style="
+              font-size: 13px; 
+              color: #4b5563; 
+              line-height: 1.3;
+              flex: 1;
+            ">
+              ${d.location || 'Location not specified'}
             </div>
-          `
-              : ""
-          }
+          </div>
+          
+          <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="color: #6b7280; font-size: 14px;">📦</span>
+              <span style="font-size: 13px; color: #374151; flex: 1;">
+                ${d.item || 'Item not specified'}
+              </span>
+            </div>
+            
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <span style="color: #6b7280; font-size: 14px;">⏰</span>
+              <span style="font-size: 13px; color: #374151; flex: 1;">
+                ${d.drop_time || 'Time not scheduled'}
+              </span>
+            </div>
+            
+            ${d.phone ? `
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="color: #6b7280; font-size: 14px;">📞</span>
+                <span style="font-size: 13px; color: #374151; flex: 1;">
+                  ${d.phone}
+                </span>
+              </div>
+            ` : ''}
+          </div>
+          
+          ${d.estimated_value ? `
+            <div style="
+              display: flex; 
+              align-items: center; 
+              gap: 6px;
+              padding: 6px 8px;
+              background: #f0fdf4;
+              border-radius: 6px;
+              border: 1px solid #dcfce7;
+              margin-bottom: 8px;
+            ">
+              <span style="color: #059669; font-size: 14px;">💰</span>
+              <span style="
+                font-size: 13px; 
+                color: #059669; 
+                font-weight: 600;
+                flex: 1;
+              ">
+                ${d.estimated_value}
+              </span>
+            </div>
+          ` : ''}
+          
+          <div style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 8px;
+            border-top: 1px solid #f3f4f6;
+          ">
+            <div style="
+              display: inline-flex;
+              align-items: center;
+              padding: 3px 8px;
+              border-radius: 12px;
+              font-size: 11px;
+              font-weight: 500;
+              text-transform: capitalize;
+              ${d.status === 'completed' ? 
+                'background: #dcfce7; color: #166534;' :
+                d.status === 'in-progress' ? 
+                'background: #fef3c7; color: #92400e;' :
+                'background: #f1f5f9; color: #475569;'
+              }
+            ">
+              ${d.status.replace('-', ' ')}
+            </div>
+            
+            <div style="
+              font-size: 11px;
+              color: #9ca3af;
+              font-weight: 500;
+            ">
+              ID: ${d.id}
+            </div>
+          </div>
         </div>
       `
 
       marker.bindPopup(popupContent, {
         className: "custom-popup",
         closeButton: true,
-        maxWidth: 250,
+        maxWidth: 280,
+        minWidth: 240,
+        offset: [0, -10],
+        autoPan: true,
+        keepInView: true,
       })
 
       marker.on("click", () => onDeliverySelect(d))

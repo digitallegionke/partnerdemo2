@@ -48,8 +48,8 @@ const transformRouteForUI = async (route: RouteWithDriver) => {
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
     const diffDays = Math.floor(diffHours / 24)
     
-    if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`
-    if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
+    if (diffDays > 0) return `${diffDays}d ago`
+    if (diffHours > 0) return `${diffHours}h ago`
     return 'Just now'
   }
 
@@ -255,15 +255,15 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-green-100 text-green-800 border-green-200"
+        return "bg-green-50 text-green-700 border-green-200"
       case "completed":
-        return "bg-blue-100 text-blue-800 border-blue-200"
+        return "bg-blue-50 text-blue-700 border-blue-200"
       case "pending":
-        return "bg-yellow-100 text-yellow-800 border-yellow-200"
+        return "bg-orange-50 text-orange-700 border-orange-200"
       case "cancelled":
-        return "bg-red-100 text-red-800 border-red-200"
+        return "bg-red-50 text-red-700 border-red-200"
       default:
-        return "bg-gray-100 text-gray-600 border-gray-200"
+        return "bg-gray-50 text-gray-600 border-gray-200"
     }
   }
 
@@ -345,379 +345,353 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
   }
 
   return (
-    <div className="p-6 bg-white">
-      {/* Header Actions */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center space-x-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Search routes..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 w-64 bg-white border-gray-300"
-            />
-          </div>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-40 bg-white border-gray-300">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent className="bg-white border-gray-200">
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="pending">Pending</SelectItem>
-              <SelectItem value="cancelled">Cancelled</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={loadRoutes}
-            className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Route
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <div className="flex items-center justify-end mb-6">
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" className="text-gray-600">
+                <Download className="h-4 w-4 mr-2" />
+                Export
               </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-white border-gray-200 max-w-md overflow-visible">
-              <DialogHeader>
-                <DialogTitle className="text-gray-900">Add New Route</DialogTitle>
-                <DialogDescription>
-                  Create a new route with start and end locations, and optionally assign a driver.
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4 overflow-visible">
-                <div>
-                  <Label htmlFor="routeName" className="text-gray-700">
-                    Route Name *
-                  </Label>
-                  <Input
-                    id="routeName"
-                    placeholder="Enter route name"
-                    className="bg-white border-gray-300"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange("name", e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="startLocation" className="text-gray-700">
-                    Start Location *
-                  </Label>
-                  <AddressSearch
-                    value={formData.start_location}
-                    onSelect={(result) => {
-                      handleInputChange("start_location", result.display_name);
-                      handleInputChange("start_latitude", result.coordinates[0].toString());
-                      handleInputChange("start_longitude", result.coordinates[1].toString());
-                    }}
-                    placeholder="Search for starting point"
-                    className="mt-1"
-                    countryCode="ke"
-                  />
-                  {formData.start_latitude && formData.start_longitude && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Coordinates: {parseFloat(formData.start_latitude).toFixed(4)}, {parseFloat(formData.start_longitude).toFixed(4)}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="endLocation" className="text-gray-700">
-                    End Location *
-                  </Label>
-                  <AddressSearch
-                    value={formData.end_location}
-                    onSelect={(result) => {
-                      handleInputChange("end_location", result.display_name);
-                      handleInputChange("end_latitude", result.coordinates[0].toString());
-                      handleInputChange("end_longitude", result.coordinates[1].toString());
-                    }}
-                    placeholder="Search for ending point"
-                    className="mt-1"
-                    countryCode="ke"
-                  />
-                  {formData.end_latitude && formData.end_longitude && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Coordinates: {parseFloat(formData.end_latitude).toFixed(4)}, {parseFloat(formData.end_longitude).toFixed(4)}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="driver" className="text-gray-700">
-                    Assign Driver (Optional)
-                  </Label>
-                  <Select value={formData.driver_id} onValueChange={(value) => handleInputChange("driver_id", value)}>
-                    <SelectTrigger className="bg-white border-gray-300">
-                      <SelectValue placeholder="Select a driver" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-gray-200">
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                      {drivers.map((driver) => (
-                        <SelectItem key={driver.id} value={driver.id.toString()}>
-                          {driver.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      resetForm()
-                      setIsAddDialogOpen(false)
-                    }}
-                    className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
-                  >
-                    Cancel
+              <Button variant="outline" size="sm" onClick={loadRoutes} className="text-gray-600">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh
+              </Button>
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Route
                   </Button>
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    {isSubmitting ? "Creating..." : "Create Route"}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-
-          {/* Edit Route Dialog */}
-          <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-            <DialogContent className="bg-white border-gray-200 max-w-md overflow-visible">
-              <DialogHeader>
-                <DialogTitle className="text-gray-900">Edit Route</DialogTitle>
-                <DialogDescription>
-                  Update route information, locations, and driver assignment.
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleUpdateRoute} className="space-y-4 overflow-visible">
-                <div>
-                  <Label htmlFor="editRouteName" className="text-gray-700">
-                    Route Name *
-                  </Label>
-                  <Input
-                    id="editRouteName"
-                    placeholder="Enter route name"
-                    className="bg-white border-gray-300"
-                    value={formData.name}
-                    onChange={(e) => handleInputChange("name", e.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="editStartLocation" className="text-gray-700">
-                    Start Location
-                  </Label>
-                  <AddressSearch
-                    value={formData.start_location}
-                    onSelect={(result) => {
-                      handleInputChange("start_location", result.display_name);
-                      handleInputChange("start_latitude", result.coordinates[0].toString());
-                      handleInputChange("start_longitude", result.coordinates[1].toString());
-                    }}
-                    placeholder="Search for starting point"
-                    className="mt-1"
-                    countryCode="ke"
-                  />
-                  {formData.start_latitude && formData.start_longitude && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Coordinates: {parseFloat(formData.start_latitude).toFixed(4)}, {parseFloat(formData.start_longitude).toFixed(4)}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="editEndLocation" className="text-gray-700">
-                    End Location
-                  </Label>
-                  <AddressSearch
-                    value={formData.end_location}
-                    onSelect={(result) => {
-                      handleInputChange("end_location", result.display_name);
-                      handleInputChange("end_latitude", result.coordinates[0].toString());
-                      handleInputChange("end_longitude", result.coordinates[1].toString());
-                    }}
-                    placeholder="Search for ending point"
-                    className="mt-1"
-                    countryCode="ke"
-                  />
-                  {formData.end_latitude && formData.end_longitude && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Coordinates: {parseFloat(formData.end_latitude).toFixed(4)}, {parseFloat(formData.end_longitude).toFixed(4)}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <Label htmlFor="editDriver" className="text-gray-700">
-                    Assign Driver
-                  </Label>
-                  <Select value={formData.driver_id} onValueChange={(value) => handleInputChange("driver_id", value)}>
-                    <SelectTrigger className="bg-white border-gray-300">
-                      <SelectValue placeholder="Select a driver" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-white border-gray-200">
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                      {drivers.map((driver) => (
-                        <SelectItem key={driver.id} value={driver.id.toString()}>
-                          {driver.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex justify-end space-x-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      resetForm()
-                      setIsEditDialogOpen(false)
-                      setEditingRoute(null)
-                    }}
-                    className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                  >
-                    {isSubmitting ? "Updating..." : "Update Route"}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </div>
-
-      {/* Loading State */}
-      {isLoading && (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-500">Loading routes...</p>
-        </div>
-      )}
-
-      {/* Error State */}
-      {error && (
-        <div className="text-center py-12">
-          <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Error loading routes</h3>
-          <p className="text-gray-500 mb-4">{error}</p>
-          <Button 
-            onClick={loadRoutes}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            Try Again
-          </Button>
-        </div>
-      )}
-
-      {/* Routes Grid */}
-      {!isLoading && !error && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredRoutes.map((route) => (
-            <Card key={route.id} className="bg-white border border-gray-200 hover:shadow-md transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg text-gray-900">{route.name}</CardTitle>
-                  <div className="flex items-center space-x-2">
-                    <Badge className={getStatusColor(route.status)}>{route.status}</Badge>
-                    <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-gray-600">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex items-center text-sm">
-                      <MapPin className="h-4 w-4 mr-2 text-gray-500" />
-                      <span className="text-gray-900">{route.distance}</span>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Add Route</DialogTitle>
+                    <DialogDescription>
+                      Create a new route with start and end locations.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <Label htmlFor="routeName">Route Name *</Label>
+                      <Input
+                        id="routeName"
+                        placeholder="Enter route name"
+                        value={formData.name}
+                        onChange={(e) => handleInputChange("name", e.target.value)}
+                        required
+                      />
                     </div>
-                    <div className="flex items-center text-sm">
-                      <Clock className="h-4 w-4 mr-2 text-gray-500" />
-                      <span className="text-gray-900">{route.duration}</span>
+                    <div>
+                      <Label htmlFor="startLocation">Start Location *</Label>
+                      <AddressSearch
+                        value={formData.start_location}
+                        onSelect={(result) => {
+                          handleInputChange("start_location", result.display_name);
+                          handleInputChange("start_latitude", result.coordinates[0].toString());
+                          handleInputChange("start_longitude", result.coordinates[1].toString());
+                        }}
+                        placeholder="Search for starting point"
+                        className="mt-1"
+                        countryCode="ke"
+                      />
+                      {formData.start_latitude && formData.start_longitude && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Coordinates: {parseFloat(formData.start_latitude).toFixed(4)}, {parseFloat(formData.start_longitude).toFixed(4)}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="endLocation">End Location *</Label>
+                      <AddressSearch
+                        value={formData.end_location}
+                        onSelect={(result) => {
+                          handleInputChange("end_location", result.display_name);
+                          handleInputChange("end_latitude", result.coordinates[0].toString());
+                          handleInputChange("end_longitude", result.coordinates[1].toString());
+                        }}
+                        placeholder="Search for ending point"
+                        className="mt-1"
+                        countryCode="ke"
+                      />
+                      {formData.end_latitude && formData.end_longitude && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Coordinates: {parseFloat(formData.end_latitude).toFixed(4)}, {parseFloat(formData.end_longitude).toFixed(4)}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="driver">Assign Driver (Optional)</Label>
+                      <Select value={formData.driver_id} onValueChange={(value) => handleInputChange("driver_id", value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a driver" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
+                          {drivers.map((driver) => (
+                            <SelectItem key={driver.id} value={driver.id.toString()}>
+                              {driver.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex justify-end gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          resetForm()
+                          setIsAddDialogOpen(false)
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? "Creating..." : "Create Route"}
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+
+              {/* Edit Route Dialog */}
+              <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Edit Route</DialogTitle>
+                    <DialogDescription>
+                      Update route information and driver assignment.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleUpdateRoute} className="space-y-4">
+                    <div>
+                      <Label htmlFor="editRouteName">Route Name *</Label>
+                      <Input
+                        id="editRouteName"
+                        placeholder="Enter route name"
+                        value={formData.name}
+                        onChange={(e) => handleInputChange("name", e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="editStartLocation">Start Location</Label>
+                      <AddressSearch
+                        value={formData.start_location}
+                        onSelect={(result) => {
+                          handleInputChange("start_location", result.display_name);
+                          handleInputChange("start_latitude", result.coordinates[0].toString());
+                          handleInputChange("start_longitude", result.coordinates[1].toString());
+                        }}
+                        placeholder="Search for starting point"
+                        className="mt-1"
+                        countryCode="ke"
+                      />
+                      {formData.start_latitude && formData.start_longitude && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Coordinates: {parseFloat(formData.start_latitude).toFixed(4)}, {parseFloat(formData.start_longitude).toFixed(4)}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="editEndLocation">End Location</Label>
+                      <AddressSearch
+                        value={formData.end_location}
+                        onSelect={(result) => {
+                          handleInputChange("end_location", result.display_name);
+                          handleInputChange("end_latitude", result.coordinates[0].toString());
+                          handleInputChange("end_longitude", result.coordinates[1].toString());
+                        }}
+                        placeholder="Search for ending point"
+                        className="mt-1"
+                        countryCode="ke"
+                      />
+                      {formData.end_latitude && formData.end_longitude && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Coordinates: {parseFloat(formData.end_latitude).toFixed(4)}, {parseFloat(formData.end_longitude).toFixed(4)}
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <Label htmlFor="editDriver">Assign Driver</Label>
+                      <Select value={formData.driver_id} onValueChange={(value) => handleInputChange("driver_id", value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a driver" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassigned">Unassigned</SelectItem>
+                          {drivers.map((driver) => (
+                            <SelectItem key={driver.id} value={driver.id.toString()}>
+                              {driver.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex justify-end gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          resetForm()
+                          setIsEditDialogOpen(false)
+                          setEditingRoute(null)
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? "Updating..." : "Update Route"}
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+
+          {/* Search and Filters */}
+          <div className="flex items-center gap-4">
+            <div className="relative flex-1 max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Search routes..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="All status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {/* Loading State */}
+        {isLoading && (
+          <div className="text-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-gray-300 border-t-gray-900 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading routes...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <div className="text-center py-12">
+            <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Error loading routes</h3>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <Button onClick={loadRoutes}>
+              Try Again
+            </Button>
+          </div>
+        )}
+
+        {/* Routes Grid */}
+        {!isLoading && !error && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredRoutes.map((route) => (
+              <Card key={route.id} className="hover:shadow-md transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base text-gray-900">{route.name}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Badge className={`${getStatusColor(route.status)} text-xs`} variant="outline">
+                        {route.status}
+                      </Badge>
+                      <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-gray-600">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <div className="flex items-center">
-                      <Truck className="h-4 w-4 mr-2 text-gray-500" />
-                      <span className="text-gray-900">{route.stops} stop{route.stops !== 1 ? 's' : ''}</span>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="flex items-center text-sm">
+                        <MapPin className="h-4 w-4 mr-2 text-gray-500" />
+                        <span className="text-gray-900">{route.distance}</span>
+                      </div>
+                      <div className="flex items-center text-sm">
+                        <Clock className="h-4 w-4 mr-2 text-gray-500" />
+                        <span className="text-gray-900">{route.duration}</span>
+                      </div>
                     </div>
-                    {route.efficiency > 0 && (
-                      <span className="text-green-600 font-medium">{route.efficiency}% efficient</span>
-                    )}
-                  </div>
-                  <div className="pt-2 border-t border-gray-100">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-500">Driver:</span>
-                      <span className="text-gray-900 font-medium">{route.driver}</span>
+                      <div className="flex items-center">
+                        <Truck className="h-4 w-4 mr-2 text-gray-500" />
+                        <span className="text-gray-900">{route.stops} stop{route.stops !== 1 ? 's' : ''}</span>
+                      </div>
+                      {route.efficiency > 0 && (
+                        <span className="text-green-600 font-medium">{route.efficiency}% efficient</span>
+                      )}
                     </div>
-                    <div className="flex items-center justify-between text-sm mt-1">
-                      <span className="text-gray-500">Updated:</span>
-                      <span className="text-gray-600">{route.lastUpdated}</span>
+                    <div className="pt-2 border-t border-gray-100">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500">Driver:</span>
+                        <span className="text-gray-900 font-medium">{route.driver}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm mt-1">
+                        <span className="text-gray-500">Updated:</span>
+                        <span className="text-gray-600">{route.lastUpdated}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => handleEditRoute(route)}
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => handleViewMap(route)}
+                      >
+                        <Map className="h-4 w-4 mr-2" />
+                        Map
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex space-x-2 pt-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
-                      onClick={() => handleEditRoute(route)}
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1 border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
-                      onClick={() => handleViewMap(route)}
-                    >
-                      <Map className="h-4 w-4 mr-2" />
-                      View Map
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
 
-      {/* Empty State */}
-      {!isLoading && !error && filteredRoutes.length === 0 && (
-        <div className="text-center py-12">
-          <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">No routes found</h3>
-          <p className="text-gray-500 mb-4">Try adjusting your search or filter criteria</p>
-          <Button 
-            onClick={() => setIsAddDialogOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add First Route
-          </Button>
-        </div>
-      )}
+        {/* Empty State */}
+        {!isLoading && !error && filteredRoutes.length === 0 && (
+          <div className="text-center py-12">
+            <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No routes found</h3>
+            <p className="text-gray-600 mb-6">
+              {searchTerm || filterStatus !== "all" 
+                ? "Try adjusting your search or filter criteria." 
+                : "Get started by creating your first route."}
+            </p>
+            <Button onClick={() => setIsAddDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Route
+            </Button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

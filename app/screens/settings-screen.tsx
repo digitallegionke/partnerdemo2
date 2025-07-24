@@ -24,9 +24,16 @@ import {
   Check, 
   UserPlus,
   HelpCircle,
-  RotateCcw 
+  RotateCcw,
+  Building,
+  MoreVertical,
+  FileText,
+  MessageSquare,
+  Phone,
+  Trash2
 } from "lucide-react"
 import { useFeatureTour } from "@/components/feature-tour"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export default function SettingsScreen() {
   const [profileForm, setProfileForm] = useState({
@@ -98,62 +105,44 @@ export default function SettingsScreen() {
 
   return (
     <div className="p-6 bg-white space-y-6 max-w-4xl">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-          <Settings className="h-6 w-6 mr-2" />
-          Settings
-        </h2>
-        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-          Organization Admin
-        </Badge>
-      </div>
-
       {/* Profile Settings */}
       <Card className="bg-white border border-gray-200">
         <CardHeader>
           <CardTitle className="text-gray-900 flex items-center">
             <User className="h-5 w-5 mr-2" />
-            Profile Settings
+            Profile Information
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="flex items-center space-x-4">
+            <Avatar className="h-16 w-16">
+              <AvatarImage src="/placeholder.svg?height=64&width=64" />
+              <AvatarFallback className="bg-gray-100 text-gray-600 text-lg">DM</AvatarFallback>
+            </Avatar>
             <div>
-              <Label htmlFor="name" className="text-gray-700">Full Name</Label>
-              <Input 
-                id="name" 
-                value={profileForm.name}
-                onChange={(e) => setProfileForm({...profileForm, name: e.target.value})}
-                className="bg-white border-gray-300" 
-              />
+              <h3 className="font-semibold text-gray-900">David Manager</h3>
+              <p className="text-sm text-gray-500">Operations Lead</p>
+              <Button variant="outline" size="sm" className="mt-2">
+                Change Photo
+              </Button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="firstName" className="text-gray-700">First Name</Label>
+              <Input id="firstName" defaultValue="David" className="bg-white border-gray-300" />
+            </div>
+            <div>
+              <Label htmlFor="lastName" className="text-gray-700">Last Name</Label>
+              <Input id="lastName" defaultValue="Manager" className="bg-white border-gray-300" />
             </div>
             <div>
               <Label htmlFor="email" className="text-gray-700">Email</Label>
-              <Input 
-                id="email" 
-                type="email" 
-                value={profileForm.email}
-                onChange={(e) => setProfileForm({...profileForm, email: e.target.value})}
-                className="bg-white border-gray-300" 
-              />
+              <Input id="email" type="email" defaultValue="david@roundi.co" className="bg-white border-gray-300" />
             </div>
             <div>
               <Label htmlFor="phone" className="text-gray-700">Phone</Label>
-              <Input 
-                id="phone" 
-                value={profileForm.phone}
-                onChange={(e) => setProfileForm({...profileForm, phone: e.target.value})}
-                className="bg-white border-gray-300" 
-              />
-            </div>
-            <div>
-              <Label htmlFor="role" className="text-gray-700">Role</Label>
-              <Input 
-                id="role" 
-                value={profileForm.role}
-                onChange={(e) => setProfileForm({...profileForm, role: e.target.value})}
-                className="bg-white border-gray-300" 
-              />
+              <Input id="phone" defaultValue="+254 712 345 678" className="bg-white border-gray-300" />
             </div>
           </div>
           <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Profile</Button>
@@ -164,47 +153,33 @@ export default function SettingsScreen() {
       <Card className="bg-white border border-gray-200">
         <CardHeader>
           <CardTitle className="text-gray-900 flex items-center">
-            <Globe className="h-5 w-5 mr-2" />
+            <Building className="h-5 w-5 mr-2" />
             Company Information
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="companyName" className="text-gray-700">Company Name</Label>
-              <Input 
-                id="companyName" 
-                value={companyForm.name}
-                onChange={(e) => setCompanyForm({...companyForm, name: e.target.value})}
-                className="bg-white border-gray-300" 
-              />
+              <Input id="companyName" defaultValue="Roundi Logistics" className="bg-white border-gray-300" />
             </div>
             <div>
-              <Label htmlFor="website" className="text-gray-700">Website</Label>
-              <Input 
-                id="website" 
-                value={companyForm.website}
-                onChange={(e) => setCompanyForm({...companyForm, website: e.target.value})}
-                className="bg-white border-gray-300" 
-              />
+              <Label htmlFor="industry" className="text-gray-700">Industry</Label>
+              <Select defaultValue="logistics">
+                <SelectTrigger className="bg-white border-gray-300">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="logistics">Logistics & Transportation</SelectItem>
+                  <SelectItem value="ecommerce">E-commerce</SelectItem>
+                  <SelectItem value="food">Food & Beverage</SelectItem>
+                  <SelectItem value="retail">Retail</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <Label htmlFor="companyAddress" className="text-gray-700">Address</Label>
-              <Input 
-                id="companyAddress" 
-                value={companyForm.address}
-                onChange={(e) => setCompanyForm({...companyForm, address: e.target.value})}
-                className="bg-white border-gray-300" 
-              />
-            </div>
-            <div>
-              <Label htmlFor="companyPhone" className="text-gray-700">Phone</Label>
-              <Input 
-                id="companyPhone" 
-                value={companyForm.phone}
-                onChange={(e) => setCompanyForm({...companyForm, phone: e.target.value})}
-                className="bg-white border-gray-300" 
-              />
+            <div className="md:col-span-2">
+              <Label htmlFor="address" className="text-gray-700">Address</Label>
+              <Input id="address" defaultValue="123 Logistics Avenue, Nairobi, Kenya" className="bg-white border-gray-300" />
             </div>
           </div>
           <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Company Info</Button>
@@ -219,118 +194,42 @@ export default function SettingsScreen() {
               <Users className="h-5 w-5 mr-2" />
               Team Management
             </CardTitle>
-            <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-green-600 hover:bg-green-700 text-white">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Invite Member
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="bg-white">
-                <DialogHeader>
-                  <DialogTitle>Invite Team Member</DialogTitle>
-                  <DialogDescription>
-                    Send an invitation to join your delivery team
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="inviteEmail">Email Address</Label>
-                    <Input
-                      id="inviteEmail"
-                      type="email"
-                      placeholder="john@example.com"
-                      value={inviteForm.email}
-                      onChange={(e) => setInviteForm({...inviteForm, email: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="inviteRole">Role</Label>
-                    <Select value={inviteForm.role} onValueChange={(value) => setInviteForm({...inviteForm, role: value})}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="driver">Driver</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="manager">Manager</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="inviteMessage">Personal Message (Optional)</Label>
-                    <Textarea
-                      id="inviteMessage"
-                      placeholder="Welcome to our team!"
-                      value={inviteForm.message}
-                      onChange={(e) => setInviteForm({...inviteForm, message: e.target.value})}
-                    />
-                  </div>
-                  <div className="flex space-x-2">
-                    <Button onClick={handleSendInvite} className="bg-blue-600 hover:bg-blue-700">
-                      Send Invitation
-                    </Button>
-                    <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
+              <UserPlus className="h-4 w-4 mr-2" />
+              Invite User
+            </Button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Driver Invitation Link */}
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="font-semibold text-green-900 flex items-center">
-                <UserPlus className="h-4 w-4 mr-2" />
-                Driver Registration Link
-              </h4>
-              <Badge variant="outline" className="bg-white text-green-700 border-green-300">
-                Public Link
-              </Badge>
-            </div>
-            <p className="text-green-700 text-sm mb-3">
-              Share this link with potential drivers to let them apply directly
-            </p>
-            <div className="flex items-center space-x-2">
-              <Input 
-                value={driverInviteLink} 
-                readOnly 
-                className="bg-white border-green-300 text-sm"
-              />
-              <Button 
-                onClick={handleCopyLink} 
-                variant="outline" 
-                className="border-green-300 text-green-700 hover:bg-green-50"
-              >
-                {copiedLink ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
-
-          {/* Pending Invitations */}
-          <div>
-            <h4 className="font-semibold text-gray-900 mb-3">Pending Invitations</h4>
-            <div className="space-y-3">
-              {pendingInvites.map((invite) => (
-                <div key={invite.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+        <CardContent>
+          <div className="space-y-3">
+            {[
+              { name: "David Manager", role: "Admin", email: "david@roundi.co", status: "Active" },
+              { name: "Sarah Johnson", role: "Manager", email: "sarah@roundi.co", status: "Active" },
+              { name: "Mike Wilson", role: "Driver", email: "mike@roundi.co", status: "Pending" },
+            ].map((user, index) => (
+              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center space-x-3">
+                  <Avatar className="h-8 w-8">
+                    <AvatarFallback className="bg-gray-200 text-gray-600 text-sm">
+                      {user.name.split(' ').map(n => n[0]).join('')}
+                    </AvatarFallback>
+                  </Avatar>
                   <div>
-                    <p className="font-medium text-gray-900">{invite.email}</p>
-                    <p className="text-sm text-gray-500">
-                      {invite.role} • Sent {invite.sentAt}
-                    </p>
+                    <p className="font-medium text-gray-900">{user.name}</p>
+                    <p className="text-sm text-gray-500">{user.email}</p>
                   </div>
-                  <Badge 
-                    variant={invite.status === "accepted" ? "default" : "outline"}
-                    className={invite.status === "accepted" ? "bg-green-100 text-green-800" : ""}
-                  >
-                    {invite.status}
-                  </Badge>
                 </div>
-              ))}
-            </div>
+                <div className="flex items-center space-x-2">
+                  <Badge variant={user.status === "Active" ? "default" : "secondary"} className="text-xs">
+                    {user.status}
+                  </Badge>
+                  <Badge variant="outline" className="text-xs">{user.role}</Badge>
+                  <Button variant="ghost" size="sm" className="text-gray-400">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
@@ -344,71 +243,27 @@ export default function SettingsScreen() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-4">
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <Label className="text-gray-700">Email Notifications</Label>
-                <p className="text-sm text-gray-500">Receive updates via email</p>
+                <Label htmlFor="emailNotifications" className="text-gray-700">Email Notifications</Label>
+                <p className="text-sm text-gray-500">Receive delivery updates via email</p>
               </div>
-              <Switch 
-                checked={notifications.email}
-                onCheckedChange={(checked) => setNotifications({...notifications, email: checked})}
-              />
+              <Switch id="emailNotifications" defaultChecked />
             </div>
-            <Separator />
             <div className="flex items-center justify-between">
               <div>
-                <Label className="text-gray-700">Push Notifications</Label>
+                <Label htmlFor="smsNotifications" className="text-gray-700">SMS Notifications</Label>
+                <p className="text-sm text-gray-500">Get urgent notifications via SMS</p>
+              </div>
+              <Switch id="smsNotifications" />
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label htmlFor="pushNotifications" className="text-gray-700">Push Notifications</Label>
                 <p className="text-sm text-gray-500">Browser push notifications</p>
               </div>
-              <Switch 
-                checked={notifications.push}
-                onCheckedChange={(checked) => setNotifications({...notifications, push: checked})}
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-gray-700">SMS Alerts</Label>
-                <p className="text-sm text-gray-500">Critical alerts via SMS</p>
-              </div>
-              <Switch 
-                checked={notifications.sms}
-                onCheckedChange={(checked) => setNotifications({...notifications, sms: checked})}
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-gray-700">Delivery Updates</Label>
-                <p className="text-sm text-gray-500">Status changes and completions</p>
-              </div>
-              <Switch 
-                checked={notifications.deliveryUpdates}
-                onCheckedChange={(checked) => setNotifications({...notifications, deliveryUpdates: checked})}
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-gray-700">Driver Alerts</Label>
-                <p className="text-sm text-gray-500">Driver status and performance</p>
-              </div>
-              <Switch 
-                checked={notifications.driverAlerts}
-                onCheckedChange={(checked) => setNotifications({...notifications, driverAlerts: checked})}
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-gray-700">System Alerts</Label>
-                <p className="text-sm text-gray-500">Maintenance and updates</p>
-              </div>
-              <Switch 
-                checked={notifications.systemAlerts}
-                onCheckedChange={(checked) => setNotifications({...notifications, systemAlerts: checked})}
-              />
+              <Switch id="pushNotifications" defaultChecked />
             </div>
           </div>
           <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Preferences</Button>
@@ -423,30 +278,24 @@ export default function SettingsScreen() {
             Help & Support
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid md:grid-cols-2 gap-4">
-            <Button 
-              variant="outline" 
-              onClick={handleStartTour}
-              className="flex items-center justify-center space-x-2 border-gray-300"
-            >
-              <HelpCircle className="h-4 w-4" />
-              <span>Take Feature Tour</span>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
+              <FileText className="h-5 w-5 mb-1" />
+              Documentation
             </Button>
-            <Button 
-              variant="outline"
-              onClick={handleResetOnboarding}
-              className="flex items-center justify-center space-x-2 border-gray-300"
-            >
-              <RotateCcw className="h-4 w-4" />
-              <span>Reset Onboarding</span>
+            <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
+              <MessageSquare className="h-5 w-5 mb-1" />
+              Contact Support
             </Button>
-          </div>
-          <div className="text-sm text-gray-600 space-y-2">
-            <p><strong>Need help?</strong></p>
-            <p>• Email: support@roundi.com</p>
-            <p>• Phone: +254 700 123 456</p>
-            <p>• Documentation: docs.roundi.com</p>
+            <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
+              <Phone className="h-5 w-5 mb-1" />
+              Call: +254 712 345 678
+            </Button>
+            <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
+              <Mail className="h-5 w-5 mb-1" />
+              Email Support
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -456,13 +305,35 @@ export default function SettingsScreen() {
         <CardHeader>
           <CardTitle className="text-gray-900 flex items-center">
             <Shield className="h-5 w-5 mr-2" />
-            Security
+            Security & Privacy
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button variant="outline" className="border-gray-300">Change Password</Button>
-          <Button variant="outline" className="border-gray-300">Two-Factor Authentication</Button>
-          <Button variant="outline" className="border-red-300 text-red-600 hover:bg-red-50">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-gray-700">Two-Factor Authentication</Label>
+                <p className="text-sm text-gray-500">Add extra security to your account</p>
+              </div>
+              <Button variant="outline" size="sm">Enable</Button>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-gray-700">Password</Label>
+                <p className="text-sm text-gray-500">Last changed 3 months ago</p>
+              </div>
+              <Button variant="outline" size="sm">Change Password</Button>
+            </div>
+            <div className="flex items-center justify-between">
+              <div>
+                <Label className="text-gray-700">API Keys</Label>
+                <p className="text-sm text-gray-500">Manage integration keys</p>
+              </div>
+              <Button variant="outline" size="sm">Manage Keys</Button>
+            </div>
+          </div>
+          <Button variant="destructive" className="w-full">
+            <Trash2 className="h-4 w-4 mr-2" />
             Delete Account
           </Button>
         </CardContent>

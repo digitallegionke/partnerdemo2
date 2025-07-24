@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { UserPlus, MapPin, CheckCircle } from "lucide-react"
+import { UserPlus, MapPin, CheckCircle, ArrowLeft } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -29,10 +29,14 @@ export default function AssignDriversScreen() {
 
   return (
     <div className="p-6 bg-white space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900 flex items-center">
-        <UserPlus className="h-6 w-6 mr-2" />
-        Assign Drivers
-      </h2>
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={() => window.history.back()}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back
+          </Button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {deliveries.map((d) => (

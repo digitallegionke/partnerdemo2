@@ -16,8 +16,6 @@ export default function AnalyticsScreen() {
 
   return (
     <div className="p-6 bg-white space-y-6">
-      <h2 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h2>
-      
       {/* Temporary Routes Test */}
       <div className="flex justify-start">
         <RoutesTest />
