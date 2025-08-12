@@ -438,29 +438,30 @@ export default function DeliveriesScreen() {
   )
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Deliveries</h1>
-              <p className="text-gray-600 mt-1">Track and manage all your deliveries</p>
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">Deliveries</h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-1">Track and manage all your deliveries</p>
             </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" className="text-gray-600">
-                <Download className="h-4 w-4 mr-2" />
-                Export
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <Button variant="outline" size="sm" className="text-gray-600 text-xs sm:text-sm">
+                <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Export</span>
               </Button>
-              <Button variant="outline" size="sm" className="text-gray-600" onClick={loadDeliveries}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
+              <Button variant="outline" size="sm" className="text-gray-600 text-xs sm:text-sm" onClick={loadDeliveries}>
+                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Refresh</span>
               </Button>
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Delivery
+                  <Button size="sm" className="text-xs sm:text-sm">
+                    <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Add Delivery</span>
+                    <span className="sm:hidden">Add</span>
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-2xl">
@@ -815,19 +816,19 @@ export default function DeliveriesScreen() {
           </div>
 
           {/* Search and Filters */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input
                   placeholder="Search deliveries..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-80"
+                  className="pl-10 w-full sm:w-80 text-sm sm:text-base"
                 />
               </div>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full sm:w-48">
                   <SelectValue placeholder="All Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -839,11 +840,12 @@ export default function DeliveriesScreen() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <Button
                 variant={viewMode === 'grid' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setViewMode('grid')}
+                className="text-xs sm:text-sm px-2 sm:px-4"
               >
                 Grid
               </Button>
@@ -851,6 +853,7 @@ export default function DeliveriesScreen() {
                 variant={viewMode === 'list' ? 'default' : 'outline'}
                 size="sm"
                 onClick={() => setViewMode('list')}
+                className="text-xs sm:text-sm px-2 sm:px-4"
               >
                 List
               </Button>
@@ -859,57 +862,57 @@ export default function DeliveriesScreen() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-          <Card className="col-span-2">
-            <CardContent className="p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <Card className="sm:col-span-2">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-2">Total Deliveries</p>
-                  <p className="text-3xl font-semibold text-gray-900">{stats.total}</p>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-2">Total Deliveries</p>
+                  <p className="text-2xl sm:text-3xl font-semibold text-gray-900">{stats.total}</p>
                   <div className="flex items-center mt-2">
-                    <Progress value={getCompletionRate()} className="h-2 w-20 mr-2" />
+                    <Progress value={getCompletionRate()} className="h-2 w-16 sm:w-20 mr-2" />
                     <span className="text-xs text-gray-500">{getCompletionRate()}% completed</span>
                   </div>
                 </div>
-                <Package className="h-12 w-12 text-gray-400" />
+                <Package className="h-8 w-8 sm:h-10 sm:w-10 lg:h-12 lg:w-12 text-gray-400" />
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-2">Delivered</p>
-                  <p className="text-2xl font-semibold text-green-600">{stats.delivered}</p>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-2">Delivered</p>
+                  <p className="text-xl sm:text-2xl font-semibold text-green-600">{stats.delivered}</p>
                 </div>
-                <CheckCircle className="h-8 w-8 text-green-400" />
+                <CheckCircle className="h-6 w-6 sm:h-8 sm:w-8 text-green-400" />
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-2">In Transit</p>
-                  <p className="text-2xl font-semibold text-blue-600">{stats.inTransit}</p>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-2">In Transit</p>
+                  <p className="text-xl sm:text-2xl font-semibold text-blue-600">{stats.inTransit}</p>
                 </div>
-                <Activity className="h-8 w-8 text-blue-400" />
+                <Activity className="h-6 w-6 sm:h-8 sm:w-8 text-blue-400" />
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 mb-2">Total Value</p>
-                  <p className="text-lg font-semibold text-gray-900">
+                  <p className="text-xs sm:text-sm text-gray-600 mb-2">Total Value</p>
+                  <p className="text-lg sm:text-lg font-semibold text-gray-900">
                     KSh {stats.totalValue.toLocaleString()}
                   </p>
                 </div>
-                <DollarSign className="h-8 w-8 text-green-400" />
+                <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-green-400" />
               </div>
             </CardContent>
           </Card>
