@@ -361,42 +361,43 @@ export default function DriversScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 relative">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-6 relative">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Drivers</h1>
-              <p className="text-gray-600 mt-1">Manage your delivery team and assignments</p>
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">Drivers</h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-1">Manage your delivery team and assignments</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
               <Button 
                 variant="outline" 
                 size="sm"
                 onClick={loadDrivers}
-                className="text-gray-600"
+                className="text-gray-600 text-xs sm:text-sm"
               >
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
+                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Refresh</span>
               </Button>
               <Button 
                 variant="outline" 
                 size="sm"
-                className="text-gray-600"
+                className="text-gray-600 text-xs sm:text-sm"
               >
-                <Download className="h-4 w-4 mr-2" />
-                Export
+                <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Export</span>
               </Button>
               
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Driver
+                  <Button size="sm" className="text-xs sm:text-sm">
+                    <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Add Driver</span>
+                    <span className="sm:hidden">Add</span>
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-md">
+                <DialogContent className="max-w-md mx-4 sm:mx-0">
                   <DialogHeader>
                     <DialogTitle>Add Driver</DialogTitle>
                     <DialogDescription>
@@ -490,17 +491,17 @@ export default function DriversScreen() {
 
               {/* Edit Driver Dialog */}
               {isEditDialogOpen && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                   <div 
                     className="fixed inset-0 bg-black bg-opacity-50" 
                     onClick={() => setIsEditDialogOpen(false)}
                   />
-                  <div className="relative z-[101] w-full max-w-2xl mx-4 bg-white rounded-lg shadow-2xl border border-gray-300 max-h-[90vh] overflow-y-auto">
-                    <div className="p-6">
+                  <div className="relative z-[101] w-full max-w-lg sm:max-w-xl lg:max-w-2xl bg-white rounded-lg shadow-2xl border border-gray-300 max-h-[90vh] overflow-y-auto">
+                    <div className="p-4 sm:p-6">
                       <div className="flex items-center justify-between mb-4 border-b border-gray-200 pb-4">
-                        <h2 className="text-xl font-bold text-blue-900 flex items-center">
-                          <Edit className="h-5 w-5 mr-2" />
-                          Edit Driver: {editingDriver?.name || 'Unknown'}
+                        <h2 className="text-lg sm:text-xl font-bold text-blue-900 flex items-center min-w-0">
+                          <Edit className="h-4 w-4 sm:h-5 sm:w-5 mr-2 flex-shrink-0" />
+                          <span className="truncate">Edit Driver: {editingDriver?.name || 'Unknown'}</span>
                         </h2>
                         <Button
                           variant="ghost"
@@ -511,7 +512,7 @@ export default function DriversScreen() {
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
-                      <form onSubmit={handleUpdateDriver} className="space-y-4">
+                      <form onSubmit={handleUpdateDriver} className="space-y-3 sm:space-y-4">
                     <div>
                       <Label htmlFor="editDriverName">Name *</Label>
                       <Input 
@@ -615,18 +616,18 @@ export default function DriversScreen() {
           </div>
 
           {/* Search and Filter */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 placeholder="Search drivers..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 text-sm sm:text-base"
               />
             </div>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="All status" />
               </SelectTrigger>
               <SelectContent>
@@ -640,51 +641,51 @@ export default function DriversScreen() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-4 lg:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Total</p>
-                  <p className="text-2xl font-semibold text-gray-900">{stats.total}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">Total</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-900">{stats.total}</p>
                 </div>
-                <User className="h-8 w-8 text-gray-400" />
+                <User className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-gray-400" />
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-4 lg:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Active</p>
-                  <p className="text-2xl font-semibold text-green-600">{stats.active}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">Active</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-semibold text-green-600">{stats.active}</p>
                 </div>
-                <Activity className="h-8 w-8 text-green-400" />
+                <Activity className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-green-400" />
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-4 lg:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">On Delivery</p>
-                  <p className="text-2xl font-semibold text-orange-600">{stats.busy}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">On Delivery</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-semibold text-orange-600">{stats.busy}</p>
                 </div>
-                <Truck className="h-8 w-8 text-orange-400" />
+                <Truck className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-orange-400" />
               </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
+            <CardContent className="p-3 sm:p-4 lg:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600">Avg Rating</p>
-                  <p className="text-2xl font-semibold text-gray-900">{stats.avgRating}</p>
+                  <p className="text-xs sm:text-sm text-gray-600">Avg Rating</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-900">{stats.avgRating}</p>
                 </div>
-                <Star className="h-8 w-8 text-yellow-400" />
+                <Star className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-yellow-400" />
               </div>
             </CardContent>
           </Card>
@@ -712,7 +713,7 @@ export default function DriversScreen() {
 
         {/* Drivers Grid */}
         {!isLoading && !error && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {filteredDrivers.map((driver) => (
               <Card key={driver.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-4">

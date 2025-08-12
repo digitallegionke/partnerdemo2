@@ -87,35 +87,38 @@ export default function OptimizeScreen() {
   }
 
   return (
-    <div className="p-6 bg-white">
+    <div className="p-3 sm:p-4 lg:p-6 bg-white">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Route Optimization</h1>
-          <p className="text-gray-600 mt-1">Optimize your routes for maximum efficiency</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
+        <div className="min-w-0">
+          <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">Route Optimization</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">Optimize your routes for maximum efficiency</p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white">
-            <Download className="h-4 w-4 mr-2" />
-            Export Results
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+          <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white text-xs sm:text-sm">
+            <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Export Results</span>
+            <span className="sm:hidden">Export</span>
           </Button>
-          <Button onClick={handleOptimize} disabled={isOptimizing} className="bg-blue-600 hover:bg-blue-700 text-white">
+          <Button onClick={handleOptimize} disabled={isOptimizing} className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm">
             {isOptimizing ? (
               <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Optimizing...
+                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                <span className="hidden sm:inline">Optimizing...</span>
+                <span className="sm:hidden">Optimizing</span>
               </>
             ) : (
               <>
-                <Play className="h-4 w-4 mr-2" />
-                Start Optimization
+                <Play className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Start Optimization</span>
+                <span className="sm:hidden">Start</span>
               </>
             )}
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
         {/* Optimization Settings */}
         <div className="lg:col-span-1">
           <Card className="bg-white border border-gray-200">
@@ -244,7 +247,7 @@ export default function OptimizeScreen() {
           )}
 
           {/* Comparison Results */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
             {/* Current Routes */}
             <Card className="bg-white border border-gray-200">
               <CardHeader>
@@ -362,28 +365,28 @@ export default function OptimizeScreen() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-6">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">18%</div>
-                    <div className="text-sm text-gray-500">Efficiency Improvement</div>
+                    <div className="text-lg sm:text-xl lg:text-2xl font-bold text-green-600">18%</div>
+                    <div className="text-xs sm:text-sm text-gray-500">Efficiency Improvement</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-blue-600">12.3 km</div>
-                    <div className="text-sm text-gray-500">Distance Saved</div>
+                    <div className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-600">12.3 km</div>
+                    <div className="text-xs sm:text-sm text-gray-500">Distance Saved</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-purple-600">45 min</div>
-                    <div className="text-sm text-gray-500">Time Saved</div>
+                    <div className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-600">45 min</div>
+                    <div className="text-xs sm:text-sm text-gray-500">Time Saved</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-600">KSh 900</div>
-                    <div className="text-sm text-gray-500">Cost Savings</div>
+                    <div className="text-lg sm:text-xl lg:text-2xl font-bold text-green-600">KSh 900</div>
+                    <div className="text-xs sm:text-sm text-gray-500">Cost Savings</div>
                   </div>
                 </div>
-                <div className="mt-6 pt-6 border-t border-gray-100">
-                  <div className="flex justify-center space-x-4">
-                    <Button className="bg-green-600 hover:bg-green-700 text-white">Apply Optimization</Button>
-                    <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white">
+                <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-100">
+                  <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
+                    <Button className="bg-green-600 hover:bg-green-700 text-white text-sm">Apply Optimization</Button>
+                    <Button variant="outline" className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white text-sm">
                       Save as Template
                     </Button>
                   </div>
