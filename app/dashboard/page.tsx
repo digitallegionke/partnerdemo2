@@ -14,6 +14,7 @@ import {
   BarChart3,
   UserPlus,
   HelpCircle,
+  MapPin,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,11 +33,13 @@ import AnalyticsScreen from "../screens/analytics-screen"
 import SettingsScreen from "../screens/settings-screen"
 import AssignDriversScreen from "../screens/assign-drivers-screen"
 import RouteMapScreen from "../screens/route-map-screen"
+import CollectionPointsScreen from "../screens/collection-points-screen"
 
 const sidebarItems = [
   { id: "routes", icon: Route, label: "Routes", count: 8 },
   { id: "deliveries", icon: Package, label: "Deliveries", count: 24 },
   { id: "drivers", icon: Users, label: "Drivers", count: 12 },
+  { id: "collection-points", icon: MapPin, label: "Collection Points", count: 4 },
   { id: "optimize", icon: Navigation, label: "Optimize" },
   { id: "schedule", icon: Calendar, label: "Schedule" },
   { id: "analytics", icon: BarChart3, label: "Analytics" },
@@ -96,6 +99,8 @@ export default function DashboardPage() {
         return <DeliveriesScreen />
       case "drivers":
         return <DriversScreen />
+      case "collection-points":
+        return <CollectionPointsScreen onBack={() => setActiveScreen("routes")} />
       case "optimize":
         return <OptimizeScreen />
       case "schedule":
