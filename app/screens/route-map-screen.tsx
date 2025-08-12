@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { ArrowLeft, Clock, Users, Package, CheckCircle, AlertCircle, Settings, Zap, TrendingUp, Navigation, Phone, MapPin as MapPinIcon, Timer, DollarSign, Truck, Eye, ChevronRight, Activity, Signal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -55,6 +55,7 @@ export default function RouteMapScreen({ route, deliveries, onBack }: RouteMapSc
   const [optimizedDeliveries, setOptimizedDeliveries] = useState<DeliveryData[]>(deliveries)
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [isLiveTrackingEnabled, setIsLiveTrackingEnabled] = useState(false)
+  const [showMapStats, setShowMapStats] = useState(false) // State to control map stats visibility
 
   // Helper function to get driver name safely
   const getDriverName = (driver: Route['driver']): string => {
@@ -137,17 +138,17 @@ export default function RouteMapScreen({ route, deliveries, onBack }: RouteMapSc
       'David Omondi', 'Helen Chebet', 'Michael Wekesa', 'Susan Moraa'
     ];
     return fallbackNames[delivery.id % fallbackNames.length] || `Customer #${delivery.id}`;
-  }
+  };
 
   const filteredDeliveries = optimizedDeliveries.filter(delivery =>
     (getCustomerDisplayName(delivery).toLowerCase()).includes(searchTerm.toLowerCase()) ||
     (delivery.location?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
     (delivery.item?.toLowerCase() || '').includes(searchTerm.toLowerCase())
-  )
+  );
 
   const getDeliveryProgress = (index: number) => {
-    return Math.round(((index + 1) / filteredDeliveries.length) * 100)
-  }
+    return Math.round(((index + 1) / filteredDeliveries.length) * 100);
+  };
 
   return (
     <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
@@ -201,21 +202,22 @@ export default function RouteMapScreen({ route, deliveries, onBack }: RouteMapSc
               <Clock className="h-4 w-4 mr-2" />
               <span className="hidden sm:inline">Schedule</span>
             </Button>
-            {optimizationResult && optimizedDeliveries !== deliveries && (
-              <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 px-3 py-1 animate-fade-in">
-                <Zap className="h-3 w-3 mr-1" />
-                <span className="hidden sm:inline">Route Optimized</span>
-                <span className="sm:hidden">Optimized</span>
-              </Badge>
-            )}
             <Badge className="bg-blue-100 text-blue-800 border-blue-200 px-3 py-1">
               <span className="hidden sm:inline">4 Active Routes</span>
               <span className="sm:hidden">4 Routes</span>
             </Badge>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMapStats(!showMapStats)}
+              className="text-slate-700 hover:bg-slate-50 bg-white focus-enhanced"
+            >
+              {showMapStats ? "Hide Stats" : "View Stats"}
+            </Button>
           </div>
-        </div>
 
-        {/* Enhanced Stats with Progress */}
+          {/* Enhanced Stats with Progress */}
+          {showMapStats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 grid-responsive">
           <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow card-hover stats-card">
             <CardContent className="p-4">
@@ -278,6 +280,7 @@ export default function RouteMapScreen({ route, deliveries, onBack }: RouteMapSc
             </CardContent>
           </Card>
         </div>
+        )}
       </div>
 
       {/* Main Content */}
@@ -449,13 +452,50 @@ export default function RouteMapScreen({ route, deliveries, onBack }: RouteMapSc
           </div>
         </div>
 
-        {/* Right Side - Enhanced Map */}
+        {/* Right Side - Enhanced Map - Full Background */}
         <div className="flex-1 bg-slate-50 relative map-mobile lg:h-auto h-96">
           <MapComponent
             deliveries={optimizedDeliveries}
             selectedDelivery={selectedDelivery}
             onDeliverySelect={setSelectedDelivery}
           />
+          
+          {/* Route Optimization Card Overlay */}
+          {optimizationResult && optimizedDeliveries !== deliveries && (
+            <div className="absolute top-4 left-4 right-4 z-10">
+              <Card className="bg-white/95 backdrop-blur-sm border-emerald-200 shadow-lg">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="h-10 w-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                        <Zap className="h-5 w-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-emerald-900">Route Optimized!</h3>
+                        <p className="text-sm text-emerald-700">
+                          Saved {formatDistance(optimizationResult.originalDistance - optimizationResult.optimizedDistance)} distance, 
+                          {formatDuration(optimizationResult.originalDuration - optimizationResult.optimizedDuration)} time
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
+                        {Math.round(((optimizationResult.originalDistance - optimizationResult.optimizedDistance) / optimizationResult.originalDistance) * 100)}% Saved
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={resetOptimization}
+                        className="text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                      >
+                        Reset
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
           
           {/* Floating Map Controls */}
           <div className="absolute top-4 right-4 space-y-2">
@@ -495,6 +535,7 @@ export default function RouteMapScreen({ route, deliveries, onBack }: RouteMapSc
             </Card>
           </div>
         </div>
+      </div>
       </div>
 
       {/* Enhanced Route Optimization Dialog */}
@@ -879,5 +920,5 @@ export default function RouteMapScreen({ route, deliveries, onBack }: RouteMapSc
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 } 
