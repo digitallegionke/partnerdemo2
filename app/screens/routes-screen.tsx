@@ -608,8 +608,8 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
               </Button>
               <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
                 <DialogTrigger asChild>
-                  <Button size="sm" className="text-xs sm:text-sm">
-                    <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  <Button size="default" className="text-sm sm:text-sm px-4 py-2 h-10 sm:h-9">
+                    <Plus className="h-4 w-4 sm:h-4 sm:w-4 mr-2 sm:mr-2" />
                     <span className="hidden sm:inline">Add Route</span>
                     <span className="sm:hidden">Add</span>
                   </Button>
