@@ -588,29 +588,30 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Routes</h1>
-              <p className="text-gray-600 mt-1">Manage and optimize your delivery routes</p>
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">Routes</h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-1">Manage and optimize your delivery routes</p>
             </div>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" className="text-gray-600">
-                <Download className="h-4 w-4 mr-2" />
-                Export
+            <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              <Button variant="outline" size="sm" className="text-gray-600 text-xs sm:text-sm">
+                <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Export</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={loadRoutes} className="text-gray-600">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Refresh
+              <Button variant="outline" size="sm" onClick={loadRoutes} className="text-gray-600 text-xs sm:text-sm">
+                <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Refresh</span>
               </Button>
               <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
                 <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Route
+                  <Button size="sm" className="text-xs sm:text-sm">
+                    <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">Add Route</span>
+                    <span className="sm:hidden">Add</span>
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
@@ -1059,18 +1060,18 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
           </div>
 
           {/* Search and Filters */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
             <div className="relative flex-1 max-w-md">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 placeholder="Search routes..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 text-sm sm:text-base"
               />
             </div>
             <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-full sm:w-40">
                 <SelectValue placeholder="All status" />
               </SelectTrigger>
               <SelectContent>
@@ -1106,7 +1107,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
 
         {/* Routes Grid */}
         {!isLoading && !error && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
             {filteredRoutes.map((route) => (
               <Card key={route.id} className="hover:shadow-md transition-shadow">
                 <CardHeader className="pb-3">

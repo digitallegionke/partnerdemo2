@@ -259,46 +259,47 @@ export default function CollectionPointsScreen({ onBack }: CollectionPointsScree
   return (
     <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b border-slate-200 p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-4">
+      <div className="bg-white border-b border-slate-200 p-3 sm:p-4 lg:p-6 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
+          <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
             <Button
               variant="ghost"
               size="icon"
               onClick={onBack}
-              className="text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-lg"
+              className="text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-lg flex-shrink-0"
             >
-              <ArrowLeft className="h-5 w-5" />
+              <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
             </Button>
-            <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <MapPin className="h-5 w-5 text-blue-600" />
+            <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+              <div className="h-8 w-8 sm:h-10 sm:w-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">Collection Points</h1>
-                <p className="text-sm text-slate-600 mt-1">Manage pickup and delivery starting points</p>
+              <div className="min-w-0">
+                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 truncate">Collection Points</h1>
+                <p className="text-xs sm:text-sm text-slate-600 mt-1">Manage pickup and delivery starting points</p>
               </div>
             </div>
           </div>
 
           <Button 
             onClick={() => setIsCreateDialogOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm"
           >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Collection Point
+            <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+            <span className="hidden sm:inline">Add Collection Point</span>
+            <span className="sm:hidden">Add</span>
           </Button>
         </div>
 
         {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
             <Input
               placeholder="Search collection points..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500"
+              className="pl-10 bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-sm sm:text-base"
             />
           </div>
           <Select value={selectedType} onValueChange={setSelectedType}>
@@ -328,16 +329,16 @@ export default function CollectionPointsScreen({ onBack }: CollectionPointsScree
       </div>
 
       {/* Stats Overview */}
-      <div className="p-6 border-b border-slate-200 bg-white">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="p-3 sm:p-4 lg:p-6 border-b border-slate-200 bg-white">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           <Card className="bg-blue-50 border-blue-200">
-            <CardContent className="p-4">
+            <CardContent className="p-3 sm:p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-blue-600">Total Points</p>
-                  <p className="text-2xl font-bold text-blue-900">{collectionPoints.length}</p>
+                  <p className="text-xs sm:text-sm font-medium text-blue-600">Total Points</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-900">{collectionPoints.length}</p>
                 </div>
-                <MapPin className="h-8 w-8 text-blue-600" />
+                <MapPin className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-blue-600" />
               </div>
             </CardContent>
           </Card>
