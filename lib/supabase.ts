@@ -191,6 +191,62 @@ export interface Database {
           notes?: string | null
         }
       }
+      business_profile: {
+        Row: {
+          id: number
+          business_name: string
+          contact_email: string
+          contact_phone: string
+          business_address: string | null
+          website: string | null
+          orders_per_day: string | null
+          team_size: string | null
+          drivers_count: string | null
+          years_in_business: string | null
+          industry: string | null
+          primary_delivery_area: string | null
+          delivery_challenge: string | null
+          desired_features: string | null
+          business_status: 'pending' | 'active' | 'inactive' | 'suspended'
+          profile_completed: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          business_name: string
+          contact_email: string
+          contact_phone: string
+          business_address?: string | null
+          website?: string | null
+          orders_per_day?: string | null
+          team_size?: string | null
+          drivers_count?: string | null
+          years_in_business?: string | null
+          industry?: string | null
+          primary_delivery_area?: string | null
+          delivery_challenge?: string | null
+          desired_features?: string | null
+          business_status?: 'pending' | 'active' | 'inactive' | 'suspended'
+          profile_completed?: boolean
+        }
+        Update: {
+          business_name?: string
+          contact_email?: string
+          contact_phone?: string
+          business_address?: string | null
+          website?: string | null
+          orders_per_day?: string | null
+          team_size?: string | null
+          drivers_count?: string | null
+          years_in_business?: string | null
+          industry?: string | null
+          primary_delivery_area?: string | null
+          delivery_challenge?: string | null
+          desired_features?: string | null
+          business_status?: 'pending' | 'active' | 'inactive' | 'suspended'
+          profile_completed?: boolean
+        }
+      }
     }
     Views: {
       [_ in never]: never
