@@ -43,7 +43,8 @@ export default function HomePage() {
       await new Promise(resolve => setTimeout(resolve, 1500))
       
       if (authMode === "signup") {
-        setCurrentStep("setup")
+        // For new users, redirect to comprehensive onboarding
+        window.location.href = "/onboarding/organization"
       } else {
         // For existing users, redirect to dashboard
         window.location.href = "/dashboard"

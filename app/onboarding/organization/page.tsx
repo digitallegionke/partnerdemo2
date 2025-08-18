@@ -258,11 +258,18 @@ export default function OrganizationSetup() {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button className="bg-blue-600 hover:bg-blue-700 text-lg px-8 py-6">
-                Go to Dashboard
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-lg px-8 py-6"
+                onClick={() => window.location.href = '/dashboard'}
+              >
+                Continue to Dashboard
               </Button>
-              <Button variant="outline" className="text-lg px-8 py-6 border-gray-300">
-                Contact Support
+              <Button
+                variant="outline"
+                className="text-lg px-8 py-6 border-gray-300"
+                onClick={() => window.location.href = '/onboarding/driver'}
+              >
+                Setup Drivers
               </Button>
             </div>
           </CardContent>
