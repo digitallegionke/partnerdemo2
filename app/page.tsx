@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { CheckCircle, Truck, Users, Route, BarChart3, Building2, Mail, Lock, User, Phone, MapPin } from "lucide-react"
+import Link from "next/link"
 
 type OnboardingStep = "auth" | "setup" | "complete"
 
@@ -137,7 +138,7 @@ export default function HomePage() {
               ))}
             </div>
 
-            <div className="flex items-center space-x-4 text-sm text-gray-500">
+            <div className="flex items-center space-x-4 text-sm text-gray-500 mb-6">
               <div className="flex items-center space-x-1">
                 <CheckCircle className="w-4 h-4 text-green-500" />
                 <span>Free 14-day trial</span>
@@ -150,6 +151,15 @@ export default function HomePage() {
                 <CheckCircle className="w-4 h-4 text-green-500" />
                 <span>Cancel anytime</span>
               </div>
+            </div>
+
+            <div className="mt-6">
+              <Link href="/track">
+                <Button variant="outline" className="w-full sm:w-auto">
+                  <Truck className="w-4 h-4 mr-2" />
+                  Track Your Package
+                </Button>
+              </Link>
             </div>
           </div>
 
