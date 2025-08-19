@@ -84,7 +84,7 @@ export default function TrackPackagePage() {
 
                 <div className="mt-6 text-center">
                   <p className="text-sm text-gray-600">
-                    Or use the tracking link sent to your email
+                    Or use the tracking link sent to your email or WhatsApp
                   </p>
                 </div>
               </CardContent>

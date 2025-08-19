@@ -103,68 +103,69 @@ export default function HomePage() {
   if (currentStep === "auth") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
-        <div className="w-full max-w-6xl grid lg:grid-cols-2 gap-8 items-center">
+        {/* Fixed Track Button at Top Right */}
+        <div className="fixed top-4 right-4 z-10">
+          <Link href="/track">
+            <Button variant="outline" className="px-6 py-3 bg-white shadow-lg">
+              <Truck className="w-4 h-4 mr-2" />
+              Track Your Package
+            </Button>
+          </Link>
+        </div>
+        
+        <div className="w-full max-w-6xl grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           {/* Left Side - Branding & Features */}
-          <div className="space-y-8">
-            <div>
-              <div className="flex items-center space-x-3 mb-6">
-                <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-                  <Truck className="w-6 h-6 text-white" />
+          <div className="space-y-6 lg:space-y-8 order-2 lg:order-1">
+            <div className="text-center lg:text-left">
+              <div className="flex items-center justify-center lg:justify-start space-x-3 mb-6">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-600 rounded-xl flex items-center justify-center">
+                  <Truck className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900">Roundi</h1>
-                  <p className="text-gray-600">Delivery Management Platform</p>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Roundi</h1>
+                  <p className="text-sm sm:text-base text-gray-600">Delivery Management Platform</p>
                 </div>
               </div>
-              <h2 className="text-4xl font-bold text-gray-900 mb-4">
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-4 leading-tight">
                 Streamline Your Delivery Operations
               </h2>
-              <p className="text-xl text-gray-600 mb-8">
+              <p className="text-lg sm:text-xl text-gray-600 mb-6 lg:mb-8">
                 Join thousands of businesses using Roundi to optimize their delivery operations and delight customers.
               </p>
             </div>
 
-            <div className="grid gap-6">
+            <div className="grid gap-4 sm:gap-6">
               {features.map((feature, index) => (
-                <div key={index} className="flex items-start space-x-4">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <feature.icon className="w-5 h-5 text-blue-600" />
+                <div key={index} className="flex items-start space-x-3 sm:space-x-4 text-center sm:text-left">
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <feature.icon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                   </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-1">{feature.title}</h3>
-                    <p className="text-gray-600 text-sm">{feature.description}</p>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 mb-1 text-sm sm:text-base">{feature.title}</h3>
+                    <p className="text-gray-600 text-xs sm:text-sm">{feature.description}</p>
                   </div>
                 </div>
               ))}
             </div>
 
-            <div className="flex items-center space-x-4 text-sm text-gray-500 mb-6">
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start space-y-2 sm:space-y-0 sm:space-x-4 text-xs sm:text-sm text-gray-500 mb-6">
               <div className="flex items-center space-x-1">
-                <CheckCircle className="w-4 h-4 text-green-500" />
+                <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-500" />
                 <span>Free 14-day trial</span>
               </div>
               <div className="flex items-center space-x-1">
-                <CheckCircle className="w-4 h-4 text-green-500" />
+                <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-500" />
                 <span>No credit card required</span>
               </div>
               <div className="flex items-center space-x-1">
-                <CheckCircle className="w-4 h-4 text-green-500" />
+                <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4 text-green-500" />
                 <span>Cancel anytime</span>
               </div>
-            </div>
-
-            <div className="mt-6">
-              <Link href="/track">
-                <Button variant="outline" className="w-full sm:w-auto">
-                  <Truck className="w-4 h-4 mr-2" />
-                  Track Your Package
-                </Button>
-              </Link>
             </div>
           </div>
 
           {/* Right Side - Auth Form */}
-          <Card className="w-full max-w-md mx-auto bg-white shadow-xl border-0">
+          <Card className="w-full max-w-md mx-auto bg-white shadow-xl border-0 order-1 lg:order-2">
             <CardHeader className="text-center pb-2">
               <CardTitle className="text-2xl">
                 {authMode === "login" ? "Welcome back" : "Get started today"}
