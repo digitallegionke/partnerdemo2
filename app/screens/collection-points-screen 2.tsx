@@ -678,10 +678,10 @@ export default function CollectionPointsScreen({ onBack }: CollectionPointsScree
             <AlertDialogDescription>
               Are you sure you want to delete "{deletingPoint?.name}"? This action cannot be undone.
               {deletingPoint?.assignedVehicles && deletingPoint.assignedVehicles > 0 && (
-                <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-sm">
+                <p className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-sm">
                   <AlertCircle className="h-4 w-4 inline mr-1" />
                   Warning: This collection point has {deletingPoint.assignedVehicles} assigned vehicles.
-                </div>
+                </p>
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>

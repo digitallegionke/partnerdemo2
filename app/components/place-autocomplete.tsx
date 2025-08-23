@@ -1,128 +1,137 @@
-"use client"
+"use client";
 
-import { useEffect, useRef, useState } from "react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { MapPin, X } from "lucide-react"
+import { useEffect, useRef, useState } from "react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { MapPin, X } from "lucide-react";
 
 // Types
 interface PlaceResult {
-  display_name: string
-  lat: string
-  lon: string
-  place_id: string
-  importance: number
+  display_name: string;
+  lat: string;
+  lon: string;
+  place_id: string;
+  importance: number;
 }
 
 interface PlaceAutocompleteProps {
-  value?: string
-  onPlaceSelect?: (place: { address: string; lat: number; lon: number }) => void
-  placeholder?: string
-  className?: string
+  value?: string;
+  onPlaceSelect?: (place: {
+    address: string;
+    lat: number;
+    lon: number;
+  }) => void;
+  placeholder?: string;
+  className?: string;
 }
 
-export default function PlaceAutocomplete({ 
-  value = "", 
-  onPlaceSelect, 
+export default function PlaceAutocomplete({
+  value = "",
+  onPlaceSelect,
   placeholder = "Enter delivery address",
-  className = ""
+  className = "",
 }: PlaceAutocompleteProps) {
-  const [inputValue, setInputValue] = useState(value)
-  const [suggestions, setSuggestions] = useState<PlaceResult[]>([])
-  const [isLoading, setIsLoading] = useState(false)
-  const [showSuggestions, setShowSuggestions] = useState(false)
-  const debounceRef = useRef<NodeJS.Timeout | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const [inputValue, setInputValue] = useState(value);
+  const [suggestions, setSuggestions] = useState<PlaceResult[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Search for places using Nominatim
   const searchPlaces = async (query: string) => {
     if (query.length < 3) {
-      setSuggestions([])
-      return
+      setSuggestions([]);
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1&countrycodes=ke` // Focusing on Kenya, adjust as needed
-      )
-      const results: PlaceResult[] = await response.json()
-      setSuggestions(results)
-      setShowSuggestions(true)
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          query
+        )}&limit=5&addressdetails=1&countrycodes=ke` // Focusing on Kenya, adjust as needed
+      );
+      const results: PlaceResult[] = await response.json();
+      setSuggestions(results);
+      setShowSuggestions(true);
     } catch (error) {
-      console.error("Error searching places:", error)
-      setSuggestions([])
+      console.error("Error searching places:", error);
+      setSuggestions([]);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Handle input change with debouncing
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value
-    setInputValue(newValue)
+    const newValue = e.target.value;
+    setInputValue(newValue);
 
     // Clear previous debounce
     if (debounceRef.current) {
-      clearTimeout(debounceRef.current)
+      clearTimeout(debounceRef.current);
     }
 
     // Debounce search
     debounceRef.current = setTimeout(() => {
-      searchPlaces(newValue)
-    }, 300)
-  }
-
+      searchPlaces(newValue);
+    }, 300);
+  };
+  
   // Handle place selection
   const handlePlaceSelect = (place: PlaceResult) => {
-    setInputValue(place.display_name)
-    setShowSuggestions(false)
-    setSuggestions([])
+    setInputValue(place.display_name);
+    setShowSuggestions(false);
+    setSuggestions([]);
     
     if (onPlaceSelect) {
       onPlaceSelect({
         address: place.display_name,
         lat: parseFloat(place.lat),
-        lon: parseFloat(place.lon)
-      })
+        lon: parseFloat(place.lon),
+      });
     }
-  }
+  };
 
   // Clear input
   const handleClear = () => {
-    setInputValue("")
-    setSuggestions([])
-    setShowSuggestions(false)
+    setInputValue("");
+    setSuggestions([]);
+    setShowSuggestions(false);
     if (onPlaceSelect) {
-      onPlaceSelect({ address: "", lat: 0, lon: 0 })
+      onPlaceSelect({ address: "", lat: 0, lon: 0 });
     }
-  }
+  };
 
   // Close suggestions when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false)
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false);
       }
-    }
+    };
 
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
-  }, [])
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Update input value when prop changes
   useEffect(() => {
-    setInputValue(value)
-  }, [value])
+    setInputValue(value);
+  }, [value]);
 
   // Cleanup debounce on unmount
   useEffect(() => {
     return () => {
       if (debounceRef.current) {
-        clearTimeout(debounceRef.current)
+        clearTimeout(debounceRef.current);
       }
-    }
-  }, [])
+    };
+  }, []);
 
   return (
     <div ref={containerRef} className={`relative ${className}`}>
@@ -153,9 +162,7 @@ export default function PlaceAutocomplete({
       {showSuggestions && (suggestions.length > 0 || isLoading) && (
         <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-60 overflow-auto">
           {isLoading ? (
-            <div className="px-4 py-2 text-sm text-gray-500">
-              Searching...
-            </div>
+            <div className="px-4 py-2 text-sm text-gray-500">Searching...</div>
           ) : (
             suggestions.map((place, index) => (
               <div
@@ -177,5 +184,5 @@ export default function PlaceAutocomplete({
         </div>
       )}
     </div>
-  )
-} 
+  );
+}
