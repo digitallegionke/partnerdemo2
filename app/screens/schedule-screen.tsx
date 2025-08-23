@@ -498,7 +498,7 @@ export default function ScheduleScreen() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="item" className="text-gray-700">
-                  Produce *
+                  Item *
                 </Label>
                 <Input
                   id="item"
@@ -763,7 +763,7 @@ export default function ScheduleScreen() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-sm text-gray-900">
-                          {delivery.customer_name || delivery.farmer_name}
+                          {delivery.customer_name}
                         </span>
                         <Badge className="bg-yellow-100 text-yellow-800 text-xs">
                           {delivery.status}
@@ -772,7 +772,7 @@ export default function ScheduleScreen() {
                       <div className="text-xs text-gray-600">
                         <div className="flex items-center mb-1">
                           <Package className="h-3 w-3 mr-1" />
-                          {delivery.item || delivery.produce}
+                          {delivery.item}
                         </div>
                         <div className="flex items-center mb-1">
                           <MapPin className="h-3 w-3 mr-1" />

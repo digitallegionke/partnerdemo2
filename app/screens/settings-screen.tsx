@@ -1,27 +1,40 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { 
-  Settings, 
-  User, 
-  Users, 
-  Bell, 
-  Globe, 
-  Shield, 
-  Mail, 
-  Plus, 
-  Copy, 
-  Check, 
+import { useEffect, useState } from "react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Settings,
+  User,
+  Users,
+  Bell,
+  Globe,
+  Shield,
+  Mail,
+  Plus,
+  Copy,
+  Check,
   UserPlus,
   HelpCircle,
   RotateCcw,
@@ -30,31 +43,39 @@ import {
   FileText,
   MessageSquare,
   Phone,
-  Trash2
-} from "lucide-react"
-import { useFeatureTour } from "@/components/feature-tour"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+  Trash2,
+  EyeClosed,
+  Eye,
+} from "lucide-react";
+import { useFeatureTour } from "@/components/feature-tour";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useUserProfile } from "@/hooks/use-profile";
+import { InviteModal } from "../components/invite-modal";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "../context/auth-context";
+import { industries } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
 
 export default function SettingsScreen() {
+  const { profile, organization, loading, team } = useUserProfile();
   const [profileForm, setProfileForm] = useState({
-    name: "David Manager",
-    email: "david@roundi.com",
-    phone: "+254 712 345 678",
-    role: "Operations Lead"
-  })
+    name: profile?.full_name,
+    email: profile?.email,
+    phone: profile?.phone,
+    role: profile?.role,
+  });
 
   const [companyForm, setCompanyForm] = useState({
-    name: "Acme Delivery Co.",
-    address: "Nairobi, Kenya",
-    phone: "+254 700 123 456",
-    website: "www.acmedelivery.co.ke"
-  })
+    name: organization?.company_name,
+    address: organization?.headquarters,
+    industry: organization?.industry,
+  });
 
   const [inviteForm, setInviteForm] = useState({
     email: "",
     role: "driver",
-    message: ""
-  })
+    message: "",
+  });
 
   const [notifications, setNotifications] = useState({
     email: true,
@@ -62,53 +83,147 @@ export default function SettingsScreen() {
     sms: false,
     deliveryUpdates: true,
     driverAlerts: true,
-    systemAlerts: false
-  })
+    systemAlerts: false,
+  });
 
-  const [inviteDialogOpen, setInviteDialogOpen] = useState(false)
-  const [copiedLink, setCopiedLink] = useState(false)
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const { startTour, resetTour } = useFeatureTour()
+  const [copiedLink, setCopiedLink] = useState(true);
 
-  const driverInviteLink = "https://roundi.com/onboarding/driver?token=abc123xyz"
+  const { startTour, resetTour } = useFeatureTour();
 
-  const pendingInvites = [
-    { id: 1, email: "john@example.com", role: "driver", status: "pending", sentAt: "2024-01-15" },
-    { id: 2, email: "sarah@example.com", role: "driver", status: "accepted", sentAt: "2024-01-14" },
-    { id: 3, email: "mike@example.com", role: "admin", status: "pending", sentAt: "2024-01-13" },
-  ]
+  useEffect(() => {
+    if (organization?.industry) {
+      setCompanyForm((prev) => ({
+        ...prev,
+        industry: organization.industry,
+      }));
+    }
+  }, [organization]);
+
+  const driverInviteLink =
+    "https://roundi.com/onboarding/driver?token=abc123xyz";
+
+ 
+
+  const updateUserProfile = async () => {
+    const user = (await supabase.auth.getUser()).data.user;
+    const { data: updateData, error: updateError } =
+      await supabase.auth.updateUser({
+        email: profileForm.email,
+      });
+
+    if (updateError) {
+      console.error("Auth update error:", updateError);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .update({
+        full_name: profileForm.name,
+        avatar:
+          "https://unsplash.com/photos/woman-with-white-hair-and-wearing-white-head-band-1I3_xTAXTxo",
+        phone: profileForm.phone,
+        email: profileForm.email,
+      })
+      .eq("user_id", user!.id);
+  };
+
+  const updateUserOrganization = async () => {
+    const { data, error } = await supabase
+      .from("organization")
+      .update({
+        company_name: companyForm.name,
+        headquarters: companyForm.address,
+        industry: companyForm.industry,
+      })
+      .eq("id", organization!.id);
+  };
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(driverInviteLink)
-    setCopiedLink(true)
-    setTimeout(() => setCopiedLink(false), 2000)
-  }
+    navigator.clipboard.writeText(driverInviteLink);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
 
   const handleSendInvite = () => {
     // TODO: Implement invite sending logic
-    console.log("Sending invite:", inviteForm)
-    setInviteDialogOpen(false)
-    setInviteForm({ email: "", role: "driver", message: "" })
-  }
+    
+    setInviteDialogOpen(false);
+    setInviteForm({ email: "", role: "driver", message: "" });
+  };
 
   const handleStartTour = () => {
-    startTour()
-  }
+    startTour();
+  };
 
   const handleResetOnboarding = () => {
-    localStorage.removeItem('roundi-has-visited')
-    localStorage.removeItem('roundi-tour-completed')
-    resetTour()
-    // Refresh the page to trigger first-time flow
-    window.location.reload()
+    localStorage.removeItem("roundi-has-visited");
+    localStorage.removeItem("roundi-tour-completed");
+    resetTour();
+
+    window.location.reload();
+  };
+
+  function getInitials(name?: string) {
+    if (!name) return "??";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase();
   }
+
+  const handlePasswordChange = async () => {
+    if (newPassword !== confirmNewPassword) {
+      toast({
+        title: "Error",
+        description: "Password do not match!",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const { data, error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (error) {
+      console.error("Error changing password:", error.message);
+      toast({
+        title: "Error",
+        description: `Error changing password: ${error.message}`,
+        variant: "destructive",
+      });
+      return { success: false, error: error.message };
+    }
+
+    toast({
+      title: "Success!",
+      description: `Password reset.`,
+    });
+
+    setNewPassword("");
+    setConfirmNewPassword("");
+    setShowPasswordForm(false);
+
+    return { success: true, data };
+  };
 
   return (
     <div className="p-6 bg-white">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600 mt-1">Manage your account, team, and app preferences</p>
+        <p className="text-gray-600 mt-1">
+          Manage your account, team, and app preferences
+        </p>
       </div>
 
       <div className="max-w-4xl mx-auto space-y-8">
@@ -123,12 +238,17 @@ export default function SettingsScreen() {
           <CardContent className="space-y-4">
             <div className="flex items-center space-x-4">
               <Avatar className="h-16 w-16">
-                <AvatarImage src="/placeholder.svg?height=64&width=64" />
-                <AvatarFallback className="bg-gray-100 text-gray-600 text-lg">DM</AvatarFallback>
+                <AvatarImage src={profile?.avatar} />
+                <AvatarFallback className="bg-gray-100 text-gray-600 text-lg">
+                  {" "}
+                  {getInitials(profile?.full_name)}
+                </AvatarFallback>
               </Avatar>
               <div>
-                <h3 className="font-semibold text-gray-900">David Manager</h3>
-                <p className="text-sm text-gray-500">Operations Lead</p>
+                <h3 className="font-semibold text-gray-900">
+                  {profile?.full_name}
+                </h3>
+                <p className="text-sm text-gray-500">{profile?.role}</p>
                 <Button variant="outline" size="sm" className="mt-2">
                   Change Photo
                 </Button>
@@ -136,23 +256,66 @@ export default function SettingsScreen() {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="firstName" className="text-gray-700">First Name</Label>
-                <Input id="firstName" defaultValue="David" className="bg-white border-gray-300" />
+                <Label htmlFor="fullName" className="text-gray-700">
+                  Full Name
+                </Label>
+                <Input
+                  id="fullName"
+                  defaultValue={profile?.full_name}
+                  value={profileForm?.name}
+                  className="bg-white border-gray-300"
+                  onChange={(e) =>
+                    setProfileForm((prev) => ({
+                      ...prev,
+                      name: e.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="email" className="text-gray-700">
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  defaultValue={profile?.email}
+                  value={profileForm?.email}
+                  onChange={(e) =>
+                    setProfileForm((prev) => ({
+                      ...prev,
+                      email: e.target.value,
+                    }))
+                  }
+                  className="bg-white border-gray-300"
+                />
               </div>
               <div>
-                <Label htmlFor="lastName" className="text-gray-700">Last Name</Label>
-                <Input id="lastName" defaultValue="Manager" className="bg-white border-gray-300" />
-              </div>
-              <div>
-                <Label htmlFor="email" className="text-gray-700">Email</Label>
-                <Input id="email" type="email" defaultValue="david@roundi.co" className="bg-white border-gray-300" />
-              </div>
-              <div>
-                <Label htmlFor="phone" className="text-gray-700">Phone</Label>
-                <Input id="phone" defaultValue="+254 712 345 678" className="bg-white border-gray-300" />
+                <Label htmlFor="phone" className="text-gray-700">
+                  Phone
+                </Label>
+                <Input
+                  id="phone"
+                  defaultValue={profile?.phone}
+                  value={profileForm.phone}
+                  onChange={(e) =>
+                    setProfileForm((prev) => ({
+                      ...prev,
+                      phone: e.target.value,
+                    }))
+                  }
+                  type="tel"
+                  className="bg-white border-gray-300"
+                />
               </div>
             </div>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Profile</Button>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={updateUserProfile}
+            >
+              Save Profile
+            </Button>
           </CardContent>
         </Card>
 
@@ -167,29 +330,73 @@ export default function SettingsScreen() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="companyName" className="text-gray-700">Company Name</Label>
-                <Input id="companyName" defaultValue="Roundi Logistics" className="bg-white border-gray-300" />
+                <Label htmlFor="companyName" className="text-gray-700">
+                  Company Name
+                </Label>
+                <Input
+                  id="companyName"
+                  defaultValue={organization?.company_name}
+                  value={companyForm.name}
+                  className="bg-white border-gray-300"
+                  onChange={(e) =>
+                    setCompanyForm((prev) => ({
+                      ...prev,
+                      name: e.target.value,
+                    }))
+                  }
+                  disabled={profile?.role !== "owner"}
+                />
               </div>
               <div>
-                <Label htmlFor="industry" className="text-gray-700">Industry</Label>
-                <Select defaultValue="logistics">
+                <Label htmlFor="industry" className="text-gray-700">
+                  Industry
+                </Label>
+                <Select
+                  value={companyForm.industry}
+                  onValueChange={(val) =>
+                    setCompanyForm((prev) => ({ ...prev, industry: val }))
+                  }
+                  disabled={profile?.role !== "owner"}
+                >
                   <SelectTrigger className="bg-white border-gray-300">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="logistics">Logistics & Transportation</SelectItem>
-                    <SelectItem value="ecommerce">E-commerce</SelectItem>
-                    <SelectItem value="food">Food & Beverage</SelectItem>
-                    <SelectItem value="retail">Retail</SelectItem>
+                    {industries.map((industry, idx) => (
+                      <SelectItem key={idx} value={industry}>
+                        {industry}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="md:col-span-2">
-                <Label htmlFor="address" className="text-gray-700">Address</Label>
-                <Input id="address" defaultValue="123 Logistics Avenue, Nairobi, Kenya" className="bg-white border-gray-300" />
+                <Label htmlFor="address" className="text-gray-700">
+                  Address
+                </Label>
+                <Input
+                  id="address"
+                  defaultValue={organization?.headquarters}
+                  value={companyForm.address}
+                  onChange={(e) =>
+                    setCompanyForm((prev) => ({
+                      ...prev,
+                      address: e.target.value,
+                    }))
+                  }
+                  className="bg-white border-gray-300"
+                  disabled={profile?.role !== "owner"}
+                />
               </div>
             </div>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Company Info</Button>
+            {profile?.role === "owner" && (
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={updateUserOrganization}
+              >
+                Save Company Info
+              </Button>
+            )}
           </CardContent>
         </Card>
 
@@ -201,39 +408,67 @@ export default function SettingsScreen() {
                 <Users className="h-5 w-5 mr-2" />
                 Team Management
               </CardTitle>
-              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">
-                <UserPlus className="h-4 w-4 mr-2" />
-                Invite User
-              </Button>
+              {profile?.role === "owner" && (
+                <Button
+                  size="sm"
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  onClick={() => setInviteDialogOpen(true)}
+                >
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Invite User
+                </Button>
+              )}
+              {inviteDialogOpen && (
+                <InviteModal
+                  isOpen={inviteDialogOpen}
+                  setIsOpen={setInviteDialogOpen}
+                />
+              )}
             </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {[
-                { name: "David Manager", role: "Admin", email: "david@roundi.co", status: "Active" },
-                { name: "Sarah Johnson", role: "Manager", email: "sarah@roundi.co", status: "Active" },
-                { name: "Mike Wilson", role: "Driver", email: "mike@roundi.co", status: "Pending" },
-              ].map((user, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              {team?.map((user, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                >
                   <div className="flex items-center space-x-3">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="bg-gray-200 text-gray-600 text-sm">
-                        {user.name.split(' ').map(n => n[0]).join('')}
+                        {(user?.name ?? user?.email)
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")
+                          .toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium text-gray-900">{user.name}</p>
+                      <p className="font-medium text-gray-900">
+                        {user.name || user.email?.[0]?.toUpperCase()}
+                      </p>
                       <p className="text-sm text-gray-500">{user.email}</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Badge variant={user.status === "Active" ? "default" : "secondary"} className="text-xs">
-                      {user.status}
+                    <Badge
+                      variant={user.type === "member" ? "default" : "secondary"}
+                      className="text-xs"
+                    >
+                      {user.type === "member" ? "Active" : "Pending"}
                     </Badge>
-                    <Badge variant="outline" className="text-xs">{user.role}</Badge>
-                    <Button variant="ghost" size="sm" className="text-gray-400">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
+                    <Badge variant="outline" className="text-xs">
+                      {user.type === "member" ? user.role : "invited"}
+                    </Badge>
+                    {profile?.role === "owner" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-gray-400"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -242,7 +477,7 @@ export default function SettingsScreen() {
         </Card>
 
         {/* Notifications */}
-        <Card className="bg-white border border-gray-200">
+        {/* <Card className="bg-white border border-gray-200">
           <CardHeader>
             <CardTitle className="text-gray-900 flex items-center">
               <Bell className="h-5 w-5 mr-2" />
@@ -253,29 +488,43 @@ export default function SettingsScreen() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="emailNotifications" className="text-gray-700">Email Notifications</Label>
-                  <p className="text-sm text-gray-500">Receive delivery updates via email</p>
+                  <Label htmlFor="emailNotifications" className="text-gray-700">
+                    Email Notifications
+                  </Label>
+                  <p className="text-sm text-gray-500">
+                    Receive delivery updates via email
+                  </p>
                 </div>
                 <Switch id="emailNotifications" defaultChecked />
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="smsNotifications" className="text-gray-700">SMS Notifications</Label>
-                  <p className="text-sm text-gray-500">Get urgent notifications via SMS</p>
+                  <Label htmlFor="smsNotifications" className="text-gray-700">
+                    SMS Notifications
+                  </Label>
+                  <p className="text-sm text-gray-500">
+                    Get urgent notifications via SMS
+                  </p>
                 </div>
                 <Switch id="smsNotifications" />
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="pushNotifications" className="text-gray-700">Push Notifications</Label>
-                  <p className="text-sm text-gray-500">Browser push notifications</p>
+                  <Label htmlFor="pushNotifications" className="text-gray-700">
+                    Push Notifications
+                  </Label>
+                  <p className="text-sm text-gray-500">
+                    Browser push notifications
+                  </p>
                 </div>
                 <Switch id="pushNotifications" defaultChecked />
               </div>
             </div>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">Save Preferences</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+              Save Preferences
+            </Button>
           </CardContent>
-        </Card>
+        </Card> */}
 
         {/* Help & Support */}
         <Card className="bg-white border border-gray-200">
@@ -287,19 +536,31 @@ export default function SettingsScreen() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
+              <Button
+                variant="outline"
+                className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50"
+              >
                 <FileText className="h-5 w-5 mb-1" />
                 Documentation
               </Button>
-              <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
+              <Button
+                variant="outline"
+                className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50"
+              >
                 <MessageSquare className="h-5 w-5 mb-1" />
                 Contact Support
               </Button>
-              <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
+              <Button
+                variant="outline"
+                className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50"
+              >
                 <Phone className="h-5 w-5 mb-1" />
                 Call: +254 712 345 678
               </Button>
-              <Button variant="outline" className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50">
+              <Button
+                variant="outline"
+                className="h-16 flex flex-col items-center justify-center border-gray-300 hover:bg-gray-50"
+              >
                 <Mail className="h-5 w-5 mb-1" />
                 Email Support
               </Button>
@@ -319,27 +580,103 @@ export default function SettingsScreen() {
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <Label className="text-gray-700">Two-Factor Authentication</Label>
-                  <p className="text-sm text-gray-500">Add extra security to your account</p>
+                  <Label className="text-gray-700">
+                    Two-Factor Authentication
+                  </Label>
+                  <p className="text-sm text-gray-500">
+                    Add extra security to your account
+                  </p>
                 </div>
-                <Button variant="outline" size="sm">Enable</Button>
+                <Button variant="outline" size="sm" disabled>
+                  Enable
+                </Button>
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <Label className="text-gray-700">Password</Label>
-                  <p className="text-sm text-gray-500">Last changed 3 months ago</p>
+                  <p className="text-sm text-gray-500">
+                    Last changed 3 months ago
+                  </p>
                 </div>
-                <Button variant="outline" size="sm">Change Password</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPasswordForm(!showPasswordForm)}
+                >
+                  Change Password
+                </Button>
               </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label className="text-gray-700">API Keys</Label>
-                  <p className="text-sm text-gray-500">Manage integration keys</p>
-                </div>
-                <Button variant="outline" size="sm">Manage Keys</Button>
-              </div>
+
+              {showPasswordForm && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handlePasswordChange();
+                  }}
+                  className="space-y-3 p-4 bg-gray-50 rounded-lg"
+                >
+                  <div className="relative">
+                    <Label htmlFor="new-password">New Password</Label>
+                    <Input
+                      id="new-password"
+                      type={showPassword ? "text" : "password"}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      required
+                    />
+                    <Button
+                      className="absolute right-3 top-1/4 h-full px-3 py-2 text-gray-400 bg-transparent hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                      type="button"
+                    >
+                      {showPassword ? (
+                        <Eye className="h-4 w-4" />
+                      ) : (
+                        <EyeClosed className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+
+                  <div className="relative">
+                    <Label htmlFor="confirm-password">
+                      Confirm New Password
+                    </Label>
+                    <Input
+                      id="confirm-password"
+                      type={showConfirmPassword ? "text" : "password"}
+                      onChange={(e) => setConfirmNewPassword(e.target.value)}
+                      required
+                    />
+                    <Button
+                      className="absolute right-3 top-1/4 h-full px-3 py-2 text-gray-400 bg-transparent hover:bg-transparent"
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
+                      type="button"
+                    >
+                      {showConfirmPassword ? (
+                        <Eye className="h-4 w-4" />
+                      ) : (
+                        <EyeClosed className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <div className="flex space-x-2">
+                    <Button type="submit" size="sm">
+                      Update Password
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowPasswordForm(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              )}
             </div>
-            <Button variant="destructive" className="w-full">
+            <Button variant="destructive" className="w-full" disabled>
               <Trash2 className="h-4 w-4 mr-2" />
               Delete Account
             </Button>
@@ -347,5 +684,5 @@ export default function SettingsScreen() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

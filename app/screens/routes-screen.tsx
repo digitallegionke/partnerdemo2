@@ -1,99 +1,117 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { 
-  Plus, 
-  Edit, 
-  MapPin, 
-  Clock, 
-  Truck, 
-  MoreVertical, 
-  Download, 
-  Search, 
-  Map, 
+import { useState, useEffect } from "react";
+import {
+  Plus,
+  Edit,
+  MapPin,
+  Clock,
+  Truck,
+  MoreVertical,
+  Download,
+  Search,
+  Map,
   Loader2,
   RefreshCw,
   AlertCircle,
-  Trash2
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Textarea } from "@/components/ui/textarea"
-import { RouteService, type RouteWithDriver } from "@/lib/services/routes"
-import { DriverService } from "@/lib/services/drivers"
-import { DeliveryService } from "@/lib/services/deliveries"
-import { useToast } from "@/hooks/use-toast"
-import AddressSearch from "@/components/address-search"
-import { supabase } from "@/lib/supabase"
+  Trash2,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { RouteService, type RouteWithDriver } from "@/lib/services/routes";
+import { DriverService } from "@/lib/services/drivers";
+import { DeliveryService } from "@/lib/services/deliveries";
+import { useToast } from "@/hooks/use-toast";
+import AddressSearch from "@/components/address-search";
+import { supabase } from "@/lib/supabase";
+import { useRoute } from "@/hooks/use-route";
 
 // Transform Supabase route data to UI format
 const transformRouteForUI = async (route: RouteWithDriver) => {
   const formatDuration = (minutes: number) => {
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
-  }
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
+  };
 
   const formatDistance = (distance: number) => {
-    return `${distance.toFixed(1)} km`
-  }
+    return `${distance.toFixed(1)} km`;
+  };
 
   const getTimeAgo = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
-    const diffDays = Math.floor(diffHours / 24)
-    
-    if (diffDays > 0) return `${diffDays}d ago`
-    if (diffHours > 0) return `${diffHours}h ago`
-    return 'Just now'
-  }
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) return `${diffDays}d ago`;
+    if (diffHours > 0) return `${diffHours}h ago`;
+    return "Just now";
+  };
 
   // Get delivery count for this route
-  let deliveryCount = 0
+  let deliveryCount = 0;
   try {
-    const deliveries = await DeliveryService.getDeliveriesByRoute(route.id)
-    deliveryCount = deliveries.length
+    const deliveries = await DeliveryService.getDeliveriesByRoute(route.id);
+    deliveryCount = deliveries.length;
   } catch (error) {
-    console.error('Error getting deliveries for route:', route.id, error)
+    console.error("Error getting deliveries for route:", route.id, error);
     // Don't throw, just use 0 as default
   }
-  
+
   return {
     id: route.id,
     name: route.name,
-    distance: route.total_distance ? formatDistance(route.total_distance) : '0.0 km',
-    duration: route.estimated_duration ? formatDuration(route.estimated_duration) : '0m',
+    distance: route.total_distance
+      ? formatDistance(route.total_distance)
+      : "0.0 km",
+    duration: route.estimated_duration
+      ? formatDuration(route.estimated_duration)
+      : "0m",
     stops: deliveryCount,
     status: route.status,
-    driver: route.driver?.name || 'Unassigned',
+    driver: route.driver?.name || "Unassigned",
     lastUpdated: getTimeAgo(route.updated_at),
     efficiency: route.efficiency_score || 0,
     // Keep raw data for other operations
-    raw: route
-  }
-}
+    raw: route,
+  };
+};
 
 interface RoutesScreenProps {
-  onViewRouteMap: (route: any, deliveries: any[]) => void
+  onViewRouteMap: (route: any, deliveries: any[]) => void;
 }
 
 export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
-  const [routes, setRoutes] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filterStatus, setFilterStatus] = useState("all")
-  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [editingRoute, setEditingRoute] = useState<any>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [routes, setRoutes] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingRoute, setEditingRoute] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     start_location: "",
@@ -102,124 +120,158 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
     end_location: "",
     end_latitude: "",
     end_longitude: "",
-    driver_id: "unassigned"
-  })
-  const [deliveries, setDeliveries] = useState([{
-    id: Date.now(),
-    customer_name: "",
-    location: "",
-    latitude: "",
-    longitude: "",
-    item: "",
-    phone: "",
-    notes: ""
-  }])
-  const [deliveryMode, setDeliveryMode] = useState<'new' | 'existing'>('new')
-  const [existingDeliveries, setExistingDeliveries] = useState<any[]>([])
-  const [selectedExistingDeliveries, setSelectedExistingDeliveries] = useState<Set<number>>(new Set())
-  const [drivers, setDrivers] = useState<any[]>([])
-  const [routeDeliveries, setRouteDeliveries] = useState<any[]>([])
-  const [loadingRouteDeliveries, setLoadingRouteDeliveries] = useState(false)
-  const { toast } = useToast()
+    driver_id: "unassigned",
+  });
+  const [deliveries, setDeliveries] = useState([
+    {
+      id: Date.now(),
+      customer_name: "",
+      location: "",
+      latitude: "",
+      longitude: "",
+      item: "",
+      phone: "",
+      notes: "",
+    },
+  ]);
+  const [deliveryMode, setDeliveryMode] = useState<"new" | "existing">("new");
+  const [existingDeliveries, setExistingDeliveries] = useState<any[]>([]);
+  const [selectedExistingDeliveries, setSelectedExistingDeliveries] = useState<
+    Set<number>
+  >(new Set());
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [routeDeliveries, setRouteDeliveries] = useState<any[]>([]);
+  const [loadingRouteDeliveries, setLoadingRouteDeliveries] = useState(false);
+  const { toast } = useToast();
+  const { data, loading, error: routeError, fetchRoute } = useRoute();
+
+  
+//   useEffect(() => {
+//     const allRouteDeliveries = async () => {    
+//     const deliveriesPerRoute =   routes.map(route => await DeliveryService.getDeliveriesByRoute(route.id))
+//   return deliveriesPerRoute;
+//     }
+// console.log(allRouteDeliveries());
+//     const origin = {
+//       lat: deliveries[0].coordinates[0],
+//       lng: deliveries[0].coordinates[1],
+//     };
+//     const destination = {
+//       lat: deliveries[deliveries.length - 1].coordinates[0],
+//       lng: deliveries[deliveries.length - 1].coordinates[1],
+//     };
+//     const waypoints = routeDeliveries
+//       .slice(1, -1)
+//       .map((d) => ({ lat: d.coordinates[0], lng: d.coordinates[1] }));
+
+//     console.log("waypoints", waypoints);
+//     fetchRoute(origin, destination, waypoints);
+//   }, [routeDeliveries, fetchRoute]);
 
   // Load routes from Supabase
   const loadRoutes = async () => {
     try {
-      setIsLoading(true)
-      setError(null)
-      
+      setIsLoading(true);
+      setError(null);
+
       // Get all routes with driver information
-      const routesData = await RouteService.getAllRoutes()
-      
+      const routesData = await RouteService.getAllRoutes();
+
       if (routesData.length === 0) {
-        setRoutes([])
-        return
+        setRoutes([]);
+        return;
       }
-      
+
       // Transform routes for UI display with better error handling
       const transformPromises = routesData.map(async (route) => {
         try {
-          return await transformRouteForUI(route)
+          return await transformRouteForUI(route);
         } catch (error) {
-          console.error(`Error transforming route ${route.id}:`, error)
+          console.error(`Error transforming route ${route.id}:`, error);
           // Return basic route data if transformation fails
           return {
             id: route.id,
             name: route.name,
-            distance: route.total_distance ? `${route.total_distance.toFixed(1)} km` : '0.0 km',
-            duration: route.estimated_duration ? 
-              `${Math.floor(route.estimated_duration / 60)}h ${route.estimated_duration % 60}m` : 
-              '0m',
+            distance: route.total_distance
+              ? `${route.total_distance.toFixed(1)} km`
+              : "0.0 km",
+            duration: route.estimated_duration
+              ? `${Math.floor(route.estimated_duration / 60)}h ${
+                  route.estimated_duration % 60
+                }m`
+              : "0m",
             stops: 0,
             status: route.status,
-            driver: route.driver?.name || 'Unassigned',
+            driver: route.driver?.name || "Unassigned",
             lastUpdated: new Date(route.updated_at).toLocaleDateString(),
             efficiency: route.efficiency_score || 0,
-            raw: route
-          }
+            raw: route,
+          };
         }
-      })
-      
-      const transformedRoutes = await Promise.all(transformPromises)
-      setRoutes(transformedRoutes)
+      });
+
+      const transformedRoutes = await Promise.all(transformPromises);
+      setRoutes(transformedRoutes);
     } catch (err) {
-      console.error('Error loading routes:', err)
-      setError('Failed to load routes. Please try again.')
+      console.error("Error loading routes:", err);
+      setError("Failed to load routes. Please try again.");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   // Load drivers from Supabase
   const loadDrivers = async () => {
     try {
-      const driversData = await DriverService.getAllDrivers()
-      setDrivers(driversData)
+      const driversData = await DriverService.getAllDrivers();
+      setDrivers(driversData);
     } catch (error) {
-      console.error('Error loading drivers:', error)
+      console.error("Error loading drivers:", error);
     }
-  }
+  };
 
   // Load unassigned deliveries
   const loadUnassignedDeliveries = async () => {
     try {
-      const allDeliveries = await DeliveryService.getAllDeliveries()
+      const allDeliveries = await DeliveryService.getAllDeliveries();
       // Filter deliveries that are not assigned to any route
-      const unassigned = allDeliveries.filter(delivery => !delivery.route_id && delivery.status === 'pending')
-      setExistingDeliveries(unassigned)
+      const unassigned = allDeliveries.filter(
+        (delivery) => !delivery.route_id && delivery.status === "pending"
+      );
+      setExistingDeliveries(unassigned);
     } catch (error) {
-      console.error('Error loading unassigned deliveries:', error)
+      console.error("Error loading unassigned deliveries:", error);
     }
-  }
+  };
 
   // Load deliveries for a specific route
   const loadRouteDeliveries = async (routeId: number) => {
     try {
-      setLoadingRouteDeliveries(true)
-      const deliveries = await DeliveryService.getDeliveriesByRoute(routeId)
-      setRouteDeliveries(deliveries)
+      setLoadingRouteDeliveries(true);
+      const deliveries = await DeliveryService.getDeliveriesByRoute(routeId);
+      setRouteDeliveries(deliveries);
     } catch (error) {
-      console.error('Error loading route deliveries:', error)
+      console.error("Error loading route deliveries:", error);
       toast({
         title: "Error",
         description: "Failed to load route deliveries. Please try again.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setLoadingRouteDeliveries(false)
+      setLoadingRouteDeliveries(false);
     }
-  }
+  };
 
   // Load data on component mount
   useEffect(() => {
-    loadRoutes()
-    loadDrivers()
-    loadUnassignedDeliveries()
-  }, [])
+    loadRoutes();
+    loadDrivers();
+    loadUnassignedDeliveries();
+  }, []);
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
-  }
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
   const resetForm = () => {
     setFormData({
@@ -230,70 +282,77 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
       end_location: "",
       end_latitude: "",
       end_longitude: "",
-      driver_id: "unassigned"
-    })
-    setDeliveries([{
-      id: Date.now(),
-      customer_name: "",
-      location: "",
-      latitude: "",
-      longitude: "",
-      item: "",
-      phone: "",
-      notes: ""
-    }])
-    setDeliveryMode('new')
-    setSelectedExistingDeliveries(new Set())
-    setRouteDeliveries([])
-    setEditingRoute(null)
-  }
+      driver_id: "unassigned",
+    });
+    setDeliveries([
+      {
+        id: Date.now(),
+        customer_name: "",
+        location: "",
+        latitude: "",
+        longitude: "",
+        item: "",
+        phone: "",
+        notes: "",
+      },
+    ]);
+    setDeliveryMode("new");
+    setSelectedExistingDeliveries(new Set());
+    setRouteDeliveries([]);
+    setEditingRoute(null);
+  };
 
   const addDelivery = () => {
-    setDeliveries([...deliveries, {
-      id: Date.now(),
-      customer_name: "",
-      location: "",
-      latitude: "",
-      longitude: "",
-      item: "",
-      phone: "",
-      notes: ""
-    }])
-  }
+    setDeliveries([
+      ...deliveries,
+      {
+        id: Date.now(),
+        customer_name: "",
+        location: "",
+        latitude: "",
+        longitude: "",
+        item: "",
+        phone: "",
+        notes: "",
+      },
+    ]);
+  };
 
   const removeDelivery = (id: number) => {
     if (deliveries.length > 1) {
-      setDeliveries(deliveries.filter(delivery => delivery.id !== id))
+      setDeliveries(deliveries.filter((delivery) => delivery.id !== id));
     }
-  }
+  };
 
   const updateDelivery = (id: number, field: string, value: string) => {
-    setDeliveries(deliveries.map(delivery => 
-      delivery.id === id ? { ...delivery, [field]: value } : delivery
-    ))
-  }
+    setDeliveries(
+      deliveries.map((delivery) =>
+        delivery.id === id ? { ...delivery, [field]: value } : delivery
+      )
+    );
+  };
 
   const toggleExistingDelivery = (deliveryId: number) => {
-    const newSelection = new Set(selectedExistingDeliveries)
+    const newSelection = new Set(selectedExistingDeliveries);
     if (newSelection.has(deliveryId)) {
-      newSelection.delete(deliveryId)
+      newSelection.delete(deliveryId);
     } else {
-      newSelection.add(deliveryId)
+      newSelection.add(deliveryId);
     }
-    setSelectedExistingDeliveries(newSelection)
-  }
+    setSelectedExistingDeliveries(newSelection);
+  };
 
   const handleAddDialogChange = (open: boolean) => {
-    setIsAddDialogOpen(open)
+    setIsAddDialogOpen(open);
     if (open) {
       // Refresh unassigned deliveries when dialog opens
-      loadUnassignedDeliveries()
+      loadUnassignedDeliveries();
     }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
+    e.preventDefault();
+    setIsSubmitting(true);
 
     try {
       // Validate that locations have been selected with coordinates
@@ -302,9 +361,9 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
           title: "Error",
           description: "Please select a valid start location with coordinates.",
           variant: "destructive",
-        })
-        setIsSubmitting(false)
-        return
+        });
+        setIsSubmitting(false);
+        return;
       }
 
       if (!formData.end_latitude || !formData.end_longitude) {
@@ -312,35 +371,37 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
           title: "Error",
           description: "Please select a valid end location with coordinates.",
           variant: "destructive",
-        })
-        setIsSubmitting(false)
-        return
+        });
+        setIsSubmitting(false);
+        return;
       }
 
       // Validate deliveries based on mode
-      let deliveryCount = 0
-      if (deliveryMode === 'new') {
-        const validDeliveries = deliveries.filter(delivery => 
-          delivery.customer_name.trim() && 
-          delivery.location.trim() && 
-          delivery.latitude && 
-          delivery.longitude
-        )
-        deliveryCount = validDeliveries.length
+      let deliveryCount = 0;
+      if (deliveryMode === "new") {
+        const validDeliveries = deliveries.filter(
+          (delivery) =>
+            delivery.customer_name.trim() &&
+            delivery.location.trim() &&
+            delivery.latitude &&
+            delivery.longitude
+        );
+        deliveryCount = validDeliveries.length;
       } else {
-        deliveryCount = selectedExistingDeliveries.size
+        deliveryCount = selectedExistingDeliveries.size;
       }
 
       if (deliveryCount === 0) {
         toast({
           title: "Error",
-          description: deliveryMode === 'new' 
-            ? "Please add at least one delivery with customer name and location."
-            : "Please select at least one existing delivery.",
+          description:
+            deliveryMode === "new"
+              ? "Please add at least one delivery with customer name and location."
+              : "Please select at least one existing delivery.",
           variant: "destructive",
-        })
-        setIsSubmitting(false)
-        return
+        });
+        setIsSubmitting(false);
+        return;
       }
 
       // Create the route first
@@ -348,128 +409,143 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         name: formData.name,
         start_location: formData.start_location,
         end_location: formData.end_location,
-        driver_id: formData.driver_id !== "unassigned" ? parseInt(formData.driver_id) : null,
-        status: 'pending' as const,
-      }
+        driver_id:
+          formData.driver_id !== "unassigned"
+            ? parseInt(formData.driver_id)
+            : null,
+        status: "pending" as const,
+      };
 
-      const createdRoute = await RouteService.createRoute(routeData)
-      
-      if (deliveryMode === 'new') {
+      const createdRoute = await RouteService.createRoute(routeData);
+
+      if (deliveryMode === "new") {
         // Create new deliveries for this route
-        const validDeliveries = deliveries.filter(delivery => 
-          delivery.customer_name.trim() && 
-          delivery.location.trim() && 
-          delivery.latitude && 
-          delivery.longitude
-        )
+        const validDeliveries = deliveries.filter(
+          (delivery) =>
+            delivery.customer_name.trim() &&
+            delivery.location.trim() &&
+            delivery.latitude &&
+            delivery.longitude
+        );
 
-        const deliveryPromises = validDeliveries.map(async (delivery, index) => {
-          const deliveryData = {
-            customer_name: delivery.customer_name,
-            location: delivery.location,
-            coordinates: [parseFloat(delivery.latitude), parseFloat(delivery.longitude)] as [number, number],
-            item: delivery.item || 'Package',
-            phone: delivery.phone || '',
-            drop_time: new Date().toISOString(), // Default to current time, can be enhanced later
-            status: 'pending'
-          }
-          
-          const createdDelivery = await DeliveryService.createDelivery(deliveryData)
-          
-          // Associate delivery with route if route creation was successful
-          if (createdRoute?.id && createdDelivery?.id) {
-            await supabase
-              .from('deliveries')
-              .update({ route_id: createdRoute.id, order_index: index })
-              .eq('id', createdDelivery.id)
-          }
-          
-          return createdDelivery
-        })
+        const deliveryPromises = validDeliveries.map(
+          async (delivery, index) => {
+            const deliveryData = {
+              customer_name: delivery.customer_name,
+              location: delivery.location,
+              coordinates: [
+                parseFloat(delivery.latitude),
+                parseFloat(delivery.longitude),
+              ] as [number, number],
+              item: delivery.item || "Package",
+              phone: delivery.phone || "",
+              drop_time: new Date().toISOString(), // Default to current time, can be enhanced later
+              status: "pending",
+            };
 
-        await Promise.all(deliveryPromises)
+            const createdDelivery = await DeliveryService.createDelivery(
+              deliveryData
+            );
+
+            // Associate delivery with route if route creation was successful
+            if (createdRoute?.id && createdDelivery?.id) {
+              await supabase
+                .from("deliveries")
+                .update({ route_id: createdRoute.id, order_index: index })
+                .eq("id", createdDelivery.id);
+            }
+
+            return createdDelivery;
+          }
+        );
+
+        await Promise.all(deliveryPromises);
       } else {
         // Assign existing deliveries to this route
-        const selectedIds = Array.from(selectedExistingDeliveries)
+        const selectedIds = Array.from(selectedExistingDeliveries);
         const updatePromises = selectedIds.map(async (deliveryId, index) => {
           return await supabase
-            .from('deliveries')
+            .from("deliveries")
             .update({ route_id: createdRoute.id, order_index: index })
-            .eq('id', deliveryId)
-        })
+            .eq("id", deliveryId);
+        });
 
-        await Promise.all(updatePromises)
-        
+        await Promise.all(updatePromises);
+
         // Refresh the unassigned deliveries list
-        await loadUnassignedDeliveries()
+        await loadUnassignedDeliveries();
       }
-      
+
       // Reset form and close dialog
-      resetForm()
-      setIsAddDialogOpen(false)
-      
+      resetForm();
+      setIsAddDialogOpen(false);
+
       // Refresh routes list
-      await loadRoutes()
-      
+      await loadRoutes();
+
       toast({
         title: "Success",
         description: `Route created successfully with ${deliveryCount} deliveries!`,
-      })
-      
+      });
     } catch (error) {
-      console.error('Error creating route:', error)
+      console.error("Error creating route:", error);
       toast({
         title: "Error",
         description: "Failed to create route. Please try again.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   const filteredRoutes = routes.filter((route) => {
-    const matchesSearch = route.name.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesFilter = filterStatus === "all" || route.status === filterStatus
-    return matchesSearch && matchesFilter
-  })
+    const matchesSearch = route.name
+      .toLowerCase()
+      .includes(searchTerm.toLowerCase());
+    const matchesFilter =
+      filterStatus === "all" || route.status === filterStatus;
+    return matchesSearch && matchesFilter;
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "bg-green-50 text-green-700 border-green-200"
+        return "bg-green-50 text-green-700 border-green-200";
       case "completed":
-        return "bg-blue-50 text-blue-700 border-blue-200"
+        return "bg-blue-50 text-blue-700 border-blue-200";
       case "pending":
-        return "bg-orange-50 text-orange-700 border-orange-200"
+        return "bg-orange-50 text-orange-700 border-orange-200";
       case "cancelled":
-        return "bg-red-50 text-red-700 border-red-200"
+        return "bg-red-50 text-red-700 border-red-200";
       default:
-        return "bg-gray-50 text-gray-600 border-gray-200"
+        return "bg-gray-50 text-gray-600 border-gray-200";
     }
-  }
+  };
 
   const handleViewMap = async (route: any) => {
     try {
       // Use the raw route data if available, otherwise find by ID
-      const routeData = route.raw || route
-      
-      const deliveries = await DeliveryService.getDeliveriesByRoute(routeData.id)
-      onViewRouteMap(routeData, deliveries)
+      const routeData = route.raw || route;
+
+      const deliveries = await DeliveryService.getDeliveriesByRoute(
+        routeData.id
+      );
+      onViewRouteMap(routeData, deliveries);
     } catch (error) {
-      console.error('Error loading route deliveries:', error)
+      console.error("Error loading route deliveries:", error);
       toast({
         title: "Error",
         description: "Failed to load route deliveries. Please try again.",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   const handleEditRoute = async (route: any) => {
-    const routeData = route.raw || route
-    setEditingRoute(routeData)
-    
+    const routeData = route.raw || route;
+    setEditingRoute(routeData);
+
     // Pre-populate form with route data
     setFormData({
       name: routeData.name || "",
@@ -479,113 +555,117 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
       end_location: routeData.end_location || "",
       end_latitude: "",
       end_longitude: "",
-      driver_id: routeData.driver_id ? routeData.driver_id.toString() : "unassigned"
-    })
-    
+      driver_id: routeData.driver_id
+        ? routeData.driver_id.toString()
+        : "unassigned",
+    });
+
     // Load deliveries for this route
-    await loadRouteDeliveries(routeData.id)
-    
-    setIsEditDialogOpen(true)
-  }
+    await loadRouteDeliveries(routeData.id);
+
+    setIsEditDialogOpen(true);
+  };
 
   // Remove delivery from route
   const handleRemoveDeliveryFromRoute = async (deliveryId: number) => {
     try {
-      await DeliveryService.updateDelivery(deliveryId, { 
-        route_id: null, 
-        status: 'pending' 
-      })
-      
+      await DeliveryService.updateDelivery(deliveryId, {
+        route_id: null,
+        status: "pending",
+      });
+
       // Refresh route deliveries
       if (editingRoute) {
-        await loadRouteDeliveries(editingRoute.id)
+        await loadRouteDeliveries(editingRoute.id);
       }
-      
+
       // Refresh unassigned deliveries
-      await loadUnassignedDeliveries()
-      
+      await loadUnassignedDeliveries();
+
       toast({
         title: "Success",
         description: "Delivery removed from route successfully!",
-      })
+      });
     } catch (error) {
-      console.error('Error removing delivery from route:', error)
+      console.error("Error removing delivery from route:", error);
       toast({
         title: "Error",
         description: "Failed to remove delivery from route. Please try again.",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   // Add delivery to current route
   const handleAddDeliveryToRoute = async (deliveryId: number) => {
-    if (!editingRoute) return
-    
+    if (!editingRoute) return;
+
     try {
-      await RouteService.addDeliveryToRoute(deliveryId, editingRoute.id)
-      
+      await RouteService.addDeliveryToRoute(deliveryId, editingRoute.id);
+
       // Refresh route deliveries
-      await loadRouteDeliveries(editingRoute.id)
-      
+      await loadRouteDeliveries(editingRoute.id);
+
       // Refresh unassigned deliveries
-      await loadUnassignedDeliveries()
-      
+      await loadUnassignedDeliveries();
+
       toast({
         title: "Success",
         description: "Delivery added to route successfully!",
-      })
+      });
     } catch (error) {
-      console.error('Error adding delivery to route:', error)
+      console.error("Error adding delivery to route:", error);
       toast({
         title: "Error",
         description: "Failed to add delivery to route. Please try again.",
         variant: "destructive",
-      })
+      });
     }
-  }
+  };
 
   const handleUpdateRoute = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!editingRoute) return
+    e.preventDefault();
+    if (!editingRoute) return;
 
-    setIsSubmitting(true)
+    setIsSubmitting(true);
 
     try {
       const updateData: any = {
         name: formData.name,
         start_location: formData.start_location,
         end_location: formData.end_location,
-        driver_id: formData.driver_id !== "unassigned" ? parseInt(formData.driver_id) : null,
-      }
+        driver_id:
+          formData.driver_id !== "unassigned"
+            ? parseInt(formData.driver_id)
+            : null,
+      };
 
-      await RouteService.updateRoute(editingRoute.id, updateData)
-      
+      await RouteService.updateRoute(editingRoute.id, updateData);
+
       // Reset form and close dialog
-      resetForm()
-      setIsEditDialogOpen(false)
-      setEditingRoute(null)
-      setRouteDeliveries([])
-      
+      resetForm();
+      setIsEditDialogOpen(false);
+      setEditingRoute(null);
+      setRouteDeliveries([]);
+
       // Refresh routes list
-      await loadRoutes()
-      
+      await loadRoutes();
+
       toast({
         title: "Success",
         description: "Route updated successfully!",
-      })
-      
+      });
     } catch (error) {
-      console.error('Error updating route:', error)
+      console.error("Error updating route:", error);
       toast({
         title: "Error",
         description: "Failed to update route. Please try again.",
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
@@ -595,18 +675,28 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Routes</h1>
-              <p className="text-gray-600 mt-1">Manage and optimize your delivery routes</p>
+              <p className="text-gray-600 mt-1">
+                Manage and optimize your delivery routes
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <Button variant="outline" size="sm" className="text-gray-600">
                 <Download className="h-4 w-4 mr-2" />
                 Export
               </Button>
-              <Button variant="outline" size="sm" onClick={loadRoutes} className="text-gray-600">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadRoutes}
+                className="text-gray-600"
+              >
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
               </Button>
-              <Dialog open={isAddDialogOpen} onOpenChange={handleAddDialogChange}>
+              <Dialog
+                open={isAddDialogOpen}
+                onOpenChange={handleAddDialogChange}
+              >
                 <DialogTrigger asChild>
                   <Button size="sm">
                     <Plus className="h-4 w-4 mr-2" />
@@ -629,20 +719,32 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                           id="routeName"
                           placeholder="Enter route name"
                           value={formData.name}
-                          onChange={(e) => handleInputChange("name", e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange("name", e.target.value)
+                          }
                           required
                         />
                       </div>
                       <div>
                         <Label htmlFor="driver">Assign Driver (Optional)</Label>
-                        <Select value={formData.driver_id} onValueChange={(value) => handleInputChange("driver_id", value)}>
+                        <Select
+                          value={formData.driver_id}
+                          onValueChange={(value) =>
+                            handleInputChange("driver_id", value)
+                          }
+                        >
                           <SelectTrigger>
                             <SelectValue placeholder="Select a driver" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="unassigned">Unassigned</SelectItem>
+                            <SelectItem value="unassigned">
+                              Unassigned
+                            </SelectItem>
                             {drivers.map((driver) => (
-                              <SelectItem key={driver.id} value={driver.id.toString()}>
+                              <SelectItem
+                                key={driver.id}
+                                value={driver.id.toString()}
+                              >
                                 {driver.name}
                               </SelectItem>
                             ))}
@@ -658,28 +760,59 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                         <AddressSearch
                           value={formData.start_location}
                           onSelect={(result) => {
-                            handleInputChange("start_location", result.display_name);
-                            handleInputChange("start_latitude", result.coordinates[0].toString());
-                            handleInputChange("start_longitude", result.coordinates[1].toString());
+                            handleInputChange(
+                              "start_location",
+                              result.display_name
+                            );
+                            if (result?.coordinates) {
+                              handleInputChange(
+                                "start_latitude",
+                                result.coordinates[0].toString()
+                              );
+                              handleInputChange(
+                                "start_longitude",
+                                result.coordinates[1].toString()
+                              );
+                            } else {
+                              handleInputChange("start_latitude", "");
+                              handleInputChange("start_longitude", "");
+                            }
                           }}
                           placeholder="Search for starting point"
                           className="mt-1"
                           countryCode="ke"
                         />
-                        {formData.start_latitude && formData.start_longitude && (
-                          <p className="text-xs text-gray-500 mt-1">
-                            Coordinates: {parseFloat(formData.start_latitude).toFixed(4)}, {parseFloat(formData.start_longitude).toFixed(4)}
-                          </p>
-                        )}
+                        {formData.start_latitude &&
+                          formData.start_longitude && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              Coordinates:{" "}
+                              {parseFloat(formData.start_latitude).toFixed(4)},{" "}
+                              {parseFloat(formData.start_longitude).toFixed(4)}
+                            </p>
+                          )}
                       </div>
                       <div>
                         <Label htmlFor="endLocation">End Location *</Label>
                         <AddressSearch
                           value={formData.end_location}
                           onSelect={(result) => {
-                            handleInputChange("end_location", result.display_name);
-                            handleInputChange("end_latitude", result.coordinates[0].toString());
-                            handleInputChange("end_longitude", result.coordinates[1].toString());
+                            handleInputChange(
+                              "end_location",
+                              result.display_name
+                            );
+                            if (result?.coordinates) {
+                              handleInputChange(
+                                "end_latitude",
+                                result.coordinates[0].toString()
+                              );
+                              handleInputChange(
+                                "end_longitude",
+                                result.coordinates[1].toString()
+                              );
+                            } else {
+                              handleInputChange("end_latitude", "");
+                              handleInputChange("end_longitude", "");
+                            }
                           }}
                           placeholder="Search for ending point"
                           className="mt-1"
@@ -687,7 +820,9 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                         />
                         {formData.end_latitude && formData.end_longitude && (
                           <p className="text-xs text-gray-500 mt-1">
-                            Coordinates: {parseFloat(formData.end_latitude).toFixed(4)}, {parseFloat(formData.end_longitude).toFixed(4)}
+                            Coordinates:{" "}
+                            {parseFloat(formData.end_latitude).toFixed(4)},{" "}
+                            {parseFloat(formData.end_longitude).toFixed(4)}
                           </p>
                         )}
                       </div>
@@ -697,8 +832,12 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                     <div className="border-t pt-6">
                       <div className="flex items-center justify-between mb-4">
                         <div>
-                          <Label className="text-base font-medium">Delivery Stops</Label>
-                          <p className="text-sm text-gray-600">Add delivery locations for this route</p>
+                          <Label className="text-base font-medium">
+                            Delivery Stops
+                          </Label>
+                          <p className="text-sm text-gray-600">
+                            Add delivery locations for this route
+                          </p>
                         </div>
                       </div>
 
@@ -706,57 +845,80 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                       <div className="flex gap-2 mb-4">
                         <Button
                           type="button"
-                          variant={deliveryMode === 'new' ? 'default' : 'outline'}
+                          variant={
+                            deliveryMode === "new" ? "default" : "outline"
+                          }
                           size="sm"
-                          onClick={() => setDeliveryMode('new')}
+                          onClick={() => setDeliveryMode("new")}
                         >
                           Create New Deliveries
                         </Button>
                         <Button
                           type="button"
-                          variant={deliveryMode === 'existing' ? 'default' : 'outline'}
+                          variant={
+                            deliveryMode === "existing" ? "default" : "outline"
+                          }
                           size="sm"
-                          onClick={() => setDeliveryMode('existing')}
+                          onClick={() => setDeliveryMode("existing")}
                         >
-                          Select Existing Deliveries ({existingDeliveries.length} available)
+                          Select Existing Deliveries (
+                          {existingDeliveries.length} available)
                         </Button>
                       </div>
-                      
-                      {deliveryMode === 'new' ? (
+
+                      {deliveryMode === "new" ? (
                         // New Deliveries Interface
                         <>
                           <div className="flex justify-end mb-4">
-                            <Button type="button" variant="outline" size="sm" onClick={addDelivery}>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={addDelivery}
+                            >
                               <Plus className="h-4 w-4 mr-2" />
                               Add Delivery
                             </Button>
                           </div>
-                          
+
                           <div className="space-y-4 max-h-60 overflow-y-auto">
                             {deliveries.map((delivery, index) => (
-                              <div key={delivery.id} className="p-4 border rounded-lg bg-gray-50">
+                              <div
+                                key={delivery.id}
+                                className="p-4 border rounded-lg bg-gray-50"
+                              >
                                 <div className="flex items-center justify-between mb-3">
-                                  <h4 className="font-medium text-gray-900">Delivery #{index + 1}</h4>
+                                  <h4 className="font-medium text-gray-900">
+                                    Delivery #{index + 1}
+                                  </h4>
                                   {deliveries.length > 1 && (
-                                    <Button 
-                                      type="button" 
-                                      variant="ghost" 
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
                                       size="sm"
-                                      onClick={() => removeDelivery(delivery.id)}
+                                      onClick={() =>
+                                        removeDelivery(delivery.id)
+                                      }
                                       className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                     >
                                       <Trash2 className="h-4 w-4" />
                                     </Button>
                                   )}
                                 </div>
-                                
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                   <div>
                                     <Label>Customer Name *</Label>
                                     <Input
                                       placeholder="Customer name"
                                       value={delivery.customer_name}
-                                      onChange={(e) => updateDelivery(delivery.id, "customer_name", e.target.value)}
+                                      onChange={(e) =>
+                                        updateDelivery(
+                                          delivery.id,
+                                          "customer_name",
+                                          e.target.value
+                                        )
+                                      }
                                       required
                                     />
                                   </div>
@@ -765,7 +927,13 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                     <Input
                                       placeholder="+254 712 345 678"
                                       value={delivery.phone}
-                                      onChange={(e) => updateDelivery(delivery.id, "phone", e.target.value)}
+                                      onChange={(e) =>
+                                        updateDelivery(
+                                          delivery.id,
+                                          "phone",
+                                          e.target.value
+                                        )
+                                      }
                                     />
                                   </div>
                                   <div className="md:col-span-2">
@@ -773,26 +941,52 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                     <AddressSearch
                                       value={delivery.location}
                                       onSelect={(result) => {
-                                        updateDelivery(delivery.id, "location", result.display_name);
-                                        updateDelivery(delivery.id, "latitude", result.coordinates[0].toString());
-                                        updateDelivery(delivery.id, "longitude", result.coordinates[1].toString());
+                                        updateDelivery(
+                                          delivery.id,
+                                          "location",
+                                          result.display_name
+                                        );
+                                        updateDelivery(
+                                          delivery.id,
+                                          "latitude",
+                                          result.coordinates[0].toString()
+                                        );
+                                        updateDelivery(
+                                          delivery.id,
+                                          "longitude",
+                                          result.coordinates[1].toString()
+                                        );
                                       }}
                                       placeholder="Search for delivery location"
                                       className="mt-1"
                                       countryCode="ke"
                                     />
-                                    {delivery.latitude && delivery.longitude && (
-                                      <p className="text-xs text-gray-500 mt-1">
-                                        Coordinates: {parseFloat(delivery.latitude).toFixed(4)}, {parseFloat(delivery.longitude).toFixed(4)}
-                                      </p>
-                                    )}
+                                    {delivery.latitude &&
+                                      delivery.longitude && (
+                                        <p className="text-xs text-gray-500 mt-1">
+                                          Coordinates:{" "}
+                                          {parseFloat(
+                                            delivery.latitude
+                                          ).toFixed(4)}
+                                          ,{" "}
+                                          {parseFloat(
+                                            delivery.longitude
+                                          ).toFixed(4)}
+                                        </p>
+                                      )}
                                   </div>
                                   <div>
                                     <Label>Item/Package</Label>
                                     <Input
                                       placeholder="What to deliver"
                                       value={delivery.item}
-                                      onChange={(e) => updateDelivery(delivery.id, "item", e.target.value)}
+                                      onChange={(e) =>
+                                        updateDelivery(
+                                          delivery.id,
+                                          "item",
+                                          e.target.value
+                                        )
+                                      }
                                     />
                                   </div>
                                   <div>
@@ -800,7 +994,13 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                     <Input
                                       placeholder="Special instructions"
                                       value={delivery.notes}
-                                      onChange={(e) => updateDelivery(delivery.id, "notes", e.target.value)}
+                                      onChange={(e) =>
+                                        updateDelivery(
+                                          delivery.id,
+                                          "notes",
+                                          e.target.value
+                                        )
+                                      }
                                     />
                                   </div>
                                 </div>
@@ -814,36 +1014,59 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                           {existingDeliveries.length === 0 ? (
                             <div className="text-center py-8 text-gray-500">
                               <p>No unassigned deliveries available.</p>
-                              <p className="text-sm mt-1">Create new deliveries or check the Deliveries page.</p>
+                              <p className="text-sm mt-1">
+                                Create new deliveries or check the Deliveries
+                                page.
+                              </p>
                             </div>
                           ) : (
                             <div className="space-y-2">
                               {existingDeliveries.map((delivery) => (
-                                <div 
-                                  key={delivery.id} 
+                                <div
+                                  key={delivery.id}
                                   className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                                    selectedExistingDeliveries.has(delivery.id) 
-                                      ? 'bg-blue-50 border-blue-200' 
-                                      : 'bg-gray-50 hover:bg-gray-100'
+                                    selectedExistingDeliveries.has(delivery.id)
+                                      ? "bg-blue-50 border-blue-200"
+                                      : "bg-gray-50 hover:bg-gray-100"
                                   }`}
-                                  onClick={() => toggleExistingDelivery(delivery.id)}
+                                  onClick={() =>
+                                    toggleExistingDelivery(delivery.id)
+                                  }
                                 >
                                   <div className="flex items-center justify-between">
                                     <div className="flex-1">
                                       <div className="flex items-center gap-3">
                                         <input
                                           type="checkbox"
-                                          checked={selectedExistingDeliveries.has(delivery.id)}
-                                          onChange={() => toggleExistingDelivery(delivery.id)}
+                                          checked={selectedExistingDeliveries.has(
+                                            delivery.id
+                                          )}
+                                          onChange={() =>
+                                            toggleExistingDelivery(delivery.id)
+                                          }
                                           className="rounded border-gray-300"
                                         />
                                         <div>
-                                          <h4 className="font-medium text-gray-900">{delivery.customer_name}</h4>
-                                          <p className="text-sm text-gray-600">{delivery.location}</p>
+                                          <h4 className="font-medium text-gray-900">
+                                            {delivery.customer_name}
+                                          </h4>
+                                          <p className="text-sm text-gray-600">
+                                            {delivery.location}
+                                          </p>
                                           <div className="flex items-center gap-4 text-xs text-gray-500 mt-1">
-                                            {delivery.item && <span>📦 {delivery.item}</span>}
-                                            {delivery.phone && <span>📞 {delivery.phone}</span>}
-                                            <span className={`px-2 py-1 rounded-full ${delivery.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'}`}>
+                                            {delivery.item && (
+                                              <span>📦 {delivery.item}</span>
+                                            )}
+                                            {delivery.phone && (
+                                              <span>📞 {delivery.phone}</span>
+                                            )}
+                                            <span
+                                              className={`px-2 py-1 rounded-full ${
+                                                delivery.status === "pending"
+                                                  ? "bg-yellow-100 text-yellow-800"
+                                                  : "bg-gray-100 text-gray-800"
+                                              }`}
+                                            >
                                               {delivery.status}
                                             </span>
                                           </div>
@@ -864,8 +1087,8 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                         type="button"
                         variant="outline"
                         onClick={() => {
-                          resetForm()
-                          setIsAddDialogOpen(false)
+                          resetForm();
+                          setIsAddDialogOpen(false);
                         }}
                       >
                         Cancel
@@ -879,15 +1102,19 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
               </Dialog>
 
               {/* Edit Route Dialog */}
-              <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+              <Dialog
+                open={isEditDialogOpen}
+                onOpenChange={setIsEditDialogOpen}
+              >
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>Edit Route - {editingRoute?.name}</DialogTitle>
                     <DialogDescription>
-                      Update route information, manage deliveries, and assign drivers.
+                      Update route information, manage deliveries, and assign
+                      drivers.
                     </DialogDescription>
                   </DialogHeader>
-                  
+
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Route Information Section */}
                     <div className="space-y-4">
@@ -899,37 +1126,65 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                             id="editRouteName"
                             placeholder="Enter route name"
                             value={formData.name}
-                            onChange={(e) => handleInputChange("name", e.target.value)}
+                            onChange={(e) =>
+                              handleInputChange("name", e.target.value)
+                            }
                             required
                           />
                         </div>
                         <div>
-                          <Label htmlFor="editStartLocation">Start Location</Label>
+                          <Label htmlFor="editStartLocation">
+                            Start Location
+                          </Label>
                           <AddressSearch
                             value={formData.start_location}
                             onSelect={(result) => {
-                              handleInputChange("start_location", result.display_name);
-                              handleInputChange("start_latitude", result.coordinates[0].toString());
-                              handleInputChange("start_longitude", result.coordinates[1].toString());
+                              handleInputChange(
+                                "start_location",
+                                result.display_name
+                              );
+                              handleInputChange(
+                                "start_latitude",
+                                result.coordinates[0].toString()
+                              );
+                              handleInputChange(
+                                "start_longitude",
+                                result.coordinates[1].toString()
+                              );
                             }}
                             placeholder="Search for starting point"
                             className="mt-1"
                             countryCode="ke"
                           />
-                          {formData.start_latitude && formData.start_longitude && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Coordinates: {parseFloat(formData.start_latitude).toFixed(4)}, {parseFloat(formData.start_longitude).toFixed(4)}
-                            </p>
-                          )}
+                          {formData.start_latitude &&
+                            formData.start_longitude && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                Coordinates:{" "}
+                                {parseFloat(formData.start_latitude).toFixed(4)}
+                                ,{" "}
+                                {parseFloat(formData.start_longitude).toFixed(
+                                  4
+                                )}
+                              </p>
+                            )}
                         </div>
                         <div>
                           <Label htmlFor="editEndLocation">End Location</Label>
                           <AddressSearch
                             value={formData.end_location}
                             onSelect={(result) => {
-                              handleInputChange("end_location", result.display_name);
-                              handleInputChange("end_latitude", result.coordinates[0].toString());
-                              handleInputChange("end_longitude", result.coordinates[1].toString());
+                              handleInputChange(
+                                "end_location",
+                                result.display_name
+                              );
+                              handleInputChange(
+                                "end_latitude",
+                                result.coordinates[0].toString()
+                              );
+                              handleInputChange(
+                                "end_longitude",
+                                result.coordinates[1].toString()
+                              );
                             }}
                             placeholder="Search for ending point"
                             className="mt-1"
@@ -937,20 +1192,32 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                           />
                           {formData.end_latitude && formData.end_longitude && (
                             <p className="text-xs text-gray-500 mt-1">
-                              Coordinates: {parseFloat(formData.end_latitude).toFixed(4)}, {parseFloat(formData.end_longitude).toFixed(4)}
+                              Coordinates:{" "}
+                              {parseFloat(formData.end_latitude).toFixed(4)},{" "}
+                              {parseFloat(formData.end_longitude).toFixed(4)}
                             </p>
                           )}
                         </div>
                         <div>
                           <Label htmlFor="editDriver">Assign Driver</Label>
-                          <Select value={formData.driver_id} onValueChange={(value) => handleInputChange("driver_id", value)}>
+                          <Select
+                            value={formData.driver_id}
+                            onValueChange={(value) =>
+                              handleInputChange("driver_id", value)
+                            }
+                          >
                             <SelectTrigger>
                               <SelectValue placeholder="Select a driver" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="unassigned">Unassigned</SelectItem>
+                              <SelectItem value="unassigned">
+                                Unassigned
+                              </SelectItem>
                               {drivers.map((driver) => (
-                                <SelectItem key={driver.id} value={driver.id.toString()}>
+                                <SelectItem
+                                  key={driver.id}
+                                  value={driver.id.toString()}
+                                >
                                   {driver.name}
                                 </SelectItem>
                               ))}
@@ -962,10 +1229,10 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                             type="button"
                             variant="outline"
                             onClick={() => {
-                              resetForm()
-                              setIsEditDialogOpen(false)
-                              setEditingRoute(null)
-                              setRouteDeliveries([])
+                              resetForm();
+                              setIsEditDialogOpen(false);
+                              setEditingRoute(null);
+                              setRouteDeliveries([]);
                             }}
                           >
                             Cancel
@@ -980,28 +1247,50 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                     {/* Route Deliveries Section */}
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-medium">Route Deliveries</h3>
-                        {loadingRouteDeliveries && <Loader2 className="h-4 w-4 animate-spin" />}
+                        <h3 className="text-lg font-medium">
+                          Route Deliveries
+                        </h3>
+                        {loadingRouteDeliveries && (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        )}
                       </div>
-                      
+
                       {/* Current Route Deliveries */}
                       <div className="border rounded-lg p-4">
-                        <h4 className="font-medium mb-3">Current Deliveries ({routeDeliveries.length})</h4>
+                        <h4 className="font-medium mb-3">
+                          Current Deliveries ({routeDeliveries.length})
+                        </h4>
                         <div className="space-y-2 max-h-60 overflow-y-auto">
                           {routeDeliveries.length === 0 ? (
-                            <p className="text-gray-500 text-sm text-center py-4">No deliveries assigned to this route</p>
+                            <p className="text-gray-500 text-sm text-center py-4">
+                              No deliveries assigned to this route
+                            </p>
                           ) : (
                             routeDeliveries.map((delivery) => (
-                              <div key={delivery.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div
+                                key={delivery.id}
+                                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                              >
                                 <div className="flex-1">
-                                  <p className="font-medium text-sm">{delivery.farmerName}</p>
-                                  <p className="text-xs text-gray-600">{delivery.location}</p>
-                                  <p className="text-xs text-gray-500">{delivery.produce} • {delivery.phone}</p>
-                                  <Badge variant={
-                                    delivery.status === 'completed' ? 'default' :
-                                    delivery.status === 'in-progress' ? 'secondary' :
-                                    'outline'
-                                  } className="text-xs">
+                                  <p className="font-medium text-sm">
+                                    {delivery.customer_name}
+                                  </p>
+                                  <p className="text-xs text-gray-600">
+                                    {delivery.location}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {delivery.item} • {delivery.phone}
+                                  </p>
+                                  <Badge
+                                    variant={
+                                      delivery.status === "completed"
+                                        ? "default"
+                                        : delivery.status === "in-progress"
+                                        ? "secondary"
+                                        : "outline"
+                                    }
+                                    className="text-xs"
+                                  >
                                     {delivery.status}
                                   </Badge>
                                 </div>
@@ -1009,7 +1298,9 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                   type="button"
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => handleRemoveDeliveryFromRoute(delivery.id)}
+                                  onClick={() =>
+                                    handleRemoveDeliveryFromRoute(delivery.id)
+                                  }
                                   className="ml-2"
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -1022,17 +1313,30 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
 
                       {/* Available Deliveries to Add */}
                       <div className="border rounded-lg p-4">
-                        <h4 className="font-medium mb-3">Available Deliveries ({existingDeliveries.length})</h4>
+                        <h4 className="font-medium mb-3">
+                          Available Deliveries ({existingDeliveries.length})
+                        </h4>
                         <div className="space-y-2 max-h-60 overflow-y-auto">
                           {existingDeliveries.length === 0 ? (
-                            <p className="text-gray-500 text-sm text-center py-4">No unassigned deliveries available</p>
+                            <p className="text-gray-500 text-sm text-center py-4">
+                              No unassigned deliveries available
+                            </p>
                           ) : (
                             existingDeliveries.map((delivery) => (
-                              <div key={delivery.id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                              <div
+                                key={delivery.id}
+                                className="flex items-center justify-between p-3 bg-blue-50 rounded-lg"
+                              >
                                 <div className="flex-1">
-                                  <p className="font-medium text-sm">{delivery.farmer_name}</p>
-                                  <p className="text-xs text-gray-600">{delivery.location}</p>
-                                  <p className="text-xs text-gray-500">{delivery.produce} • {delivery.phone}</p>
+                                  <p className="font-medium text-sm">
+                                    {delivery.customer_name}
+                                  </p>
+                                  <p className="text-xs text-gray-600">
+                                    {delivery.location}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    {delivery.item} • {delivery.phone}
+                                  </p>
                                   <Badge variant="outline" className="text-xs">
                                     {delivery.status}
                                   </Badge>
@@ -1041,7 +1345,9 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                   type="button"
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => handleAddDeliveryToRoute(delivery.id)}
+                                  onClick={() =>
+                                    handleAddDeliveryToRoute(delivery.id)
+                                  }
                                   className="ml-2"
                                 >
                                   <Plus className="h-4 w-4" />
@@ -1096,11 +1402,11 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         {error && (
           <div className="text-center py-12">
             <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Error loading routes</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              Error loading routes
+            </h3>
             <p className="text-gray-600 mb-4">{error}</p>
-            <Button onClick={loadRoutes}>
-              Try Again
-            </Button>
+            <Button onClick={loadRoutes}>Try Again</Button>
           </div>
         )}
 
@@ -1108,15 +1414,27 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         {!isLoading && !error && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredRoutes.map((route) => (
-              <Card key={route.id} className="hover:shadow-md transition-shadow">
+              <Card
+                key={route.id}
+                className="hover:shadow-md transition-shadow"
+              >
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-base text-gray-900">{route.name}</CardTitle>
+                    <CardTitle className="text-base text-gray-900">
+                      {route.name}
+                    </CardTitle>
                     <div className="flex items-center gap-2">
-                      <Badge className={`${getStatusColor(route.status)} text-xs`} variant="outline">
+                      <Badge
+                        className={`${getStatusColor(route.status)} text-xs`}
+                        variant="outline"
+                      >
                         {route.status}
                       </Badge>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-gray-400 hover:text-gray-600">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-gray-400 hover:text-gray-600"
+                      >
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </div>
@@ -1137,20 +1455,28 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                     <div className="flex items-center justify-between text-sm">
                       <div className="flex items-center">
                         <Truck className="h-4 w-4 mr-2 text-gray-500" />
-                        <span className="text-gray-900">{route.stops} stop{route.stops !== 1 ? 's' : ''}</span>
+                        <span className="text-gray-900">
+                          {route.stops} stop{route.stops !== 1 ? "s" : ""}
+                        </span>
                       </div>
                       {route.efficiency > 0 && (
-                        <span className="text-green-600 font-medium">{route.efficiency}% efficient</span>
+                        <span className="text-green-600 font-medium">
+                          {route.efficiency}% efficient
+                        </span>
                       )}
                     </div>
                     <div className="pt-2 border-t border-gray-100">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-500">Driver:</span>
-                        <span className="text-gray-900 font-medium">{route.driver}</span>
+                        <span className="text-gray-900 font-medium">
+                          {route.driver}
+                        </span>
                       </div>
                       <div className="flex items-center justify-between text-sm mt-1">
                         <span className="text-gray-500">Updated:</span>
-                        <span className="text-gray-600">{route.lastUpdated}</span>
+                        <span className="text-gray-600">
+                          {route.lastUpdated}
+                        </span>
                       </div>
                     </div>
                     <div className="flex gap-2 pt-2">
@@ -1184,10 +1510,12 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         {!isLoading && !error && filteredRoutes.length === 0 && (
           <div className="text-center py-12">
             <MapPin className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No routes found</h3>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              No routes found
+            </h3>
             <p className="text-gray-600 mb-6">
-              {searchTerm || filterStatus !== "all" 
-                ? "Try adjusting your search or filter criteria." 
+              {searchTerm || filterStatus !== "all"
+                ? "Try adjusting your search or filter criteria."
                 : "Get started by creating your first route."}
             </p>
             <Button onClick={() => setIsAddDialogOpen(true)}>
@@ -1198,5 +1526,5 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         )}
       </div>
     </div>
-  )
+  );
 }

@@ -1,43 +1,49 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import PlaceAutocomplete from "./place-autocomplete"
-import MapComponent from "./map-component"
-import { RouteService } from "@/lib/services/routes"
-import { DeliveryService } from "@/lib/services/deliveries"
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import PlaceAutocomplete from "./place-autocomplete";
+import MapComponent from "./map-component";
+import { RouteService } from "@/lib/services/routes";
+import { DeliveryService } from "@/lib/services/deliveries";
 
 interface DeliveryFormData {
-  customerName: string
-  phone: string
-  item: string
-  deliveryAddress: string
-  coordinates: { lat: number; lon: number } | null
-  routeId: string | null
+  customerName: string;
+  phone: string;
+  item: string;
+  deliveryAddress: string;
+  coordinates: { lat: number; lon: number } | null;
+  routeId: string | null;
 }
 
 interface LocalDelivery {
-  id: number
-  customerName: string
-  location: string
-  coordinates: [number, number]
-  item: string
-  dropTime: string
-  status: string
-  phone: string
-  routeId?: number | null
-  routeName?: string
+  id: number;
+  customerName: string;
+  location: string;
+  coordinates: [number, number];
+  item: string;
+  dropTime: string;
+  status: string;
+  phone: string;
+  routeId?: number | null;
+  routeName?: string;
 }
 
 interface RouteOption {
-  id: number
-  name: string
-  status: string
-  driverName?: string
+  id: number;
+  name: string;
+  status: string;
+  driverName?: string;
 }
 
 export default function DeliveryFormDemo() {
@@ -47,12 +53,12 @@ export default function DeliveryFormDemo() {
     item: "",
     deliveryAddress: "",
     coordinates: null,
-    routeId: null
-  })
+    routeId: null,
+  });
 
-  const [routes, setRoutes] = useState<RouteOption[]>([])
-  const [loading, setLoading] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
+  const [routes, setRoutes] = useState<RouteOption[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const [deliveries, setDeliveries] = useState<LocalDelivery[]>([
     {
@@ -65,7 +71,7 @@ export default function DeliveryFormDemo() {
       status: "pending",
       phone: "+254712345678",
       routeId: 1,
-      routeName: "Nairobi Central Route"
+      routeName: "Nairobi Central Route",
     },
     {
       id: 2,
@@ -77,90 +83,111 @@ export default function DeliveryFormDemo() {
       status: "in-progress",
       phone: "+254723456789",
       routeId: 2,
-      routeName: "Westlands Circuit"
-    }
-  ])
+      routeName: "Westlands Circuit",
+    },
+  ]);
 
-  const [selectedDelivery, setSelectedDelivery] = useState<LocalDelivery>(deliveries[0])
+  const [selectedDelivery, setSelectedDelivery] = useState<LocalDelivery>(
+    deliveries[0]
+  );
 
   // Fetch available routes on component mount
   useEffect(() => {
     const fetchRoutes = async () => {
       try {
-        setLoading(true)
-        const routesData = await RouteService.getAllRoutes()
-        const routeOptions = routesData.map(route => ({
+        setLoading(true);
+        const routesData = await RouteService.getAllRoutes();
+        const routeOptions = routesData.map((route) => ({
           id: route.id,
           name: route.name,
           status: route.status,
-          driverName: route.driver?.name
-        }))
-        setRoutes(routeOptions)
+          driverName: route.driver?.name,
+        }));
+        setRoutes(routeOptions);
       } catch (error) {
-        console.error('Error fetching routes:', error)
+        console.error("Error fetching routes:", error);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchRoutes()
-  }, [])
+    fetchRoutes();
+  }, []);
 
   // Handle place selection from autocomplete
-  const handlePlaceSelect = (place: { address: string; lat: number; lon: number }) => {
-    setFormData(prev => ({
+  const handlePlaceSelect = (place: {
+    address: string;
+    lat: number;
+    lon: number;
+  }) => {
+    setFormData((prev) => ({
       ...prev,
       deliveryAddress: place.address,
-      coordinates: place.lat && place.lon ? { lat: place.lat, lon: place.lon } : null
-    }))
-  }
+      coordinates:
+        place.lat && place.lon ? { lat: place.lat, lon: place.lon } : null,
+    }));
+  };
 
   // Handle location selection from map
-  const handleMapLocationSelect = (location: { lat: number; lng: number; address: string }) => {
-    setFormData(prev => ({
+  const handleMapLocationSelect = (location: {
+    lat: number;
+    lng: number;
+    address: string;
+  }) => {
+    setFormData((prev) => ({
       ...prev,
       deliveryAddress: location.address,
-      coordinates: { lat: location.lat, lon: location.lng }
-    }))
-  }
+      coordinates: { lat: location.lat, lon: location.lng },
+    }));
+  };
 
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+    e.preventDefault();
+
     if (!formData.coordinates) {
-      alert("Please select a delivery location")
-      return
+      alert("Please select a delivery location");
+      return;
     }
 
     if (!formData.customerName || !formData.phone || !formData.item) {
-      alert("Please fill in all required fields")
-      return
+      alert("Please fill in all required fields");
+      return;
     }
 
     try {
-      setSubmitting(true)
+      setSubmitting(true);
 
       // Create delivery in database
       const deliveryData = {
         customer_name: formData.customerName,
         location: formData.deliveryAddress,
-        coordinates: [formData.coordinates.lat, formData.coordinates.lon] as [number, number],
+        coordinates: [formData.coordinates.lat, formData.coordinates.lon] as [
+          number,
+          number
+        ],
         item: formData.item,
         phone: formData.phone,
         drop_time: "12:00", // Default time, could be made configurable
-        status: 'pending' as const
-      }
+        status: "pending" as const,
+      };
 
-      const createdDelivery = await DeliveryService.createDelivery(deliveryData)
+      const createdDelivery = await DeliveryService.createDelivery(
+        deliveryData
+      );
 
       // If route is selected, assign delivery to route
       if (formData.routeId) {
-        await RouteService.addDeliveryToRoute(createdDelivery.id, parseInt(formData.routeId))
+        await RouteService.addDeliveryToRoute(
+          createdDelivery.id,
+          parseInt(formData.routeId)
+        );
       }
 
       // Create local delivery object for immediate UI update
-      const selectedRoute = routes.find(r => r.id.toString() === formData.routeId)
+      const selectedRoute = routes.find(
+        (r) => r.id.toString() === formData.routeId
+      );
       const newDelivery: LocalDelivery = {
         id: createdDelivery.id,
         customerName: formData.customerName,
@@ -171,11 +198,11 @@ export default function DeliveryFormDemo() {
         status: formData.routeId ? "in-progress" : "pending",
         phone: formData.phone,
         routeId: formData.routeId ? parseInt(formData.routeId) : null,
-        routeName: selectedRoute?.name
-      }
+        routeName: selectedRoute?.name,
+      };
 
-      setDeliveries(prev => [...prev, newDelivery])
-      
+      setDeliveries((prev) => [...prev, newDelivery]);
+
       // Reset form
       setFormData({
         customerName: "",
@@ -183,22 +210,22 @@ export default function DeliveryFormDemo() {
         item: "",
         deliveryAddress: "",
         coordinates: null,
-        routeId: null
-      })
+        routeId: null,
+      });
 
-      alert("Delivery added successfully!")
+      alert("Delivery added successfully!");
     } catch (error) {
-      console.error('Error creating delivery:', error)
-      alert("Error adding delivery. Please try again.")
+      console.error("Error creating delivery:", error);
+      alert("Error adding delivery. Please try again.");
     } finally {
-      setSubmitting(false)
+      setSubmitting(false);
     }
-  }
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
       <h1 className="text-3xl font-bold">Place Autocomplete Demo</h1>
-      
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Form Card */}
         <Card>
@@ -213,7 +240,12 @@ export default function DeliveryFormDemo() {
                   id="customerName"
                   placeholder="Enter customer name"
                   value={formData.customerName}
-                  onChange={(e) => setFormData(prev => ({ ...prev, customerName: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      customerName: e.target.value,
+                    }))
+                  }
                   required
                 />
               </div>
@@ -224,7 +256,9 @@ export default function DeliveryFormDemo() {
                   id="phone"
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, phone: e.target.value }))
+                  }
                   required
                 />
               </div>
@@ -234,7 +268,9 @@ export default function DeliveryFormDemo() {
                 <Input
                   id="item"
                   value={formData.item}
-                  onChange={(e) => setFormData(prev => ({ ...prev, item: e.target.value }))}
+                  onChange={(e) =>
+                    setFormData((prev) => ({ ...prev, item: e.target.value }))
+                  }
                   placeholder="e.g., Tomatoes - 50kg"
                   required
                 />
@@ -250,26 +286,38 @@ export default function DeliveryFormDemo() {
                 />
                 {formData.coordinates && (
                   <p className="text-sm text-gray-500 mt-1">
-                    Coordinates: {formData.coordinates.lat.toFixed(4)}, {formData.coordinates.lon.toFixed(4)}
+                    Coordinates: {formData.coordinates.lat.toFixed(4)},{" "}
+                    {formData.coordinates.lon.toFixed(4)}
                   </p>
                 )}
               </div>
 
               <div>
                 <Label htmlFor="route">Assign to Route</Label>
-                <Select onValueChange={(value) => setFormData(prev => ({ ...prev, routeId: value }))} value={formData.routeId || ""} disabled={loading}>
+                <Select
+                  onValueChange={(value) =>
+                    setFormData((prev) => ({ ...prev, routeId: value }))
+                  }
+                  value={formData.routeId || ""}
+                  disabled={loading}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a route" />
                   </SelectTrigger>
                   <SelectContent>
                     {loading ? (
-                      <SelectItem value="" disabled>Loading routes...</SelectItem>
+                      <SelectItem value="loading" disabled>
+                        Loading routes...
+                      </SelectItem>
                     ) : routes.length === 0 ? (
-                      <SelectItem value="" disabled>No routes available</SelectItem>
+                      <SelectItem value="no-routes" disabled>
+                        No routes available
+                      </SelectItem>
                     ) : (
-                      routes.map(route => (
+                      routes.map((route) => (
                         <SelectItem key={route.id} value={route.id.toString()}>
-                          {route.name} ({route.status}) {route.driverName && `- ${route.driverName}`}
+                          {route.name} ({route.status}){" "}
+                          {route.driverName && `- ${route.driverName}`}
                         </SelectItem>
                       ))
                     )}
@@ -289,35 +337,54 @@ export default function DeliveryFormDemo() {
           <CardHeader>
             <CardTitle>Delivery Map</CardTitle>
             <p className="text-sm text-gray-600">
-              Click on the search icon in the top-right corner to search for locations directly on the map
+              Click on the search icon in the top-right corner to search for
+              locations directly on the map
             </p>
           </CardHeader>
           <CardContent>
             <div className="h-[500px]">
               <MapComponent
-                deliveries={deliveries.map(delivery => ({
+                deliveries={deliveries.map((delivery) => ({
                   id: delivery.id,
                   customer_name: delivery.customerName,
                   location: delivery.location,
                   coordinates: delivery.coordinates,
                   item: delivery.item,
                   phone: delivery.phone,
-                  drop_time: delivery.dropTime.replace(' AM', '').replace(' PM', ''),
-                  status: delivery.status as 'pending' | 'in-progress' | 'completed' | 'failed'
+                  drop_time: delivery.dropTime
+                    .replace(" AM", "")
+                    .replace(" PM", ""),
+                  status: delivery.status as
+                    | "pending"
+                    | "in-progress"
+                    | "completed"
+                    | "failed",
                 }))}
-                selectedDelivery={selectedDelivery ? {
-                  id: selectedDelivery.id,
-                  customer_name: selectedDelivery.customerName,
-                  location: selectedDelivery.location,
-                  coordinates: selectedDelivery.coordinates,
-                  item: selectedDelivery.item,
-                  phone: selectedDelivery.phone,
-                  drop_time: selectedDelivery.dropTime.replace(' AM', '').replace(' PM', ''),
-                  status: selectedDelivery.status as 'pending' | 'in-progress' | 'completed' | 'failed'
-                } : null}
+                selectedDelivery={
+                  selectedDelivery
+                    ? {
+                        id: selectedDelivery.id,
+                        customer_name: selectedDelivery.customerName,
+                        location: selectedDelivery.location,
+                        coordinates: selectedDelivery.coordinates,
+                        item: selectedDelivery.item,
+                        phone: selectedDelivery.phone,
+                        drop_time: selectedDelivery.dropTime
+                          .replace(" AM", "")
+                          .replace(" PM", ""),
+                        status: selectedDelivery.status as
+                          | "pending"
+                          | "in-progress"
+                          | "completed"
+                          | "failed",
+                      }
+                    : null
+                }
                 onDeliverySelect={(delivery) => {
-                  const localDelivery = deliveries.find(d => d.id === delivery.id)
-                  if (localDelivery) setSelectedDelivery(localDelivery)
+                  const localDelivery = deliveries.find(
+                    (d) => d.id === delivery.id
+                  );
+                  if (localDelivery) setSelectedDelivery(localDelivery);
                 }}
                 showGeocoder={true}
                 onLocationSelect={handleMapLocationSelect}
@@ -338,9 +405,9 @@ export default function DeliveryFormDemo() {
               <div
                 key={delivery.id}
                 className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                  selectedDelivery?.id === delivery.id 
-                    ? 'border-blue-500 bg-blue-50' 
-                    : 'border-gray-200 hover:border-gray-300'
+                  selectedDelivery?.id === delivery.id
+                    ? "border-blue-500 bg-blue-50"
+                    : "border-gray-200 hover:border-gray-300"
                 }`}
                 onClick={() => setSelectedDelivery(delivery)}
               >
@@ -348,9 +415,13 @@ export default function DeliveryFormDemo() {
                   <div>
                     <h3 className="font-medium">{delivery.customerName}</h3>
                     <p className="text-sm text-gray-600">{delivery.location}</p>
-                    <p className="text-sm text-gray-500">{delivery.item} • {delivery.dropTime}</p>
+                    <p className="text-sm text-gray-500">
+                      {delivery.item} • {delivery.dropTime}
+                    </p>
                     {delivery.routeName && (
-                      <p className="text-sm text-gray-500">Route: {delivery.routeName}</p>
+                      <p className="text-sm text-gray-500">
+                        Route: {delivery.routeName}
+                      </p>
                     )}
                   </div>
                   <span
@@ -381,16 +452,18 @@ export default function DeliveryFormDemo() {
             <div>
               <h4 className="font-medium">1. Form Integration</h4>
               <p className="text-gray-600">
-                Use the <code>PlaceAutocomplete</code> component in forms to let users search and select addresses. 
-                It provides both the formatted address and coordinates.
+                Use the <code>PlaceAutocomplete</code> component in forms to let
+                users search and select addresses. It provides both the
+                formatted address and coordinates.
               </p>
             </div>
-            
+
             <div>
               <h4 className="font-medium">2. Map Search</h4>
               <p className="text-gray-600">
-                The map includes a built-in geocoder control (search icon in top-right). Users can search 
-                directly on the map and place markers.
+                The map includes a built-in geocoder control (search icon in
+                top-right). Users can search directly on the map and place
+                markers.
               </p>
             </div>
 
@@ -398,7 +471,9 @@ export default function DeliveryFormDemo() {
               <h4 className="font-medium">3. Features</h4>
               <ul className="text-gray-600 list-disc list-inside space-y-1">
                 <li>Debounced search (300ms delay) for better performance</li>
-                <li>Uses OpenStreetMap's Nominatim service (no API key required)</li>
+                <li>
+                  Uses OpenStreetMap's Nominatim service (no API key required)
+                </li>
                 <li>Returns both formatted address and precise coordinates</li>
                 <li>Keyboard navigation support</li>
                 <li>Click outside to close suggestions</li>
@@ -409,13 +484,14 @@ export default function DeliveryFormDemo() {
             <div>
               <h4 className="font-medium">4. Customization</h4>
               <p className="text-gray-600">
-                You can customize the search area by modifying the <code>countrycodes</code> parameter 
-                in the Nominatim API call (currently set to 'ke' for Kenya).
+                You can customize the search area by modifying the{" "}
+                <code>countrycodes</code> parameter in the Nominatim API call
+                (currently set to 'ke' for Kenya).
               </p>
             </div>
           </div>
         </CardContent>
       </Card>
     </div>
-  )
-} 
+  );
+}
