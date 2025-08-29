@@ -22,110 +22,110 @@ type TourStep = {
 
 const tourSteps: TourStep[] = [
   {
-    id: "welcome",
-    title: "Welcome to Roundi",
-    description: "Let's take a quick tour of your delivery management dashboard",
+    id: "control-center",
+    title: "Your Control Center",
+    description: "All-in-one delivery dashboard",
     icon: Route,
     target: "sidebar",
     placement: "right",
     content: {
       heading: "Your Control Center",
       details: [
-        "Manage all your delivery operations from this dashboard",
-        "Track routes, drivers, and deliveries in real-time",
-        "Optimize delivery efficiency with AI-powered tools"
+        "Manage every order, driver, and route in one place",
+        "Track deliveries in real time on an interactive map",
+        "Boost efficiency with built-in AI tools"
       ],
-      tip: "Use the sidebar to navigate between different sections"
+      tip: "Use the sidebar to quickly switch between sections"
     }
   },
   {
-    id: "routes",
-    title: "Routes Management",
-    description: "Create and optimize delivery routes",
+    id: "route-planning",
+    title: "Smart Route Planning",
+    description: "Plan and assign deliveries with ease",
     icon: Route,
     target: "routes-section",
     placement: "bottom",
     content: {
       heading: "Smart Route Planning",
       details: [
-        "Create new routes with start and end points",
-        "Assign drivers to specific routes",
-        "View route details and delivery progress",
-        "Optimize routes for efficiency"
+        "Create routes with simple start and end points",
+        "Assign drivers to the right routes instantly",
+        "View delivery progress in real time",
+        "Optimize routes for speed and reliability"
       ],
-      tip: "Click 'Add Route' to create your first delivery route"
+      tip: "Click 'Add Route' to start planning your first delivery"
     }
   },
   {
-    id: "drivers",
-    title: "Driver Management",
-    description: "Manage your delivery team",
+    id: "delivery-team",
+    title: "Your Delivery Team",
+    description: "Keep your drivers connected",
     icon: Users,
     target: "drivers-section", 
     placement: "bottom",
     content: {
       heading: "Your Delivery Team",
       details: [
-        "View all drivers and their current status",
-        "Add new drivers to your team",
-        "Track driver performance and availability",
-        "Assign drivers to routes and deliveries"
+        "View drivers and their availability at a glance",
+        "Add and onboard new team members easily",
+        "Monitor driver performance and efficiency",
+        "Assign drivers to specific deliveries in seconds"
       ],
-      tip: "Green status means driver is active and available"
+      tip: "Green status = driver is active and ready"
     }
   },
   {
-    id: "deliveries",
-    title: "Delivery Tracking",
-    description: "Monitor all deliveries in real-time",
+    id: "track-everything",
+    title: "Track Everything",
+    description: "Stay on top of every delivery",
     icon: MapPin,
     target: "deliveries-section",
     placement: "bottom", 
     content: {
       heading: "Track Everything",
       details: [
-        "See all deliveries with their current status",
-        "Update delivery status as they progress",
-        "View delivery locations on the map",
-        "Get customer feedback and ratings"
+        "Monitor delivery status from start to finish",
+        "Update delivery progress in real time",
+        "See live driver locations on the map",
+        "Collect customer feedback and ratings"
       ],
-      tip: "Use status filters to quickly find specific deliveries"
+      tip: "Use filters to quickly find specific deliveries"
     }
   },
   {
-    id: "analytics",
-    title: "Performance Analytics", 
-    description: "Monitor your delivery performance",
+    id: "data-insights",
+    title: "Data-Driven Insights",
+    description: "Turn data into smarter decisions",
     icon: BarChart3,
     target: "analytics-section",
     placement: "bottom",
     content: {
       heading: "Data-Driven Insights",
       details: [
-        "Track key metrics like delivery times and costs",
-        "Monitor driver performance and efficiency",
-        "Identify optimization opportunities",
-        "Generate reports for stakeholders"
+        "Track delivery times, costs, and delays",
+        "Measure driver efficiency and performance",
+        "Spot opportunities to save time and fuel",
+        "Share reports with your team and stakeholders"
       ],
-      tip: "Check analytics regularly to improve operations"
+      tip: "Check analytics often to keep improving"
     }
   },
   {
-    id: "optimize",
-    title: "Route Optimization",
-    description: "AI-powered route optimization",
+    id: "smart-optimization",
+    title: "Smart Optimization",
+    description: "AI-powered delivery optimization",
     icon: Settings,
     target: "optimize-section", 
     placement: "bottom",
     content: {
       heading: "Smart Optimization",
       details: [
-        "Automatically optimize routes for minimal travel time",
-        "Consider traffic, distance, and driver capacity",
-        "Save fuel costs and improve delivery times",
+        "Automatically plan the fastest routes",
+        "Factor in traffic, distance, and driver load",
+        "Reduce fuel costs and save time",
         "Apply optimizations with one click"
       ],
-      tip: "Run optimization daily for best results"
+      tip: "Run optimizations daily for best results"
     }
   }
 ]
