@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
      // Send email via Resend
     const { error: emailError } = await resend.emails.send({
-      from: process.env.FROM_EMAIL || "imelda.hope@ihope.dev",
+      from: process.env.FROM_EMAIL || "invites@roundi.africa",
       to: [email],
       subject: "You're invited!",
       html: `
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
           </p>
         </div>
       `,
-    })
+    });
 
     if (emailError) {
       console.error("Email error:", emailError)
