@@ -6,6 +6,16 @@ import { useRouter } from "next/navigation";
 export default function TermsAndConditions() {
   const router = useRouter();
 
+  const handleBack = () => {
+    // First try to go back in browser history
+    if (window.history.length > 1) {
+      router.back();
+    } else {
+      // Fallback to dashboard if no history
+      router.push('/dashboard');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-yellow-100 via-orange-50 to-yellow-200 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
@@ -13,7 +23,7 @@ export default function TermsAndConditions() {
           <div className="mb-8">
             <Button
               variant="outline"
-              onClick={() => router.back()}
+              onClick={handleBack}
               className="mb-6"
             >
               ← Back
@@ -169,12 +179,21 @@ export default function TermsAndConditions() {
           </div>
 
           <div className="border-t pt-6 mt-8">
-            <Button
-              onClick={() => router.back()}
-              className="w-full sm:w-auto"
-            >
-              I Understand
-            </Button>
+            <div className="flex flex-col sm:flex-row gap-3 sm:justify-between sm:items-center">
+              <Button
+                variant="outline"
+                onClick={handleBack}
+                className="w-full sm:w-auto"
+              >
+                ← Back
+              </Button>
+              <Button
+                onClick={handleBack}
+                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700"
+              >
+                I Understand
+              </Button>
+            </div>
           </div>
         </div>
       </div>
