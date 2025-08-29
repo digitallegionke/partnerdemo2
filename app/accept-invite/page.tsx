@@ -131,7 +131,7 @@ export default function AcceptInvite() {
                   <p className="text-gray-600">
                     Proceed to{" "}
                     <Link
-                      href="/login"
+                      href="/"
                       className="text-blue-600 hover:underline font-medium"
                     >
                       login
