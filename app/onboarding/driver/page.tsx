@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { CheckCircle, Truck, User, Phone, Mail, Camera, Upload, MapPin, Clock, Shield } from "lucide-react"
 import { Textarea } from "@/components/ui/textarea"
+import Link from "next/link"
 
 type DriverOnboardingStep = "welcome" | "personal" | "vehicle" | "documents" | "verification" | "complete"
 
@@ -495,7 +496,16 @@ export default function DriverOnboardingPage() {
                     </p>
                     <label className="flex items-center space-x-2">
                       <input type="checkbox" className="rounded" required />
-                      <span className="text-sm text-yellow-800">I agree to the terms and conditions</span>
+                      <span className="text-sm text-yellow-800">
+                        I agree to the{" "}
+                        <Link 
+                          href="/terms-and-conditions" 
+                          target="_blank"
+                          className="underline hover:text-yellow-900"
+                        >
+                          terms and conditions
+                        </Link>
+                      </span>
                     </label>
                   </div>
                 </div>

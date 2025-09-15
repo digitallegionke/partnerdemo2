@@ -28,6 +28,7 @@ import { supabase } from "@/lib/supabase";
 import OperatingHoursSelector from "@/app/components/operating-picker";
 import { Router } from "express";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { RequireAuth } from "@/components/require-auth";
 import { industries } from "@/lib/utils";
 
@@ -55,7 +56,7 @@ interface OrganizationForm {
 
   // Operations
   primaryDeliveryArea: string;
-  deliveryChallenge: string;
+  deliveryChallenge: string[];
   desiredFeatures: string;
 
   // Additional Info
@@ -83,7 +84,7 @@ function OrganizationSetup() {
     yearsInBusiness: "",
     industry: "",
     primaryDeliveryArea: "",
-    deliveryChallenge: "",
+    deliveryChallenge: [],
     desiredFeatures: "",
     termsAccepted: false,
     operatingHours: "",
@@ -211,7 +212,7 @@ function OrganizationSetup() {
           drivers_count: orgForm.driversCount,
           years_in_business: orgForm.yearsInBusiness,
           primary_delivery_area: orgForm.primaryDeliveryArea,
-          delivery_challenge: orgForm.deliveryChallenge,
+          delivery_challenge: orgForm.deliveryChallenge.join(", "),
           features_wishlist: orgForm.desiredFeatures,
           user_id: user.id,
         },
@@ -787,22 +788,25 @@ function OrganizationSetup() {
                         <label
                           key={option.value}
                           className={`flex items-center space-x-2 p-3 border rounded cursor-pointer hover:bg-gray-50 ${
-                            orgForm.deliveryChallenge === option.value
+                            orgForm.deliveryChallenge.includes(option.value)
                               ? "border-blue-500 bg-blue-50"
                               : ""
                           }`}
                         >
                           <input
-                            type="radio"
+                            type="checkbox"
                             name="deliveryChallenge"
                             value={option.value}
-                            checked={orgForm.deliveryChallenge === option.value}
-                            onChange={(e) =>
+                            checked={orgForm.deliveryChallenge.includes(option.value)}
+                            onChange={(e) => {
+                              const { value, checked } = e.target;
                               setOrgForm({
                                 ...orgForm,
-                                deliveryChallenge: e.target.value,
-                              })
-                            }
+                                deliveryChallenge: checked
+                                  ? [...orgForm.deliveryChallenge, value]
+                                  : orgForm.deliveryChallenge.filter((item) => item !== value)
+                              });
+                            }}
                             className="sr-only"
                           />
                           <span className="text-sm">{option.label}</span>
@@ -904,8 +908,11 @@ function OrganizationSetup() {
                         {orgForm.primaryDeliveryArea?.replace("-", " ")}
                       </div>
                       <div>
-                        <span className="font-medium">Main challenge:</span>{" "}
-                        {orgForm.deliveryChallenge}
+                        <span className="font-medium">Main challenges:</span>{" "}
+                        {orgForm.deliveryChallenge.length > 0 
+                          ? orgForm.deliveryChallenge.join(", ")
+                          : "None selected"
+                        }
                       </div>
                     </div>
                   </div>
@@ -942,7 +949,14 @@ function OrganizationSetup() {
                         }
                       />
                       <span className="text-sm text-yellow-800">
-                        I agree to the terms and conditions
+                        I agree to the{" "}
+                        <Link 
+                          href="/terms-and-conditions" 
+                          target="_blank"
+                          className="underline hover:text-yellow-900"
+                        >
+                          terms and conditions
+                        </Link>
                       </span>
                     </label>
                     {errors.termsAccepted && (
