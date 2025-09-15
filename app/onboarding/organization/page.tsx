@@ -29,6 +29,7 @@ import OperatingHoursSelector from "@/app/components/operating-picker";
 import { Router } from "express";
 import { useRouter } from "next/navigation";
 import { RequireAuth } from "@/components/require-auth";
+import { industries } from "@/lib/utils";
 
 type OrganizationOnboardingStep =
   | "welcome"
@@ -487,34 +488,11 @@ function OrganizationSetup() {
                         <SelectValue placeholder="Select your industry" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="food-beverage">
-                          Food & Beverage
-                        </SelectItem>
-                        <SelectItem value="retail">Retail</SelectItem>
-                        <SelectItem value="courier-logistics">
-                          Courier/Logistics
-                        </SelectItem>
-                        <SelectItem value="e-commerce">E-commerce</SelectItem>
-                        <SelectItem value="pharmacy-medical">
-                          Pharmacy & Medical
-                        </SelectItem>
-                        <SelectItem value="wholesale-distribution">
-                          Wholesale / Distribution
-                        </SelectItem>
-                        <SelectItem value="manufacturing">
-                          Manufacturing / Supply Chain
-                        </SelectItem>
-                        <SelectItem value="agriculture">
-                          Agriculture / Fresh Produce
-                        </SelectItem>
-                        <SelectItem value="construction">
-                          Construction / Building Materials
-                        </SelectItem>
-                        <SelectItem value="services">
-                          Field Services / Utilities
-                        </SelectItem>
-
-                        <SelectItem value="other">Other</SelectItem>
+                        {industries.map((ind) => (
+                          <SelectItem key={ind.value} value={ind.value}>
+                            {ind.label}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                     {errors.industry && (

@@ -2,17 +2,12 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  "https://zolqvkpgiauqnjgujtvl.supabase.co";
+  "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 // Check for missing environment variables
 if (!supabaseAnonKey || !supabaseUrl) {
-  console.warn(
-    "⚠️  MISSING SUPABASE_ANON_KEY: Please add your Supabase anonymous key to .env.local"
-  );
-  console.warn(
-    "   Get your key from: https://supabase.com/dashboard/project/YOUR_PROJECT/settings/api"
-  );
+  throw new Error("Missing Supabase environment variables");
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -113,6 +108,9 @@ export interface Database {
           updated_at: string;
           assigned_to?: number | null;
           delivered_at?: string;
+          delivery_notes?: string | null;
+          proof_of_delivery?: string | null;
+          attempt_count?: number;
         };
         Insert: {
           route_id?: number | null;
@@ -126,6 +124,9 @@ export interface Database {
           drop_time: string;
           status?: "pending" | "in-progress" | "completed" | "failed";
           order_index?: number | null;
+          delivery_notes?: string | null;
+          proof_of_delivery?: string | null;
+          attempt_count?: number;
         };
         Update: {
           route_id?: number | null;
@@ -139,6 +140,9 @@ export interface Database {
           drop_time?: string;
           status?: "pending" | "in-progress" | "completed" | "failed";
           order_index?: number | null;
+          delivery_notes?: string | null;
+          proof_of_delivery?: string | null;
+          attempt_count?: number;
         };
       };
       route_optimizations: {
@@ -195,74 +199,74 @@ export interface Database {
           notes?: string | null;
         };
         Update: {
-          title?: string
-          route_id?: number | null
-          driver_id?: number | null
-          scheduled_date?: string
-          start_time?: string
-          end_time?: string
-          status?: 'scheduled' | 'in-progress' | 'completed' | 'cancelled'
-          priority?: 'low' | 'medium' | 'high'
-          notes?: string | null
-        }
-      }
+          title?: string;
+          route_id?: number | null;
+          driver_id?: number | null;
+          scheduled_date?: string;
+          start_time?: string;
+          end_time?: string;
+          status?: "scheduled" | "in-progress" | "completed" | "cancelled";
+          priority?: "low" | "medium" | "high";
+          notes?: string | null;
+        };
+      };
       business_profile: {
         Row: {
-          id: number
-          business_name: string
-          contact_email: string
-          contact_phone: string
-          business_address: string | null
-          website: string | null
-          orders_per_day: string | null
-          team_size: string | null
-          drivers_count: string | null
-          years_in_business: string | null
-          industry: string | null
-          primary_delivery_area: string | null
-          delivery_challenge: string | null
-          desired_features: string | null
-          business_status: 'pending' | 'active' | 'inactive' | 'suspended'
-          profile_completed: boolean
-          created_at: string
-          updated_at: string
-        }
+          id: number;
+          business_name: string;
+          contact_email: string;
+          contact_phone: string;
+          business_address: string | null;
+          website: string | null;
+          orders_per_day: string | null;
+          team_size: string | null;
+          drivers_count: string | null;
+          years_in_business: string | null;
+          industry: string | null;
+          primary_delivery_area: string | null;
+          delivery_challenge: string | null;
+          desired_features: string | null;
+          business_status: "pending" | "active" | "inactive" | "suspended";
+          profile_completed: boolean;
+          created_at: string;
+          updated_at: string;
+        };
         Insert: {
-          business_name: string
-          contact_email: string
-          contact_phone: string
-          business_address?: string | null
-          website?: string | null
-          orders_per_day?: string | null
-          team_size?: string | null
-          drivers_count?: string | null
-          years_in_business?: string | null
-          industry?: string | null
-          primary_delivery_area?: string | null
-          delivery_challenge?: string | null
-          desired_features?: string | null
-          business_status?: 'pending' | 'active' | 'inactive' | 'suspended'
-          profile_completed?: boolean
-        }
+          business_name: string;
+          contact_email: string;
+          contact_phone: string;
+          business_address?: string | null;
+          website?: string | null;
+          orders_per_day?: string | null;
+          team_size?: string | null;
+          drivers_count?: string | null;
+          years_in_business?: string | null;
+          industry?: string | null;
+          primary_delivery_area?: string | null;
+          delivery_challenge?: string | null;
+          desired_features?: string | null;
+          business_status?: "pending" | "active" | "inactive" | "suspended";
+          profile_completed?: boolean;
+        };
         Update: {
-          business_name?: string
-          contact_email?: string
-          contact_phone?: string
-          business_address?: string | null
-          website?: string | null
-          orders_per_day?: string | null
-          team_size?: string | null
-          drivers_count?: string | null
-          years_in_business?: string | null
-          industry?: string | null
-          primary_delivery_area?: string | null
-          delivery_challenge?: string | null
-          desired_features?: string | null
-          business_status?: 'pending' | 'active' | 'inactive' | 'suspended'
-          profile_completed?: boolean
-        }
-      }
-    }
+          business_name?: string;
+          contact_email?: string;
+          contact_phone?: string;
+          business_address?: string | null;
+          website?: string | null;
+          orders_per_day?: string | null;
+          team_size?: string | null;
+          drivers_count?: string | null;
+          years_in_business?: string | null;
+          industry?: string | null;
+          primary_delivery_area?: string | null;
+          delivery_challenge?: string | null;
+          desired_features?: string | null;
+          business_status?: "pending" | "active" | "inactive" | "suspended";
+          profile_completed?: boolean;
+        };
+      };
+    };
     Views: {
       [_ in never]: never;
     };

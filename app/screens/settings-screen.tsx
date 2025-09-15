@@ -360,9 +360,9 @@ export default function SettingsScreen() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {industries.map((industry, idx) => (
-                      <SelectItem key={idx} value={industry}>
-                        {industry}
+                    {industries.map((ind) => (
+                      <SelectItem key={ind.value} value={ind.value}>
+                        {ind.label}
                       </SelectItem>
                     ))}
                   </SelectContent>

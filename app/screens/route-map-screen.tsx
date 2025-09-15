@@ -94,7 +94,7 @@ export default function RouteMapScreen({
   const [selectedDelivery, setSelectedDelivery] = useState<DeliveryData | null>(
     null
   );
-  console.log("these are details", deliveries, route);
+ 
   const [searchTerm, setSearchTerm] = useState("");
   const [isOptimizeDialogOpen, setIsOptimizeDialogOpen] = useState(false);
   const [optimizationResult, setOptimizationResult] = useState<any>(null);

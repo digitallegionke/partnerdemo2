@@ -118,6 +118,7 @@ export class DeliveryService {
     phone: string;
     drop_time: string;
     status?: string;
+    delivery_notes?: string;
   }): Promise<Delivery> {
     try {
       const {

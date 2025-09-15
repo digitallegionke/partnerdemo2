@@ -131,7 +131,10 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
       longitude: "",
       item: "",
       phone: "",
-      notes: "",
+      delivery_notes: "",
+      weight: "",
+      estimated_value: "",
+      drop_time: "",
     },
   ]);
   const [deliveryMode, setDeliveryMode] = useState<"new" | "existing">("new");
@@ -144,29 +147,6 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
   const [loadingRouteDeliveries, setLoadingRouteDeliveries] = useState(false);
   const { toast } = useToast();
   const { data, loading, error: routeError, fetchRoute } = useRoute();
-
-  
-//   useEffect(() => {
-//     const allRouteDeliveries = async () => {    
-//     const deliveriesPerRoute =   routes.map(route => await DeliveryService.getDeliveriesByRoute(route.id))
-//   return deliveriesPerRoute;
-//     }
-// console.log(allRouteDeliveries());
-//     const origin = {
-//       lat: deliveries[0].coordinates[0],
-//       lng: deliveries[0].coordinates[1],
-//     };
-//     const destination = {
-//       lat: deliveries[deliveries.length - 1].coordinates[0],
-//       lng: deliveries[deliveries.length - 1].coordinates[1],
-//     };
-//     const waypoints = routeDeliveries
-//       .slice(1, -1)
-//       .map((d) => ({ lat: d.coordinates[0], lng: d.coordinates[1] }));
-
-//     console.log("waypoints", waypoints);
-//     fetchRoute(origin, destination, waypoints);
-//   }, [routeDeliveries, fetchRoute]);
 
   // Load routes from Supabase
   const loadRoutes = async () => {
@@ -293,7 +273,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         longitude: "",
         item: "",
         phone: "",
-        notes: "",
+        delivery_notes: "",
       },
     ]);
     setDeliveryMode("new");
@@ -313,7 +293,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         longitude: "",
         item: "",
         phone: "",
-        notes: "",
+        delivery_notes: "",
       },
     ]);
   };
@@ -324,7 +304,8 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
     }
   };
 
-  const updateDelivery = (id: number, field: string, value: string) => {
+  const updateDelivery = (id: string, field: string, value: string) => {
+    console.log("delivery id updating", id, field, value);
     setDeliveries(
       deliveries.map((delivery) =>
         delivery.id === id ? { ...delivery, [field]: value } : delivery
@@ -384,7 +365,14 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
             delivery.customer_name.trim() &&
             delivery.location.trim() &&
             delivery.latitude &&
-            delivery.longitude
+            delivery.longitude &&
+            delivery.phone.trim()
+        );
+        console.log(
+          "Valid deliveries:",
+          validDeliveries,
+          "deliveries",
+          deliveries
         );
         deliveryCount = validDeliveries.length;
       } else {
@@ -420,46 +408,41 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
 
       if (deliveryMode === "new") {
         // Create new deliveries for this route
-        const validDeliveries = deliveries.filter(
-          (delivery) =>
-            delivery.customer_name.trim() &&
-            delivery.location.trim() &&
-            delivery.latitude &&
-            delivery.longitude
-        );
-        console.log('deliveries', deliveries);
-        const deliveryPromises = validDeliveries.map(
-          async (delivery, index) => {
-            const deliveryData = {
-              customer_name: delivery.customer_name,
-              location: delivery.location,
-              coordinates: [
-                parseFloat(delivery.latitude),
-                parseFloat(delivery.longitude),
-              ] as [number, number],
-              item: delivery.item || "Package",
-              phone: delivery.phone || "",
-              drop_time: new Date().toISOString(), // Default to current time, can be enhanced later
-              status: "pending",
-            };
+        for (let i = 0; i < deliveries.length; i++) {
+          const delivery = deliveries[i];
+          const latitude = parseFloat(delivery.latitude);
+          const longitude = parseFloat(delivery.longitude);
+          const deliveryData = {
+            customer_name: delivery.customer_name,
+            location: delivery.location,
+            coordinates: [longitude, latitude] as [number, number],
+            item: delivery.item,
+            phone: delivery.phone,
+            drop_time: delivery.drop_time ,
+            estimated_value: delivery.estimated_value || null,
+            weight: delivery.weight || null,
+            status: "pending",
+            delivery_notes: delivery.delivery_notes,
+          };
 
+          try {
             const createdDelivery = await DeliveryService.createDelivery(
               deliveryData
             );
+            
 
-            // Associate delivery with route if route creation was successful
             if (createdRoute?.id && createdDelivery?.id) {
               await supabase
                 .from("deliveries")
-                .update({ route_id: createdRoute.id, order_index: index })
+                .update({ route_id: createdRoute.id })
                 .eq("id", createdDelivery.id);
             }
 
             return createdDelivery;
+          } catch (err) {
+            console.error("Failed to create delivery:", err, deliveryData);
           }
-        );
-
-        await Promise.all(deliveryPromises);
+        }
       } else {
         // Assign existing deliveries to this route
         const selectedIds = Array.from(selectedExistingDeliveries);
@@ -674,15 +657,28 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         <div className="mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">Routes</h1>
-              <p className="text-sm sm:text-base text-gray-600 mt-1">Manage and optimize your delivery routes</p>
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
+                Routes
+              </h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-1">
+                Manage and optimize your delivery routes
+              </p>
             </div>
             <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-              <Button variant="outline" size="sm" className="text-gray-600 text-xs sm:text-sm">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-gray-600 text-xs sm:text-sm"
+              >
                 <Download className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 <span className="hidden sm:inline">Export</span>
               </Button>
-              <Button variant="outline" size="sm" onClick={loadRoutes} className="text-gray-600 text-xs sm:text-sm">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={loadRoutes}
+                className="text-gray-600 text-xs sm:text-sm"
+              >
                 <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 <span className="hidden sm:inline">Refresh</span>
               </Button>
@@ -691,7 +687,10 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                 onOpenChange={handleAddDialogChange}
               >
                 <DialogTrigger asChild>
-                  <Button size="default" className="text-sm sm:text-sm px-4 py-2 h-10 sm:h-9">
+                  <Button
+                    size="default"
+                    className="text-sm sm:text-sm px-4 py-2 h-10 sm:h-9"
+                  >
                     <Plus className="h-4 w-4 sm:h-4 sm:w-4 mr-2 sm:mr-2" />
                     <span className="hidden sm:inline">Add Route</span>
                     <span className="sm:hidden">Add</span>
@@ -906,6 +905,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                     <Input
                                       placeholder="Customer name"
                                       value={delivery.customer_name}
+                                      required
                                       onChange={(e) =>
                                         updateDelivery(
                                           delivery.id,
@@ -917,10 +917,11 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                     />
                                   </div>
                                   <div>
-                                    <Label>Phone Number</Label>
+                                    <Label>Phone Number *</Label>
                                     <Input
                                       placeholder="+254 712 345 678"
                                       value={delivery.phone}
+                                      required
                                       onChange={(e) =>
                                         updateDelivery(
                                           delivery.id,
@@ -935,20 +936,19 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                     <AddressSearch
                                       value={delivery.location}
                                       onSelect={(result) => {
-                                        updateDelivery(
-                                          delivery.id,
-                                          "location",
-                                          result.display_name
-                                        );
-                                        updateDelivery(
-                                          delivery.id,
-                                          "latitude",
-                                          result.coordinates[0].toString()
-                                        );
-                                        updateDelivery(
-                                          delivery.id,
-                                          "longitude",
-                                          result.coordinates[1].toString()
+                                        setDeliveries((prev) =>
+                                          prev.map((d) =>
+                                            d.id === delivery.id
+                                              ? {
+                                                  ...d,
+                                                  location: result.display_name,
+                                                  latitude:
+                                                    result.coordinates[0].toString(),
+                                                  longitude:
+                                                    result.coordinates[1].toString(),
+                                                }
+                                              : d
+                                          )
                                         );
                                       }}
                                       placeholder="Search for delivery location"
@@ -970,9 +970,10 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                       )}
                                   </div>
                                   <div>
-                                    <Label>Item/Package</Label>
+                                    <Label>Item *</Label>
                                     <Input
                                       placeholder="What to deliver"
+                                      required
                                       value={delivery.item}
                                       onChange={(e) =>
                                         updateDelivery(
@@ -984,14 +985,57 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                     />
                                   </div>
                                   <div>
-                                    <Label>Notes</Label>
+                                    <Label>Drop Time *</Label>
                                     <Input
-                                      placeholder="Special instructions"
-                                      value={delivery.notes}
+                                      type="time"
+                                      value={delivery.drop_time}
+                                      required
                                       onChange={(e) =>
                                         updateDelivery(
                                           delivery.id,
-                                          "notes",
+                                          "drop_time",
+                                          e.target.value
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label>Estimated value</Label>
+                                    <Input
+                                      placeholder="KSh 2,500"
+                                      value={delivery.estimated_value}
+                                      onChange={(e) =>
+                                        updateDelivery(
+                                          delivery.id,
+                                          "estimated_value",
+                                          e.target.value
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label>Weight</Label>
+                                    <Input
+                                      placeholder="5 Kgs"
+                                      value={delivery.weight}
+                                      onChange={(e) =>
+                                        updateDelivery(
+                                          delivery.id,
+                                          "weight",
+                                          e.target.value
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label>Notes</Label>
+                                    <Input
+                                      placeholder="Special instructions"
+                                      value={delivery.delivery_notes}
+                                      onChange={(e) =>
+                                        updateDelivery(
+                                          delivery.id,
+                                          "delivery_notes",
                                           e.target.value
                                         )
                                       }
