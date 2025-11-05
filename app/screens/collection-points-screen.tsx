@@ -254,131 +254,131 @@ export default function CollectionPointsScreen() {
   }
 
   return (
-    <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
-      {/* Header */}
-      <div className="bg-white border-b border-slate-200 p-3 sm:p-4 lg:p-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
-          <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
-         
-            <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
-              <div className="h-8 w-8 sm:h-10 sm:w-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 truncate">Collection Points</h1>
-                <p className="text-xs sm:text-sm text-slate-600 mt-1">Manage pickup and delivery starting points</p>
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
+            <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
+              <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
+                <div className="h-8 w-8 sm:h-10 sm:w-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 truncate">Collection Points</h1>
+                  <p className="text-xs sm:text-sm text-slate-600 mt-1">Manage pickup and delivery starting points</p>
+                </div>
               </div>
             </div>
+
+            <Button 
+              onClick={() => setIsCreateDialogOpen(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm"
+            >
+              <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+              <span className="hidden sm:inline">Add Collection Point</span>
+              <span className="sm:hidden">Add</span>
+            </Button>
           </div>
 
-          <Button 
-            onClick={() => setIsCreateDialogOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm"
-          >
-            <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-            <span className="hidden sm:inline">Add Collection Point</span>
-            <span className="sm:hidden">Add</span>
-          </Button>
-        </div>
-
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
-            <Input
-              placeholder="Search collection points..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-sm sm:text-base"
-            />
+          {/* Filters */}
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
+              <Input
+                placeholder="Search collection points..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-sm sm:text-base"
+              />
+            </div>
+            <Select value={selectedType} onValueChange={setSelectedType}>
+              <SelectTrigger className="w-full sm:w-48 bg-white border-slate-200">
+                <SelectValue placeholder="Filter by type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                <SelectItem value="warehouse">Warehouse</SelectItem>
+                <SelectItem value="depot">Depot</SelectItem>
+                <SelectItem value="hub">Hub</SelectItem>
+                <SelectItem value="pickup-point">Pickup Point</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+              <SelectTrigger className="w-full sm:w-48 bg-white border-slate-200">
+                <SelectValue placeholder="Filter by status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+                <SelectItem value="maintenance">Maintenance</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <Select value={selectedType} onValueChange={setSelectedType}>
-            <SelectTrigger className="w-full sm:w-48 bg-white border-slate-200">
-              <SelectValue placeholder="Filter by type" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
-              <SelectItem value="warehouse">Warehouse</SelectItem>
-              <SelectItem value="depot">Depot</SelectItem>
-              <SelectItem value="hub">Hub</SelectItem>
-              <SelectItem value="pickup-point">Pickup Point</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={selectedStatus} onValueChange={setSelectedStatus}>
-            <SelectTrigger className="w-full sm:w-48 bg-white border-slate-200">
-              <SelectValue placeholder="Filter by status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
-              <SelectItem value="maintenance">Maintenance</SelectItem>
-            </SelectContent>
-          </Select>
         </div>
-      </div>
 
-      {/* Stats Overview */}
-      <div className="p-3 sm:p-4 lg:p-6 border-b border-slate-200 bg-white">
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-          <Card className="bg-blue-50 border-blue-200">
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs sm:text-sm font-medium text-blue-600">Total Points</p>
-                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-900">{collectionPoints.length}</p>
+        {/* Stats Overview */}
+        <div className="mb-6 sm:mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <Card className="bg-blue-50 border-blue-200">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs sm:text-sm font-medium text-blue-600">Total Points</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-blue-900">{collectionPoints.length}</p>
+                  </div>
+                  <MapPin className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-blue-600" />
                 </div>
-                <MapPin className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-blue-600" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-emerald-50 border-emerald-200">
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs sm:text-sm font-medium text-emerald-600">Active</p>
-                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-emerald-900">
-                    {collectionPoints.filter(p => p.status === 'active').length}
-                  </p>
+              </CardContent>
+            </Card>
+            
+            <Card className="bg-emerald-50 border-emerald-200">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs sm:text-sm font-medium text-emerald-600">Active</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-emerald-900">
+                      {collectionPoints.filter(p => p.status === 'active').length}
+                    </p>
+                  </div>
+                  <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-emerald-600" />
                 </div>
-                <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-emerald-600" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card className="bg-amber-50 border-amber-200">
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs sm:text-sm font-medium text-amber-600">Maintenance</p>
-                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-amber-900">
-                    {collectionPoints.filter(p => p.status === 'maintenance').length}
-                  </p>
+            <Card className="bg-amber-50 border-amber-200">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs sm:text-sm font-medium text-amber-600">Maintenance</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-amber-900">
+                      {collectionPoints.filter(p => p.status === 'maintenance').length}
+                    </p>
+                  </div>
+                  <AlertCircle className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-amber-600" />
                 </div>
-                <AlertCircle className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-amber-600" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card className="bg-purple-50 border-purple-200">
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs sm:text-sm font-medium text-purple-600">Total Vehicles</p>
-                  <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-900">
-                    {collectionPoints.reduce((sum, p) => sum + p.assignedVehicles, 0)}
-                  </p>
+            <Card className="bg-purple-50 border-purple-200">
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs sm:text-sm font-medium text-purple-600">Total Vehicles</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-purple-900">
+                      {collectionPoints.reduce((sum, p) => sum + p.assignedVehicles, 0)}
+                    </p>
+                  </div>
+                  <Car className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-purple-600" />
                 </div>
-                <Car className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-purple-600" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </div>
 
-      {/* Collection Points List */}
-      <div className="flex-1 p-6 overflow-auto">
+        {/* Collection Points List */}
+        <div>
         {filteredPoints.length === 0 ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
@@ -686,6 +686,7 @@ export default function CollectionPointsScreen() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      </div>
     </div>
   )
 }
