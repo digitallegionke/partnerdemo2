@@ -50,8 +50,23 @@ export class DeliveryService {
   }
 
   static async getDeliveryById(id: number): Promise<Delivery | null> {
-    // TODO: Will create API route for this later
-    return null
+    try {
+      const response = await fetch(`/api/deliveries/${id}` , {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      })
+      if (response.status === 404) return null
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Failed to fetch delivery ${id}`)
+      }
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('Error fetching delivery by id:', error)
+      throw error
+    }
   }
 
   static async getDeliveriesByRoute(
@@ -109,7 +124,23 @@ export class DeliveryService {
     id: number,
     updates: DeliveryUpdate
   ): Promise<Delivery> {
-    throw new Error("Update not yet implemented via API")
+    try {
+      const response = await fetch(`/api/deliveries/${id}` , {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(updates),
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Failed to update delivery ${id}`)
+      }
+      const data = await response.json()
+      return data
+    } catch (error) {
+      console.error('Error updating delivery:', error)
+      throw error
+    }
   }
 
   static async updateDeliveryStatus(
@@ -126,7 +157,21 @@ export class DeliveryService {
   }
 
   static async deleteDelivery(id: number): Promise<void> {
-    throw new Error("Delete not yet implemented via API")
+    try {
+      const response = await fetch(`/api/deliveries/${id}` , {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+      })
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Failed to delete delivery ${id}`)
+      }
+      return
+    } catch (error) {
+      console.error('Error deleting delivery:', error)
+      throw error
+    }
   }
 
   static async getDeliveryStats() {
