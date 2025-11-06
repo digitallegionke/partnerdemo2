@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -10,7 +10,7 @@ if (!supabaseAnonKey || !supabaseUrl) {
   throw new Error("Missing Supabase environment variables");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
 
 // Database Types
 export interface Database {
@@ -281,7 +281,7 @@ export interface Database {
 
 // Helper function to get typed Supabase client
 export const getSupabaseClient = () => {
-  return createClient<Database>(supabaseUrl, supabaseAnonKey);
+  return createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
 };
 
 // Helper functions for coordinate handling
