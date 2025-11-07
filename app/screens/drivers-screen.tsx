@@ -31,6 +31,22 @@ import {
   DialogTrigger,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent as AlertDialogContentBase,
+  AlertDialogDescription as AlertDialogDescriptionBase,
+  AlertDialogFooter,
+  AlertDialogHeader as AlertDialogHeaderBase,
+  AlertDialogTitle as AlertDialogTitleBase,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -114,6 +130,9 @@ export default function DriversScreen() {
   const [callingDriver, setCallingDriver] = useState(null);
   const [driverId, setDriverId] = useState(0);
   const [phoneCopied, setPhoneCopied] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [driverToDelete, setDriverToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [stats, setStats] = useState({
     total: 0,
@@ -286,6 +305,40 @@ export default function DriversScreen() {
     });
     setDriverId(driver.id);
     setIsEditModalOpen(true);
+  };
+
+  const handleOpenDeleteDialog = (driver: any) => {
+    setDriverToDelete(driver);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteDialogChange = (open: boolean) => {
+    setIsDeleteDialogOpen(open);
+    if (!open) {
+      setDriverToDelete(null);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!driverToDelete) return;
+
+    setIsDeleting(true);
+
+    try {
+      await DriverService.deleteDriver(driverToDelete.id);
+      toast({ title: "Driver deleted successfully" });
+      handleDeleteDialogChange(false);
+      await loadDrivers();
+    } catch (error) {
+      console.error("Error deleting driver:", error);
+      toast({
+        title: "Failed to delete driver",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleUpdateDriver = async (e: React.FormEvent) => {
@@ -736,13 +789,28 @@ export default function DriversScreen() {
                         </Badge>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-gray-400"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-gray-400 hover:text-gray-600"
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEdit(driver)}>
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-red-600 focus:text-red-600"
+                          onClick={() => handleOpenDeleteDialog(driver)}
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </CardHeader>
 
@@ -954,6 +1022,32 @@ export default function DriversScreen() {
             )}
           </DialogContent>
         </Dialog>
+        <AlertDialog
+          open={isDeleteDialogOpen}
+          onOpenChange={handleDeleteDialogChange}
+        >
+          <AlertDialogContentBase>
+            <AlertDialogHeaderBase>
+              <AlertDialogTitleBase>Delete Driver</AlertDialogTitleBase>
+              <AlertDialogDescriptionBase>
+                Are you sure you want to delete {driverToDelete?.name}? This
+                action cannot be undone.
+              </AlertDialogDescriptionBase>
+            </AlertDialogHeaderBase>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={isDeleting}>
+                Cancel
+              </AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="bg-red-600 focus:ring-red-600 hover:bg-red-700"
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContentBase>
+        </AlertDialog>
         {/* Call Modal*/}
         <Dialog open={isCallModalOpen} onOpenChange={setIsCallModalOpen}>
           <DialogContent className="sm:max-w-sm">

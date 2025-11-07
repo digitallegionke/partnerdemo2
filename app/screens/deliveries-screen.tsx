@@ -46,6 +46,22 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent as AlertDialogContentBase,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DeliveryService } from "@/lib/services/deliveries";
@@ -85,6 +101,9 @@ export default function DeliveriesScreen() {
   });
   const [routes, setRoutes] = useState<RouteOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [deliveryToDelete, setDeliveryToDelete] = useState<any>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [stats, setStats] = useState({
@@ -328,6 +347,44 @@ export default function DeliveriesScreen() {
     });
 
     setIsEditDialogOpen(true);
+  };
+
+  const extractDeliveryId = (delivery: any) =>
+    parseInt(delivery.id.replace(/\D/g, ""), 10);
+
+  const handleOpenDeleteDialog = (delivery: any) => {
+    setDeliveryToDelete(delivery);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteDialogChange = (open: boolean) => {
+    setIsDeleteDialogOpen(open);
+    if (!open) {
+      setDeliveryToDelete(null);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deliveryToDelete) return;
+
+    setIsDeleting(true);
+
+    try {
+      const deliveryId = extractDeliveryId(deliveryToDelete);
+      await DeliveryService.deleteDelivery(deliveryId);
+      toast({ title: "Delivery deleted successfully" });
+      handleDeleteDialogChange(false);
+      await loadDeliveries();
+    } catch (error) {
+      console.error("Error deleting delivery:", error);
+      toast({
+        title: "Failed to delete delivery",
+        description: "Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Helper function to convert 12-hour format to 24-hour format
@@ -698,7 +755,25 @@ export default function DeliveriesScreen() {
               Edit
             </Button>
           </div>
-          <ChevronRight className="h-4 w-4 text-gray-400" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-gray-400 hover:text-gray-600"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="text-red-600 focus:text-red-600"
+                onClick={() => handleOpenDeleteDialog(delivery)}
+              >
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardContent>
     </Card>
@@ -1330,6 +1405,32 @@ export default function DeliveriesScreen() {
                   </form>
                 </DialogContent>
               </Dialog>
+              <AlertDialog
+                open={isDeleteDialogOpen}
+                onOpenChange={handleDeleteDialogChange}
+              >
+                <AlertDialogContentBase>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Delivery</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete {deliveryToDelete?.id}?
+                      This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel disabled={isDeleting}>
+                      Cancel
+                    </AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleConfirmDelete}
+                      disabled={isDeleting}
+                      className="bg-red-600 focus:ring-red-600 hover:bg-red-700"
+                    >
+                      {isDeleting ? "Deleting..." : "Delete"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContentBase>
+              </AlertDialog>
             </div>
           </div>
 
@@ -1634,6 +1735,25 @@ export default function DeliveriesScreen() {
                           <Edit className="h-4 w-4 mr-2" />
                           Edit
                         </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-gray-400 hover:text-gray-600"
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            className="text-red-600 focus:text-red-600"
+                            onClick={() => handleOpenDeleteDialog(delivery)}
+                          >
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       </div>
                     </div>
                   </div>
