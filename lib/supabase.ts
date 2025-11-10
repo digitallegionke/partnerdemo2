@@ -1,14 +1,28 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl =
-  process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  "";
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
 // Check for missing environment variables
 if (!supabaseAnonKey || !supabaseUrl) {
   throw new Error("Missing Supabase environment variables");
 }
+
+export const createAuthenticatedClient = (authorization: string | null) => {
+  if (!authorization) {
+    throw new Error('Authorization header required')
+  }
+  
+  const token = authorization.replace('Bearer ', '')
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    }
+  })
+}
+
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -264,6 +278,67 @@ export interface Database {
           desired_features?: string | null;
           business_status?: "pending" | "active" | "inactive" | "suspended";
           profile_completed?: boolean;
+        };
+      };
+      collection_points: {
+        Row: {
+          id: string;
+          name: string;
+          address: string;
+          type: "warehouse" | "depot" | "pickup_point" | "hub";
+          capacity: number;
+          openingHours: string;
+          closingHours: string;
+          contactPerson: string;
+          phone: string;
+          email: string | null;
+          status: "active" | "inactive" | "maintenance";
+          assignmentVehicles: number;
+          description: string | null;
+          createdAt: string;
+          lastUpdated: string;
+          organization_id: number;
+          created_by: string;
+          updated_by: string;
+          user_id: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          address: string;
+          type: "warehouse" | "depot" | "pickup_point" | "hub";
+          capacity: number;
+          openingHours: string;
+          closingHours: string;
+          contactPerson: string;
+          phone: string;
+          email?: string | null;
+          status?: "active" | "inactive" | "maintenance";
+          assignmentVehicles?: number;
+          description?: string | null;
+          createdAt?: string;
+          lastUpdated?: string;
+          organization_id: number;
+          created_by: string;
+          updated_by: string;
+          user_id: string;
+        };
+        Update: {
+          name?: string;
+          address?: string;
+          type?: "warehouse" | "depot" | "pickup_point" | "hub";
+          capacity?: number;
+          openingHours?: string;
+          closingHours?: string;
+          contactPerson?: string;
+          phone?: string;
+          email?: string | null;
+          status?: "active" | "inactive" | "maintenance";
+          assignmentVehicles?: number;
+          description?: string | null;
+          createdAt?: string;
+          lastUpdated?: string;
+          updated_by?: string;
         };
       };
     };

@@ -11,100 +11,53 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { useFormik } from 'formik'
+import * as Yup from 'yup'
+import { CollectionPointService, type CollectionPoint } from '@/lib/services/collection-points'
 
-type CollectionPoint = {
-  id: number
-  name: string
-  address: string
-  coordinates: [number, number] // [lat, lng]
-  type: 'warehouse' | 'depot' | 'pickup-point' | 'hub'
-  capacity: number
-  operatingHours: {
-    open: string
-    close: string
-  }
-  contactPerson: string
-  phone: string
-  email?: string
-  status: 'active' | 'inactive' | 'maintenance'
-  assignedVehicles: number
-  description?: string
-  createdAt: string
-  lastUpdated: string
-}
-
-
-// Mock data - in a real app, this would come from an API
-const mockCollectionPoints: CollectionPoint[] = [
-  {
-    id: 1,
-    name: "Central Warehouse Nairobi CBD, Kenya",
-    address: "Industrial Area, Nairobi, Kenya",
-    coordinates: [-1.3192, 36.8285],
-    type: 'warehouse',
-    capacity: 200,
-    operatingHours: { open: "06:00", close: "20:00" },
-    contactPerson: "John Kimani",
-    phone: "+254 712 345 678",
-    email: "john.kimani@company.com",
-    status: 'active',
-    assignedVehicles: 15,
-    description: "Main distribution center for Nairobi region",
-    createdAt: "2024-01-15",
-    lastUpdated: "2024-08-10"
-  },
-  {
-    id: 2,
-    name: "Westlands Pickup Hub",
-    address: "Westlands, Nairobi, Kenya", 
-    coordinates: [-1.2674, 36.8075],
-    type: 'hub',
-    capacity: 50,
-    operatingHours: { open: "07:00", close: "18:00" },
-    contactPerson: "Mary Wanjiku",
-    phone: "+254 722 345 678",
-    status: 'active',
-    assignedVehicles: 8,
-    description: "Customer pickup and drop-off point",
-    createdAt: "2024-02-20",
-    lastUpdated: "2024-08-09"
-  },
-  {
-    id: 3,
-    name: "Mombasa Depot",
-    address: "Mombasa Road, Mombasa, Kenya",
-    coordinates: [-4.0435, 39.6682],
-    type: 'depot',
-    capacity: 100,
-    operatingHours: { open: "05:00", close: "22:00" },
-    contactPerson: "Ali Hassan",
-    phone: "+254 733 345 678",
-    email: "ali.hassan@company.com",
-    status: 'maintenance',
-    assignedVehicles: 0,
-    description: "Under maintenance - electrical upgrades",
-    createdAt: "2024-01-10",
-    lastUpdated: "2024-08-11"
-  },
-  {
-    id: 4,
-    name: "Kisumu Pickup Point",
-    address: "Kisumu Town, Kisumu, Kenya",
-    coordinates: [-0.0917, 34.7680],
-    type: 'pickup-point',
-    capacity: 25,
-    operatingHours: { open: "08:00", close: "17:00" },
-    contactPerson: "Grace Ochieng",
-    phone: "+254 744 345 678",
-    status: 'active',
-    assignedVehicles: 3,
-    createdAt: "2024-03-05",
-    lastUpdated: "2024-08-08"
-  }
-]
+// Validation schema for collection point form
+const collectionPointSchema = Yup.object({
+  name: Yup.string()
+    .min(1, 'Name is required')
+    .max(100, 'Name too long')
+    .required('Name is required'),
+  address: Yup.string()
+    .min(1, 'Address is required')
+    .max(200, 'Address too long')
+    .required('Address is required'),
+  type: Yup.string()
+    .oneOf(['warehouse', 'depot', 'pickup_point', 'hub'])
+    .required('Type is required'),
+  capacity: Yup.number()
+    .min(1, 'Capacity must be at least 1')
+    .max(10000, 'Capacity too large')
+    .required('Capacity is required'),
+  openingHours: Yup.string()
+    .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/, 'Invalid time format')
+    .required('Opening time is required'),
+  closingHours: Yup.string()
+    .matches(/^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/, 'Invalid time format')
+    .required('Closing time is required'),
+  contactPerson: Yup.string()
+    .min(1, 'Contact person is required')
+    .max(100, 'Name too long')
+    .required('Contact person is required'),
+  phone: Yup.string()
+    .min(1, 'Phone is required')
+    .max(20, 'Phone too long')
+    .required('Phone is required'),
+  email: Yup.string()
+    .email('Invalid email')
+    .optional(),
+  description: Yup.string()
+    .max(500, 'Description too long')
+    .optional()
+})
 
 export default function CollectionPointsScreen() {
-  const [collectionPoints, setCollectionPoints] = useState<CollectionPoint[]>(mockCollectionPoints)
+  const [collectionPoints, setCollectionPoints] = useState<CollectionPoint[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedType, setSelectedType] = useState<string>("all")
   const [selectedStatus, setSelectedStatus] = useState<string>("all")
@@ -112,62 +65,114 @@ export default function CollectionPointsScreen() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [editingPoint, setEditingPoint] = useState<CollectionPoint | null>(null)
-  const [deletingPoint, setDeleteingPoint] = useState<CollectionPoint | null>(null)
+  const [deletingPoint, setDeletingPoint] = useState<CollectionPoint | null>(null)
+  const [submitting, setSubmitting] = useState(false)
 
-  // Form state for create/edit
-  const [formData, setFormData] = useState({
-    name: "",
-    address: "",
-    type: "warehouse" as CollectionPoint['type'],
-    capacity: 50,
-    operatingHours: { open: "08:00", close: "17:00" },
-    contactPerson: "",
-    phone: "",
-    email: "",
-    description: ""
-  })
+  // Load collection points on component mount
+  useEffect(() => {
+    loadCollectionPoints()
+  }, [])
 
-  // Reset form data
-  const resetFormData = () => {
-    setFormData({
+  // Handle filter changes
+  useEffect(() => {
+    const filters = {
+      type: selectedType !== 'all' ? selectedType : undefined,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      search: searchTerm || undefined
+    }
+    
+    const timeoutId = setTimeout(() => {
+      loadCollectionPoints(filters)
+    }, 300) // Debounce search
+    
+    return () => clearTimeout(timeoutId)
+  }, [searchTerm, selectedType, selectedStatus])
+
+  // Load collection points from API
+  const loadCollectionPoints = async (filters?: { type?: string; status?: string; search?: string }) => {
+    try {
+      setLoading(true)
+      setError(null)
+      const points = await CollectionPointService.getAllCollectionPoints(filters)
+      setCollectionPoints(points)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load collection points')
+      console.error('Error loading collection points:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Formik form for create/edit
+  const formik = useFormik({
+    initialValues: {
       name: "",
       address: "",
-      type: "warehouse",
-      capacity: 50,
-      operatingHours: { open: "08:00", close: "17:00" },
+      type: "warehouse" as CollectionPoint['type'],
+      capacity: 0,
+      openingHours: "",
+      closingHours: "",
       contactPerson: "",
       phone: "",
       email: "",
       description: ""
-    })
-  }
+    },
+    validationSchema: collectionPointSchema,
+    validateOnMount: true,
+    enableReinitialize: true,
+    onSubmit: async (values) => {
+      try {
+        setSubmitting(true)
+        
+        // Ensure capacity is a number
+        const sanitizedValues = {
+          ...values,
+          capacity: typeof values.capacity === 'string' ? Number(values.capacity) : values.capacity
+        }
+        
+        if (editingPoint) {
+          // Update existing collection point
+          await CollectionPointService.updateCollectionPoint(editingPoint.id, sanitizedValues)
+          setIsEditDialogOpen(false)
+          setEditingPoint(null)
+        } else {
+          // Create new collection point - server will add organization_id, created_by, updated_by
+          const createData = {
+            ...sanitizedValues,
+            assignmentVehicles: 0,
+            status: "active" as const
+          }
+          await CollectionPointService.createCollectionPoint(createData)
+          setIsCreateDialogOpen(false)
+        }
+        // Reload collection points
+        await loadCollectionPoints()
+        formik.resetForm()
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to save collection point')
+        console.error('Error saving collection point:', err)
+      } finally {
+        setSubmitting(false)
+      }
+    }
+  })
 
   // Handle create collection point
   const handleCreate = () => {
-    const newPoint: CollectionPoint = {
-      id: Math.max(...collectionPoints.map(p => p.id)) + 1,
-      ...formData,
-      coordinates: [-1.2921, 36.8219] as [number, number], // Default Nairobi coordinates
-      status: 'active',
-      assignedVehicles: 0,
-      createdAt: new Date().toISOString().split('T')[0],
-      lastUpdated: new Date().toISOString().split('T')[0]
-    }
-
-    setCollectionPoints([...collectionPoints, newPoint])
-    setIsCreateDialogOpen(false)
-    resetFormData()
+    formik.resetForm()
+    setIsCreateDialogOpen(true)
   }
 
   // Handle edit collection point
   const handleEdit = (point: CollectionPoint) => {
     setEditingPoint(point)
-    setFormData({
+    formik.setValues({
       name: point.name,
       address: point.address,
       type: point.type,
-      capacity: point.capacity,
-      operatingHours: point.operatingHours,
+      capacity: Number(point.capacity), // Ensure it's a number
+      openingHours: point.openingHours,
+      closingHours: point.closingHours,
       contactPerson: point.contactPerson,
       phone: point.phone,
       email: point.email || "",
@@ -176,39 +181,25 @@ export default function CollectionPointsScreen() {
     setIsEditDialogOpen(true)
   }
 
-  // Handle update collection point
-  const handleUpdate = () => {
-    if (!editingPoint) return
-
-    const updatedPoints = collectionPoints.map(point =>
-      point.id === editingPoint.id
-        ? {
-            ...point,
-            ...formData,
-            lastUpdated: new Date().toISOString().split('T')[0]
-          }
-        : point
-    )
-
-    setCollectionPoints(updatedPoints)
-    setIsEditDialogOpen(false)
-    setEditingPoint(null)
-    resetFormData()
-  }
-
   // Handle delete collection point
   const handleDelete = (point: CollectionPoint) => {
-    setDeleteingPoint(point)
+    setDeletingPoint(point)
     setIsDeleteDialogOpen(true)
   }
 
   // Confirm delete
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!deletingPoint) return
 
-    setCollectionPoints(collectionPoints.filter(point => point.id !== deletingPoint.id))
-    setIsDeleteDialogOpen(false)
-    setDeleteingPoint(null)
+    try {
+      await CollectionPointService.deleteCollectionPoint(deletingPoint.id)
+      await loadCollectionPoints()
+      setIsDeleteDialogOpen(false)
+      setDeletingPoint(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete collection point')
+      console.error('Error deleting collection point:', err)
+    }
   }
 
   // Filter collection points
@@ -222,6 +213,15 @@ export default function CollectionPointsScreen() {
 
     return matchesSearch && matchesType && matchesStatus
   })
+
+  // Calculate stats
+  const stats = {
+    total: collectionPoints.length,
+    active: collectionPoints.filter(p => p.status === 'active').length,
+    inactive: collectionPoints.filter(p => p.status === 'inactive').length,
+    maintenance: collectionPoints.filter(p => p.status === 'maintenance').length,
+    totalVehicles: collectionPoints.reduce((sum, p) => sum + p.assignmentVehicles, 0)
+  }
 
   // Get status styling
   const getStatusBadge = (status: CollectionPoint['status']) => {
@@ -246,7 +246,7 @@ export default function CollectionPointsScreen() {
         return <Car className="h-4 w-4" />
       case 'hub':
         return <Navigation className="h-4 w-4" />
-      case 'pickup-point':
+      case 'pickup_point':
         return <Bike className="h-4 w-4" />
       default:
         return <MapPin className="h-4 w-4" />
@@ -272,7 +272,7 @@ export default function CollectionPointsScreen() {
             </div>
 
             <Button 
-              onClick={() => setIsCreateDialogOpen(true)}
+              onClick={handleCreate}
               className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm"
             >
               <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
@@ -301,7 +301,7 @@ export default function CollectionPointsScreen() {
                 <SelectItem value="warehouse">Warehouse</SelectItem>
                 <SelectItem value="depot">Depot</SelectItem>
                 <SelectItem value="hub">Hub</SelectItem>
-                <SelectItem value="pickup-point">Pickup Point</SelectItem>
+                <SelectItem value="pickup_point">Pickup Point</SelectItem>
               </SelectContent>
             </Select>
             <Select value={selectedStatus} onValueChange={setSelectedStatus}>
@@ -326,7 +326,7 @@ export default function CollectionPointsScreen() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs sm:text-sm font-medium text-gray-600">Total Points</p>
-                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">{collectionPoints.length}</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">{stats.total}</p>
                   </div>
                   <MapPin className="h-6 w-6 sm:h-7 sm:w-7 lg:h-6 lg:w-6 text-blue-600" />
                 </div>
@@ -338,9 +338,7 @@ export default function CollectionPointsScreen() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs sm:text-sm font-medium text-gray-600">Active</p>
-                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">
-                      {collectionPoints.filter(p => p.status === 'active').length}
-                    </p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">{stats.active}</p>
                   </div>
                   <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 lg:h-6 lg:w-6 text-emerald-600" />
                 </div>
@@ -352,9 +350,7 @@ export default function CollectionPointsScreen() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs sm:text-sm font-medium text-gray-600">Maintenance</p>
-                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">
-                      {collectionPoints.filter(p => p.status === 'maintenance').length}
-                    </p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">{stats.maintenance}</p>
                   </div>
                   <AlertCircle className="h-6 w-6 sm:h-7 sm:w-7 lg:h-6 lg:w-6 text-amber-600" />
                 </div>
@@ -366,9 +362,7 @@ export default function CollectionPointsScreen() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-xs sm:text-sm font-medium text-gray-600">Total Vehicles</p>
-                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">
-                      {collectionPoints.reduce((sum, p) => sum + p.assignedVehicles, 0)}
-                    </p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">{stats.totalVehicles}</p>
                   </div>
                   <Car className="h-6 w-6 sm:h-7 sm:w-7 lg:h-7 lg:w-7 text-purple-600" />
                 </div>
@@ -379,7 +373,28 @@ export default function CollectionPointsScreen() {
 
         {/* Collection Points List */}
         <div>
-        {filteredPoints.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-sm text-gray-500">Loading collection points...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <AlertCircle className="h-8 w-8 sm:h-12 sm:w-12 text-red-400 mx-auto mb-3 sm:mb-4" />
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-1 sm:mb-2">Error loading collection points</h3>
+              <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">{error}</p>
+              <Button 
+                onClick={loadCollectionPoints}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm"
+              >
+                Try Again
+              </Button>
+            </div>
+          </div>
+        ) : filteredPoints.length === 0 ? (
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <MapPin className="h-12 w-12 mx-auto text-slate-400 mb-4" />
@@ -391,7 +406,7 @@ export default function CollectionPointsScreen() {
                 }
               </p>
               {!searchTerm && selectedType === "all" && selectedStatus === "all" && (
-                <Button onClick={() => setIsCreateDialogOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Button onClick={handleCreate} className="bg-blue-600 hover:bg-blue-700 text-white">
                   <Plus className="h-4 w-4 mr-2" />
                   Add Collection Point
                 </Button>
@@ -405,7 +420,7 @@ export default function CollectionPointsScreen() {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center space-x-3 min-w-0 flex-1">
-                      <div className="h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                      <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
                         {getTypeIcon(point.type)}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -429,7 +444,7 @@ export default function CollectionPointsScreen() {
                     <div className="flex items-center space-x-2">
                       <Clock className="h-4 w-4 text-slate-400 flex-shrink-0" />
                       <span className="text-sm text-slate-600">
-                        {point.operatingHours.open} - {point.operatingHours.close}
+                        {point.openingHours} - {point.closingHours}
                       </span>
                     </div>
 
@@ -460,7 +475,7 @@ export default function CollectionPointsScreen() {
                   <div className="flex items-center justify-between pt-2 border-t border-slate-100">
                     <div className="flex items-center space-x-4 text-xs text-slate-500">
                       <span>Capacity: {point.capacity}</span>
-                      <span>Vehicles: {point.assignedVehicles}</span>
+                      <span>Vehicles: {point.assignmentVehicles}</span>
                     </div>
                     
                     <div className="flex items-center space-x-1">
@@ -495,7 +510,7 @@ export default function CollectionPointsScreen() {
           setIsCreateDialogOpen(false)
           setIsEditDialogOpen(false)
           setEditingPoint(null)
-          resetFormData()
+          formik.resetForm()
         }
       }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -506,22 +521,32 @@ export default function CollectionPointsScreen() {
             </DialogTitle>
           </DialogHeader>
 
-          <div className="grid gap-6 py-4">
+          <form onSubmit={formik.handleSubmit} className="grid gap-6 py-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Name *</Label>
                 <Input
                   id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                  name="name"
+                  value={formik.values.name}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
                   placeholder="Collection point name"
-                  className="border-slate-200 focus:border-blue-500"
+                  className={`border-slate-200 focus:border-blue-500 ${
+                    formik.touched.name && formik.errors.name ? 'border-red-500' : ''
+                  }`}
                 />
+                {formik.touched.name && formik.errors.name && (
+                  <p className="text-sm text-red-500">{formik.errors.name}</p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="type">Type *</Label>
-                <Select value={formData.type} onValueChange={(value) => setFormData({...formData, type: value as CollectionPoint['type']})}>
+                <Select 
+                  value={formik.values.type} 
+                  onValueChange={(value) => formik.setFieldValue('type', value)}
+                >
                   <SelectTrigger className="border-slate-200 focus:border-blue-500">
                     <SelectValue />
                   </SelectTrigger>
@@ -529,9 +554,12 @@ export default function CollectionPointsScreen() {
                     <SelectItem value="warehouse">Warehouse</SelectItem>
                     <SelectItem value="depot">Depot</SelectItem>
                     <SelectItem value="hub">Hub</SelectItem>
-                    <SelectItem value="pickup-point">Pickup Point</SelectItem>
+                    <SelectItem value="pickup_point">Pickup Point</SelectItem>
                   </SelectContent>
                 </Select>
+                {formik.touched.type && formik.errors.type && (
+                  <p className="text-sm text-red-500">{formik.errors.type}</p>
+                )}
               </div>
             </div>
 
@@ -539,76 +567,112 @@ export default function CollectionPointsScreen() {
               <Label htmlFor="address">Address *</Label>
               <Input
                 id="address"
-                value={formData.address}
-                onChange={(e) => setFormData({...formData, address: e.target.value})}
+                name="address"
+                value={formik.values.address}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
                 placeholder="Full address"
-                className="border-slate-200 focus:border-blue-500"
+                className={`border-slate-200 focus:border-blue-500 ${
+                  formik.touched.address && formik.errors.address ? 'border-red-500' : ''
+                }`}
               />
+              {formik.touched.address && formik.errors.address && (
+                <p className="text-sm text-red-500">{formik.errors.address}</p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="capacity">Capacity</Label>
+                <Label htmlFor="capacity">Capacity *</Label>
                 <Input
                   id="capacity"
+                  name="capacity"
                   type="number"
-                  value={formData.capacity}
-                  onChange={(e) => setFormData({...formData, capacity: parseInt(e.target.value) || 0})}
+                  value={formik.values.capacity}
+                  onChange={(e) => formik.setFieldValue('capacity', Number(e.target.value))}
+                  onBlur={formik.handleBlur}
                   placeholder="Max capacity"
-                  className="border-slate-200 focus:border-blue-500"
+                  className={`border-slate-200 focus:border-blue-500 ${
+                    formik.touched.capacity && formik.errors.capacity ? 'border-red-500' : ''
+                  }`}
                 />
+                {formik.touched.capacity && formik.errors.capacity && (
+                  <p className="text-sm text-red-500">{formik.errors.capacity}</p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="open-time">Opening Time</Label>
+                <Label htmlFor="openingHours">Opening Time *</Label>
                 <Input
-                  id="open-time"
+                  id="openingHours"
+                  name="openingHours"
                   type="time"
-                  value={formData.operatingHours.open}
-                  onChange={(e) => setFormData({
-                    ...formData, 
-                    operatingHours: {...formData.operatingHours, open: e.target.value}
-                  })}
-                  className="border-slate-200 focus:border-blue-500"
+                  value={formik.values.openingHours}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  className={`border-slate-200 focus:border-blue-500 ${
+                    formik.touched.openingHours && formik.errors.openingHours ? 'border-red-500' : ''
+                  }`}
                 />
+                {formik.touched.openingHours && formik.errors.openingHours && (
+                  <p className="text-sm text-red-500">{formik.errors.openingHours}</p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="close-time">Closing Time</Label>
+                <Label htmlFor="closingHours">Closing Time *</Label>
                 <Input
-                  id="close-time"
+                  id="closingHours"
+                  name="closingHours"
                   type="time"
-                  value={formData.operatingHours.close}
-                  onChange={(e) => setFormData({
-                    ...formData, 
-                    operatingHours: {...formData.operatingHours, close: e.target.value}
-                  })}
-                  className="border-slate-200 focus:border-blue-500"
+                  value={formik.values.closingHours}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
+                  className={`border-slate-200 focus:border-blue-500 ${
+                    formik.touched.closingHours && formik.errors.closingHours ? 'border-red-500' : ''
+                  }`}
                 />
+                {formik.touched.closingHours && formik.errors.closingHours && (
+                  <p className="text-sm text-red-500">{formik.errors.closingHours}</p>
+                )}
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="contact">Contact Person *</Label>
+                <Label htmlFor="contactPerson">Contact Person *</Label>
                 <Input
-                  id="contact"
-                  value={formData.contactPerson}
-                  onChange={(e) => setFormData({...formData, contactPerson: e.target.value})}
+                  id="contactPerson"
+                  name="contactPerson"
+                  value={formik.values.contactPerson}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
                   placeholder="Contact person name"
-                  className="border-slate-200 focus:border-blue-500"
+                  className={`border-slate-200 focus:border-blue-500 ${
+                    formik.touched.contactPerson && formik.errors.contactPerson ? 'border-red-500' : ''
+                  }`}
                 />
+                {formik.touched.contactPerson && formik.errors.contactPerson && (
+                  <p className="text-sm text-red-500">{formik.errors.contactPerson}</p>
+                )}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number *</Label>
                 <Input
                   id="phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  name="phone"
+                  value={formik.values.phone}
+                  onChange={formik.handleChange}
+                  onBlur={formik.handleBlur}
                   placeholder="+254 xxx xxx xxx"
-                  className="border-slate-200 focus:border-blue-500"
+                  className={`border-slate-200 focus:border-blue-500 ${
+                    formik.touched.phone && formik.errors.phone ? 'border-red-500' : ''
+                  }`}
                 />
+                {formik.touched.phone && formik.errors.phone && (
+                  <p className="text-sm text-red-500">{formik.errors.phone}</p>
+                )}
               </div>
             </div>
 
@@ -616,47 +680,70 @@ export default function CollectionPointsScreen() {
               <Label htmlFor="email">Email (Optional)</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
-                value={formData.email}
-                onChange={(e) => setFormData({...formData, email: e.target.value})}
+                value={formik.values.email}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
                 placeholder="contact@email.com"
-                className="border-slate-200 focus:border-blue-500"
+                className={`border-slate-200 focus:border-blue-500 ${
+                  formik.touched.email && formik.errors.email ? 'border-red-500' : ''
+                }`}
               />
+              {formik.touched.email && formik.errors.email && (
+                <p className="text-sm text-red-500">{formik.errors.email}</p>
+              )}
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="description">Description (Optional)</Label>
               <Textarea
                 id="description"
-                value={formData.description}
-                onChange={(e) => setFormData({...formData, description: e.target.value})}
+                name="description"
+                value={formik.values.description}
+                onChange={formik.handleChange}
+                onBlur={formik.handleBlur}
                 placeholder="Additional details about this collection point"
-                className="border-slate-200 focus:border-blue-500 resize-none"
+                className={`border-slate-200 focus:border-blue-500 resize-none ${
+                  formik.touched.description && formik.errors.description ? 'border-red-500' : ''
+                }`}
                 rows={3}
               />
+              {formik.touched.description && formik.errors.description && (
+                <p className="text-sm text-red-500">{formik.errors.description}</p>
+              )}
             </div>
-          </div>
 
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setIsCreateDialogOpen(false)
-                setIsEditDialogOpen(false)
-                setEditingPoint(null)
-                resetFormData()
-              }}
-            >
-              Cancel
-            </Button>
-            <Button 
-              onClick={isCreateDialogOpen ? handleCreate : handleUpdate}
-              disabled={!formData.name || !formData.address || !formData.contactPerson || !formData.phone}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              {isCreateDialogOpen ? "Create Collection Point" : "Update Collection Point"}
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button 
+                type="button"
+                variant="outline" 
+                onClick={() => {
+                  setIsCreateDialogOpen(false)
+                  setIsEditDialogOpen(false)
+                  setEditingPoint(null)
+                  formik.resetForm()
+                }}
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+              <Button 
+                type="submit"
+                disabled={submitting || (Object.keys(formik.errors).length > 0 && formik.submitCount > 0)}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {submitting ? (
+                  <div className="flex items-center space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Saving...</span>
+                  </div>
+                ) : (
+                  isCreateDialogOpen ? "Create Collection Point" : "Update Collection Point"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -667,10 +754,10 @@ export default function CollectionPointsScreen() {
             <AlertDialogTitle>Delete Collection Point</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete "{deletingPoint?.name}"? This action cannot be undone.
-              {deletingPoint?.assignedVehicles && deletingPoint.assignedVehicles > 0 && (
+              {deletingPoint?.assignmentVehicles && deletingPoint.assignmentVehicles > 0 && (
                 <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-amber-800 text-sm">
                   <AlertCircle className="h-4 w-4 inline mr-1" />
-                  Warning: This collection point has {deletingPoint.assignedVehicles} assigned vehicles.
+                  Warning: This collection point has {deletingPoint.assignmentVehicles} assigned vehicles.
                 </div>
               )}
             </AlertDialogDescription>
