@@ -25,7 +25,6 @@ export interface DeliveryForMap {
 }
 
 export class DeliveryService {
-  // Updated to use API route
   static async getAllDeliveries(): Promise<Delivery[]> {
     try {
       const response = await fetch('/api/deliveries', {
@@ -88,7 +87,7 @@ export class DeliveryService {
   static async createDelivery(delivery: {
     customer_name: string;
     location: string;
-    coordinates: [number, number]; // [lat, lng]
+    coordinates: [number, number]; 
     item: string;
     estimated_value?: string | null;
     weight?: string | null;
