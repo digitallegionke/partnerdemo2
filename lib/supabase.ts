@@ -285,6 +285,8 @@ export interface Database {
           id: string;
           name: string;
           address: string;
+          coordinates: string | number[] | object; 
+          locationName: string | null;
           type: "warehouse" | "depot" | "pickup_point" | "hub";
           capacity: number;
           openingHours: string;
@@ -306,6 +308,8 @@ export interface Database {
           id?: string;
           name: string;
           address: string;
+          coordinates?: string | object; 
+          locationName?: string | null;
           type: "warehouse" | "depot" | "pickup_point" | "hub";
           capacity: number;
           openingHours: string;
@@ -326,6 +330,8 @@ export interface Database {
         Update: {
           name?: string;
           address?: string;
+          coordinates?: string | object; 
+          locationName?: string | null;
           type?: "warehouse" | "depot" | "pickup_point" | "hub";
           capacity?: number;
           openingHours?: string;

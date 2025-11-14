@@ -6,6 +6,8 @@ import { createAuthenticatedClient } from '@/lib/supabase'
 const createCollectionPointSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
   address: z.string().min(1, 'Address is required').max(200, 'Address too long'),
+  coordinates: z.array(z.number()).length(2, 'Coordinates must be [lat, lng]').optional(),
+  locationName: z.string().max(200, 'Location name too long').optional().or(z.literal('')),
   type: z.enum(['warehouse', 'depot', 'pickup_point', 'hub']), 
   capacity: z.number().min(1, 'Capacity must be at least 1').max(10000, 'Capacity too large'),
   openingHours: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/, 'Invalid time format'),
@@ -91,20 +93,35 @@ export async function POST(request: Request) {
       )
     }
 
+    // Prepare coordinates if provided
+    let coordinates: string | undefined;
+    if (validation.data.coordinates) {
+      const [lat, lng] = validation.data.coordinates;
+      coordinates = `(${lng},${lat})`; // PostgreSQL POINT format: (longitude,latitude)
+    }
+
     // Prepare and insert data
+    const insertData = {
+      ...validation.data,
+      coordinates,
+      organization_id: membership.organization_id,
+      created_by: profile.id,
+      updated_by: profile.id,
+      user_id: user.id,
+      assignmentVehicles: 0,
+      status: 'active' as const,
+      createdAt: new Date().toISOString(),
+      lastUpdated: new Date().toISOString()
+    };
+
+    // Remove coordinates from data if not provided to avoid null insertion
+    if (!coordinates) {
+      delete insertData.coordinates;
+    }
+
     const { data, error } = await supabase
       .from('collection_points')
-      .insert([{
-        ...validation.data,
-        organization_id: membership.organization_id,
-        created_by: profile.id,
-        updated_by: profile.id,
-        user_id: user.id,
-        assignmentVehicles: 0,
-        status: 'active' as const,
-        createdAt: new Date().toISOString(),
-        lastUpdated: new Date().toISOString()
-      }])
+      .insert([insertData])
       .select()
       .single()
 

@@ -1,11 +1,36 @@
 // Use database schema directly - no transformation needed
-import { supabase, type Database } from '@/lib/supabase'
+import { supabase, type Database, coordinatesToPoint, parsePointCoordinates } from '@/lib/supabase'
 
 type CollectionPoint = Database['public']['Tables']['collection_points']['Row']
 type CollectionPointInsert = Database['public']['Tables']['collection_points']['Insert']
 type CollectionPointUpdate = Database['public']['Tables']['collection_points']['Update']
 
 export type { CollectionPoint, CollectionPointInsert, CollectionPointUpdate }
+
+// Collection point type for the frontend with coordinates as array
+export interface CollectionPointForMap {
+  id: string;
+  name: string;
+  address: string;
+  coordinates: [number, number]; // [lat, lng]
+  locationName: string | null;
+  type: "warehouse" | "depot" | "pickup_point" | "hub";
+  capacity: number;
+  openingHours: string;
+  closingHours: string;
+  contactPerson: string;
+  phone: string;
+  email: string | null;
+  status: "active" | "inactive" | "maintenance";
+  assignmentVehicles: number;
+  description: string | null;
+  createdAt: string;
+  lastUpdated: string;
+  organization_id: number;
+  created_by: string;
+  updated_by: string;
+  user_id: string;
+}
 
 // Client-side API service for collection points
 export class CollectionPointService {
@@ -75,7 +100,17 @@ export class CollectionPointService {
   }
 
   // POST create collection point
-  static async createCollectionPoint(data: CollectionPointInsert): Promise<CollectionPoint> {
+  static async createCollectionPoint(data: Partial<CollectionPointInsert> & { 
+    name: string;
+    address: string;
+    type: "warehouse" | "depot" | "pickup_point" | "hub";
+    capacity: number;
+    openingHours: string;
+    closingHours: string;
+    contactPerson: string;
+    phone: string;
+    coordinates?: [number, number];
+  }): Promise<CollectionPoint> {
     const result = await this.fetchWithAuth(this.baseUrl, {
       method: 'POST',
       body: JSON.stringify(data),
@@ -84,7 +119,7 @@ export class CollectionPointService {
   }
 
   // PATCH update collection point
-  static async updateCollectionPoint(id: string, data: CollectionPointUpdate): Promise<CollectionPoint> {
+  static async updateCollectionPoint(id: string, data: Partial<CollectionPointUpdate> & { coordinates?: [number, number] }): Promise<CollectionPoint> {
     const result = await this.fetchWithAuth(`${this.baseUrl}/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -116,5 +151,34 @@ export class CollectionPointService {
         'pickup_point': points.filter(p => p.type === 'pickup_point').length,
       }
     }
+  }
+
+  // Transform database collection point to frontend format
+  static transformCollectionPointForMap(point: CollectionPoint): CollectionPointForMap {
+    // Parse coordinates from PostgreSQL POINT format to array
+    const coordinates: [number, number] = point.coordinates ? parsePointCoordinates(point.coordinates) : [-1.2921, 36.8219]; // Default to Nairobi
+
+    return {
+      ...point,
+      coordinates,
+    };
+  }
+
+  // Transform frontend collection point to database format  
+  static transformCollectionPointForDB(point: CollectionPointForMap): CollectionPointInsert {
+    return {
+      ...point,
+      coordinates: coordinatesToPoint(point.coordinates),
+    };
+  }
+
+  // Get collection points with coordinates for map display
+  static async getCollectionPointsForMap(filters?: {
+    type?: string
+    status?: string
+    search?: string
+  }): Promise<CollectionPointForMap[]> {
+    const points = await this.getAllCollectionPoints(filters);
+    return points.map(this.transformCollectionPointForMap);
   }
 }

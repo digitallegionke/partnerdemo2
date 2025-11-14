@@ -14,6 +14,8 @@ const updateCollectionPointSchema = z.object({
     .min(1, "Address is required")
     .max(200, "Address too long")
     .optional(),
+  coordinates: z.array(z.number()).length(2, 'Coordinates must be [lat, lng]').optional(),
+  locationName: z.string().max(200, 'Location name too long').optional().or(z.literal('')),
   type: z.enum(["warehouse", "depot", "pickup_point", "hub"]).optional(), 
   capacity: z
     .number()
@@ -44,6 +46,7 @@ const updateCollectionPointSchema = z.object({
     .max(500, "Description too long")
     .optional()
     .or(z.literal("")),
+  status: z.enum(["active", "inactive", "maintenance"]).optional(),
 });
 
 // GET /api/collection-points/[id]
@@ -119,10 +122,23 @@ export async function PATCH(
 
     // Prepare update data with only changed fields
     const updateData: any = {
-      ...validation.data,
       lastUpdated: new Date().toISOString(),
       updated_by: profile.id,
-    }
+    };
+
+    // Handle each field from validation data
+    Object.keys(validation.data).forEach(key => {
+      if (key === 'coordinates') {
+        // Convert coordinates array to PostgreSQL POINT format
+        if (validation.data.coordinates) {
+          const [lat, lng] = validation.data.coordinates;
+          updateData.coordinates = `(${lng},${lat})`; // PostgreSQL POINT format: (longitude,latitude)
+        }
+      } else {
+        // Copy other fields directly
+        (updateData as any)[key] = (validation.data as any)[key];
+      }
+    });
 
     const { data, error } = await supabase
       .from("collection_points")

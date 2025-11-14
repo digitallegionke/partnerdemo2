@@ -40,6 +40,7 @@ import { RequireAuth } from "@/components/require-auth";
 import { DriverService } from "@/lib/services/drivers";
 import { DeliveryService } from "@/lib/services/deliveries";
 import { RouteService } from "@/lib/services/routes";
+import { CollectionPointService } from "@/lib/services/collection-points";
 import { supabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
@@ -61,11 +62,13 @@ export default function DashboardPage() {
     const driverStats = await DriverService.getDriverStats();
     const deliveryStats = await DeliveryService.getDeliveryStats();
     const routeStats = await RouteService.getRouteStats();
+    const collectionPointStats = await CollectionPointService.getCollectionPointStats();
     setSidebarCount((prev) => ({
       ...prev,
       routes: routeStats.total,
       deliveries: deliveryStats.total,
       drivers: driverStats.total,
+      collectionPoints: collectionPointStats.total,
     }));
   };
   const sidebarItems = [

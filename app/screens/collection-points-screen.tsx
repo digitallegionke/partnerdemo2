@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
-import { ArrowLeft, Plus, MapPin, Edit3, Trash2, Search, Clock, Users, Navigation, Phone, Mail, AlertCircle, CheckCircle, Building2, Car, Bike } from "lucide-react"
+import { ArrowLeft, Plus, MapPin, Edit3, Trash2, Search, Clock, Users, Navigation, Phone, Mail, AlertCircle, CheckCircle, Building2, Car, Bike, CircleX, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useFormik } from 'formik'
 import * as Yup from 'yup'
 import { CollectionPointService, type CollectionPoint } from '@/lib/services/collection-points'
+import AddressSearch from '@/components/address-search'
 
 // Validation schema for collection point form
 const collectionPointSchema = Yup.object({
@@ -25,6 +26,10 @@ const collectionPointSchema = Yup.object({
     .min(1, 'Address is required')
     .max(200, 'Address too long')
     .required('Address is required'),
+  latitude: Yup.string()
+    .optional(),
+  longitude: Yup.string()
+    .optional(),
   type: Yup.string()
     .oneOf(['warehouse', 'depot', 'pickup_point', 'hub'])
     .required('Type is required'),
@@ -51,6 +56,9 @@ const collectionPointSchema = Yup.object({
     .optional(),
   description: Yup.string()
     .max(500, 'Description too long')
+    .optional(),
+  status: Yup.string()
+    .oneOf(['active', 'inactive', 'maintenance'])
     .optional()
 })
 
@@ -108,14 +116,18 @@ export default function CollectionPointsScreen() {
     initialValues: {
       name: "",
       address: "",
+      latitude: "",
+      longitude: "",
+      locationName: "", 
       type: "warehouse" as CollectionPoint['type'],
-      capacity: 0,
+      capacity: "" as any,
       openingHours: "",
       closingHours: "",
       contactPerson: "",
       phone: "",
       email: "",
-      description: ""
+      description: "",
+      status: "active" as CollectionPoint['status']
     },
     validationSchema: collectionPointSchema,
     validateOnMount: true,
@@ -124,21 +136,37 @@ export default function CollectionPointsScreen() {
       try {
         setSubmitting(true)
         
-        // Ensure capacity is a number
-        const sanitizedValues = {
+        // Prepare coordinates if provided
+        let coordinates: [number, number] | undefined;
+        if (values.latitude && values.longitude) {
+          const lat = parseFloat(values.latitude);
+          const lng = parseFloat(values.longitude);
+          if (!isNaN(lat) && !isNaN(lng)) {
+            coordinates = [lat, lng];
+          }
+        }
+        
+        // Ensure capacity is a number and remove latitude/longitude from values
+        const { latitude, longitude, ...sanitizedValues } = {
           ...values,
           capacity: typeof values.capacity === 'string' ? Number(values.capacity) : values.capacity
         }
         
         if (editingPoint) {
           // Update existing collection point
-          await CollectionPointService.updateCollectionPoint(editingPoint.id, sanitizedValues)
+          await CollectionPointService.updateCollectionPoint(editingPoint.id, {
+            ...sanitizedValues,
+            coordinates,
+            locationName: values.locationName || null
+          })
           setIsEditDialogOpen(false)
           setEditingPoint(null)
         } else {
           // Create new collection point - server will add organization_id, created_by, updated_by
           const createData = {
             ...sanitizedValues,
+            coordinates,
+            locationName: values.locationName || null,
             assignmentVehicles: 0,
             status: "active" as const
           }
@@ -166,17 +194,37 @@ export default function CollectionPointsScreen() {
   // Handle edit collection point
   const handleEdit = (point: CollectionPoint) => {
     setEditingPoint(point)
+    
+    // Parse coordinates if available
+    let latitude = "";
+    let longitude = "";
+    if (point.coordinates) {
+      try {
+        // Use the same parsing logic as the delivery service
+        const { parsePointCoordinates } = require('@/lib/supabase');
+        const [lat, lng] = parsePointCoordinates(point.coordinates);
+        latitude = lat.toString();
+        longitude = lng.toString();
+      } catch (error) {
+        console.warn('Failed to parse coordinates for editing:', error);
+      }
+    }
+    
     formik.setValues({
       name: point.name,
       address: point.address,
+      latitude,
+      longitude,
+      locationName: point.locationName || "", 
       type: point.type,
-      capacity: Number(point.capacity), // Ensure it's a number
+      capacity: Number(point.capacity), 
       openingHours: point.openingHours,
       closingHours: point.closingHours,
       contactPerson: point.contactPerson,
       phone: point.phone,
       email: point.email || "",
-      description: point.description || ""
+      description: point.description || "",
+      status: point.status
     })
     setIsEditDialogOpen(true)
   }
@@ -202,17 +250,19 @@ export default function CollectionPointsScreen() {
     }
   }
 
-  // Filter collection points
-  const filteredPoints = collectionPoints.filter(point => {
-    const matchesSearch = point.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         point.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         point.contactPerson.toLowerCase().includes(searchTerm.toLowerCase())
-    
-    const matchesType = selectedType === "all" || point.type === selectedType
-    const matchesStatus = selectedStatus === "all" || point.status === selectedStatus
+  // Filter and sort collection points (newest to oldest)
+  const filteredPoints = collectionPoints
+    .filter(point => {
+      const matchesSearch = point.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           point.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           point.contactPerson.toLowerCase().includes(searchTerm.toLowerCase())
+      
+      const matchesType = selectedType === "all" || point.type === selectedType
+      const matchesStatus = selectedStatus === "all" || point.status === selectedStatus
 
-    return matchesSearch && matchesType && matchesStatus
-  })
+      return matchesSearch && matchesType && matchesStatus
+    })
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
   // Calculate stats
   const stats = {
@@ -253,6 +303,26 @@ export default function CollectionPointsScreen() {
     }
   }
 
+  // Get coordinates display
+  const getCoordinatesDisplay = (point: CollectionPoint) => {
+    if (!point.coordinates) return null;
+    
+    // Show location name if available
+    if (point.locationName) {
+      return point.locationName;
+    }
+    
+    // Fallback to showing coordinates
+    try {
+      const { parsePointCoordinates } = require('@/lib/supabase');
+      const [lat, lng] = parsePointCoordinates(point.coordinates);
+      return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    } catch (error) {
+      console.warn('Failed to parse coordinates for display:', error);
+      return null;
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
@@ -271,14 +341,27 @@ export default function CollectionPointsScreen() {
               </div>
             </div>
 
-            <Button 
-              onClick={handleCreate}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm"
-            >
-              <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-              <span className="hidden sm:inline">Add Collection Point</span>
-              <span className="sm:hidden">Add</span>
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => loadCollectionPoints()}
+                variant="outline"
+                size="sm"
+                className="border-slate-200 hover:bg-slate-50 text-slate-600 text-xs sm:text-sm"
+                disabled={loading}
+              >
+                <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
+              </Button>
+              
+              <Button 
+                onClick={handleCreate}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm"
+              >
+                <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Add Collection Point</span>
+                <span className="sm:hidden">Add</span>
+              </Button>
+            </div>
           </div>
 
           {/* Filters */}
@@ -320,7 +403,7 @@ export default function CollectionPointsScreen() {
 
         {/* Stats Overview */}
         <div className="mb-6 sm:mb-8">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
             <Card>
               <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center justify-between">
@@ -341,6 +424,18 @@ export default function CollectionPointsScreen() {
                     <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">{stats.active}</p>
                   </div>
                   <CheckCircle className="h-6 w-6 sm:h-7 sm:w-7 lg:h-6 lg:w-6 text-emerald-600" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="p-3 sm:p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs sm:text-sm font-medium text-gray-600">Inactive</p>
+                    <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">{stats.inactive}</p>
+                  </div>
+                  <CircleX className="h-6 w-6 sm:h-7 sm:w-7 lg:h-6 lg:w-6 text-red-600" />
                 </div>
               </CardContent>
             </Card>
@@ -424,7 +519,7 @@ export default function CollectionPointsScreen() {
                         {getTypeIcon(point.type)}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <CardTitle className="text-sm font-semibold text-slate-900 truncate" title={point.name}>{point.name}</CardTitle>
+                        <CardTitle className="text-sm font-semibold text-slate-900 truncate capitalize" title={point.name.toUpperCase()}>{point.name.toLowerCase()}</CardTitle>
                         <p className="text-sm text-slate-500 capitalize">{point.type.replace('-', ' ')}</p>
                       </div>
                     </div>
@@ -438,7 +533,14 @@ export default function CollectionPointsScreen() {
                   <div className="space-y-2">
                     <div className="flex items-start space-x-2">
                       <MapPin className="h-4 w-4 text-slate-400 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm text-slate-600">{point.address}</span>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm text-slate-600 capitalize block">{point.address.toLowerCase()}</span>
+                        {getCoordinatesDisplay(point) && (
+                          <span className="text-xs text-slate-500 font-mono">
+                            {getCoordinatesDisplay(point)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     
                     <div className="flex items-center space-x-2">
@@ -450,7 +552,7 @@ export default function CollectionPointsScreen() {
 
                     <div className="flex items-center space-x-2">
                       <Users className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                      <span className="text-sm text-slate-600">{point.contactPerson}</span>
+                      <span className="text-sm text-slate-600 capitalize">{point.contactPerson.toLowerCase()}</span>
                     </div>
 
                     <div className="flex items-center space-x-2">
@@ -522,7 +624,7 @@ export default function CollectionPointsScreen() {
           </DialogHeader>
 
           <form onSubmit={formik.handleSubmit} className="grid gap-6 py-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Name *</Label>
                 <Input
@@ -561,6 +663,27 @@ export default function CollectionPointsScreen() {
                   <p className="text-sm text-red-500">{formik.errors.type}</p>
                 )}
               </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="status">Status {editingPoint ? '*' : ''}</Label>
+                <Select 
+                  value={formik.values.status} 
+                  onValueChange={(value) => formik.setFieldValue('status', value)}
+                  disabled={!editingPoint} // Only allow status change when editing
+                >
+                  <SelectTrigger className="border-slate-200 focus:border-blue-500">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                    <SelectItem value="maintenance">Maintenance</SelectItem>
+                  </SelectContent>
+                </Select>
+                {formik.touched.status && formik.errors.status && (
+                  <p className="text-sm text-red-500">{formik.errors.status}</p>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -571,7 +694,7 @@ export default function CollectionPointsScreen() {
                 value={formik.values.address}
                 onChange={formik.handleChange}
                 onBlur={formik.handleBlur}
-                placeholder="Full address"
+                placeholder="Physical address e.g Building name, shop name, floor and door number"
                 className={`border-slate-200 focus:border-blue-500 ${
                   formik.touched.address && formik.errors.address ? 'border-red-500' : ''
                 }`}
@@ -581,6 +704,64 @@ export default function CollectionPointsScreen() {
               )}
             </div>
 
+            <div className="space-y-2">
+              <Label>Location Coordinates (Optional)</Label>
+              <AddressSearch
+                value=""
+                onSelect={(result) => {
+                  if (result?.coordinates) {
+                    formik.setFieldValue("latitude", result.coordinates[0].toString());
+                    formik.setFieldValue("longitude", result.coordinates[1].toString());
+                    formik.setFieldValue("locationName", result.display_name);
+                  }
+                }}
+                placeholder="Search for collection point location to get coordinates"
+                className="border-slate-200 focus:border-blue-500"
+                countryCode="ke"
+              />
+              <p className="text-xs text-gray-500">Search above to automatically fill coordinate fields below</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="latitude">Latitude</Label>
+                <Input
+                  id="latitude"
+                  name="latitude"
+                  type="number"
+                  step="any"
+                  value={formik.values.latitude}
+                  placeholder="-1.2921"
+                  className="border-slate-200 bg-slate-50 text-slate-600"
+                  readOnly
+                />
+                <p className="text-xs text-gray-500">Auto-filled</p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="longitude">Longitude</Label>
+                <Input
+                  id="longitude"
+                  name="longitude"
+                  type="number"
+                  step="any"
+                  value={formik.values.longitude}
+                  placeholder="36.8219"
+                  className="border-slate-200 bg-slate-50 text-slate-600"
+                  readOnly
+                />
+                <p className="text-xs text-gray-500">Auto-filled</p>
+              </div>
+            </div>
+
+            {formik.values.locationName && (
+              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                <p className="text-sm text-green-800 flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Selected location: <span className="font-medium">{formik.values.locationName}</span>
+                </p>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="capacity">Capacity *</Label>
@@ -589,15 +770,15 @@ export default function CollectionPointsScreen() {
                   name="capacity"
                   type="number"
                   value={formik.values.capacity}
-                  onChange={(e) => formik.setFieldValue('capacity', Number(e.target.value))}
+                  onChange={(e) => formik.setFieldValue('capacity', e.target.value === '' ? '' : Number(e.target.value))}
                   onBlur={formik.handleBlur}
-                  placeholder="Max capacity"
+                  placeholder="Whole number e.g 10"
                   className={`border-slate-200 focus:border-blue-500 ${
                     formik.touched.capacity && formik.errors.capacity ? 'border-red-500' : ''
                   }`}
                 />
                 {formik.touched.capacity && formik.errors.capacity && (
-                  <p className="text-sm text-red-500">{formik.errors.capacity}</p>
+                  <p className="text-sm text-red-500">{String(formik.errors.capacity)}</p>
                 )}
               </div>
 
