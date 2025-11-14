@@ -71,7 +71,34 @@ export class DeliveryService {
   static async getDeliveriesByRoute(
     routeId: number
   ): Promise<DeliveryForMap[]> {
-    return []
+    try {
+      const allDeliveries = await this.getAllDeliveries();
+      const routeDeliveries = allDeliveries.filter(
+        (delivery) => delivery.route_id === routeId
+      );
+      
+      // Transform to DeliveryForMap format
+      return routeDeliveries.map((delivery) => {
+        const [lat, lng] = parsePointCoordinates(delivery.coordinates);
+        return {
+          id: delivery.id,
+          route_id: delivery.route_id,
+          customer_name: delivery.customer_name,
+          location: delivery.location,
+          coordinates: [lat, lng] as [number, number],
+          item: delivery.item,
+          estimatedValue: delivery.estimated_value,
+          weight: delivery.weight,
+          phone: delivery.phone,
+          drop_time: delivery.drop_time,
+          status: delivery.status as "pending" | "in-progress" | "completed" | "failed",
+          order_index: delivery.order_index,
+        };
+      });
+    } catch (error) {
+      console.error(`Error fetching deliveries for route ${routeId}:`, error);
+      return [];
+    }
   }
 
   static async getDeliveriesByStatus(
@@ -174,13 +201,32 @@ export class DeliveryService {
   }
 
   static async getDeliveryStats() {
-    return {
-      total: 0,
-      pending: 0,
-      inProgress: 0,
-      completed: 0,
-      failed: 0,
-      totalValue: 0,
+    try {
+      const deliveries = await this.getAllDeliveries();
+      
+      const stats = {
+        total: deliveries.length,
+        pending: deliveries.filter(d => d.status === 'pending').length,
+        inProgress: deliveries.filter(d => d.status === 'in-progress').length,
+        completed: deliveries.filter(d => d.status === 'completed').length,
+        failed: deliveries.filter(d => d.status === 'failed').length,
+        totalValue: deliveries.reduce((sum, d) => {
+          const value = parseInt(d.estimated_value?.toString().replace(/[^\d]/g, '') || '0', 10);
+          return sum + value;
+        }, 0),
+      };
+      
+      return stats;
+    } catch (error) {
+      console.error('Error getting delivery stats:', error);
+      return {
+        total: 0,
+        pending: 0,
+        inProgress: 0,
+        completed: 0,
+        failed: 0,
+        totalValue: 0,
+      };
     }
   }
 

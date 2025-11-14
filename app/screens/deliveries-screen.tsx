@@ -1281,7 +1281,7 @@ export default function DeliveriesScreen() {
                             </div>
                             <div className="text-sm">
                               <span className="text-gray-500">Value: </span>
-                              <span className="text-gray-900">
+                              <span style={{ color: '#06402B' }}>
                                 {selectedDelivery.value}
                               </span>
                             </div>
