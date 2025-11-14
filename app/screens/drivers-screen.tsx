@@ -661,7 +661,7 @@ export default function DriversScreen() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-6 relative">
+    <div className="min-h-screen p-3 sm:p-4 lg:p-6 relative" style={{ backgroundColor: '#EFF0EB' }}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6 sm:mb-8">

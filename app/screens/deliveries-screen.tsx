@@ -733,7 +733,7 @@ export default function DeliveriesScreen() {
       case "delivered":
         return "bg-green-50 text-green-700 border-green-200";
       case "in-transit":
-        return "bg-blue-50 text-blue-700 border-blue-200";
+        return "text-gray-700 border-gray-300 border";
       case "pending":
         return "bg-orange-50 text-orange-700 border-orange-200";
       case "failed":
@@ -778,6 +778,7 @@ export default function DeliveriesScreen() {
           <Badge
             className={`${getStatusColor(delivery.status)} text-xs`}
             variant="outline"
+            style={delivery.status === "in-transit" ? { backgroundColor: '#EFF0EB' } : undefined}
           >
             {delivery.status}
           </Badge>
@@ -805,8 +806,8 @@ export default function DeliveriesScreen() {
             </div>
             {delivery.value !== "Not specified" && (
               <div className="flex items-center gap-1">
-                <DollarSign className="h-4 w-4 text-green-600" />
-                <span className="text-sm font-medium text-green-600">
+                <DollarSign className="h-4 w-4" style={{ color: '#162318' }} />
+                <span className="text-sm font-medium" style={{ color: '#162318' }}>
                   {delivery.value}
                 </span>
               </div>
@@ -867,7 +868,7 @@ export default function DeliveriesScreen() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-6">
+    <div className="min-h-screen p-3 sm:p-4 lg:p-6" style={{ backgroundColor: '#EFF0EB' }}>
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
@@ -1785,7 +1786,7 @@ export default function DeliveriesScreen() {
                                 )
                               )}
                               {delivery.value !== "Not specified" && (
-                                <p className="text-sm font-medium text-green-600 mt-2">
+                                <p className="text-sm font-medium" style={{ color: '#162318' }}>
                                   {delivery.value}
                                 </p>
                               )}
