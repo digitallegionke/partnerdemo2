@@ -2,6 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createAuthenticatedClient } from '@/lib/supabase'
 
+// Type for update data
+interface UpdateData {
+  lastUpdated: string;
+  updated_by: string;
+  name?: string;
+  address?: string;
+  coordinates?: string;
+  locationName?: string | null;
+  type?: "warehouse" | "depot" | "pickup_point" | "hub";
+  capacity?: number;
+  openingHours?: string;
+  closingHours?: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+  description?: string;
+  status?: "active" | "inactive" | "maintenance";
+}
+
 // Validation schema for updates
 const updateCollectionPointSchema = z.object({
   name: z
@@ -15,7 +34,7 @@ const updateCollectionPointSchema = z.object({
     .max(200, "Address too long")
     .optional(),
   coordinates: z.array(z.number()).length(2, 'Coordinates must be [lat, lng]').optional(),
-  locationName: z.string().max(200, 'Location name too long').optional().or(z.literal('')),
+  locationName: z.string().max(200, 'Location name too long').optional().or(z.literal('')).nullable(),
   type: z.enum(["warehouse", "depot", "pickup_point", "hub"]).optional(), 
   capacity: z
     .number()
@@ -56,11 +75,12 @@ export async function GET(
 ) {
   try {
     const supabase = createAuthenticatedClient(request.headers.get('authorization'))
+    const resolvedParams = await params
 
     const { data, error } = await supabase
       .from("collection_points")
       .select("*")
-      .eq("id", params.id)
+      .eq("id", resolvedParams.id)
       .single()
 
     if (error) {
@@ -92,6 +112,7 @@ export async function PATCH(
 ) {
   try {
     const supabase = createAuthenticatedClient(request.headers.get('authorization'))
+    const resolvedParams = await params
 
     // Verify user is authenticated
     const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -121,7 +142,7 @@ export async function PATCH(
     }
 
     // Prepare update data with only changed fields
-    const updateData: any = {
+    const updateData: Partial<UpdateData> = {
       lastUpdated: new Date().toISOString(),
       updated_by: profile.id,
     };
@@ -136,14 +157,14 @@ export async function PATCH(
         }
       } else {
         // Copy other fields directly
-        (updateData as any)[key] = (validation.data as any)[key];
+        (updateData as Record<string, unknown>)[key] = (validation.data as Record<string, unknown>)[key];
       }
     });
 
     const { data, error } = await supabase
       .from("collection_points")
       .update(updateData)
-      .eq("id", params.id)
+      .eq("id", resolvedParams.id)
       .select()
       .single()
 
@@ -184,11 +205,12 @@ export async function DELETE(
 ) {
   try {
     const supabase = createAuthenticatedClient(request.headers.get('authorization'))
+    const resolvedParams = await params
 
     const { error } = await supabase
       .from("collection_points")
       .delete()
-      .eq("id", params.id)
+      .eq("id", resolvedParams.id)
 
     if (error) throw error
 

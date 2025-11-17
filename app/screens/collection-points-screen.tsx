@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react"
 import { ArrowLeft, Plus, MapPin, Edit3, Trash2, Search, Clock, Users, Navigation, Phone, Mail, AlertCircle, CheckCircle, Building2, Car, Bike, CircleX, RefreshCw } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -159,6 +160,10 @@ export default function CollectionPointsScreen() {
             coordinates,
             locationName: values.locationName || null
           })
+          toast({
+            title: "Success",
+            description: "Collection point updated successfully"
+          })
           setIsEditDialogOpen(false)
           setEditingPoint(null)
         } else {
@@ -171,13 +176,23 @@ export default function CollectionPointsScreen() {
             status: "active" as const
           }
           await CollectionPointService.createCollectionPoint(createData)
+          toast({
+            title: "Success",
+            description: "Collection point created successfully"
+          })
           setIsCreateDialogOpen(false)
         }
         // Reload collection points
         await loadCollectionPoints()
         formik.resetForm()
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to save collection point')
+        const errorMessage = err instanceof Error ? err.message : 'Failed to save collection point'
+        toast({
+          title: "Error",
+          description: errorMessage,
+          variant: "destructive"
+        })
+        setError(errorMessage)
         console.error('Error saving collection point:', err)
       } finally {
         setSubmitting(false)
@@ -242,10 +257,20 @@ export default function CollectionPointsScreen() {
     try {
       await CollectionPointService.deleteCollectionPoint(deletingPoint.id)
       await loadCollectionPoints()
+      toast({
+        title: "Success",
+        description: "Collection point deleted successfully"
+      })
       setIsDeleteDialogOpen(false)
       setDeletingPoint(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete collection point')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete collection point'
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      })
+      setError(errorMessage)
       console.error('Error deleting collection point:', err)
     }
   }
@@ -324,7 +349,7 @@ export default function CollectionPointsScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-6">
+    <div className="min-h-screen bg-[#EFF0EB] p-3 sm:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
@@ -332,7 +357,7 @@ export default function CollectionPointsScreen() {
             <div className="flex items-center space-x-3 sm:space-x-4 min-w-0">
               <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
                 <div className="h-8 w-8 sm:h-10 sm:w-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                  <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-[#274690]" />
                 </div>
                 <div className="min-w-0">
                   <h1 className="text-lg sm:text-xl lg:text-2xl font-bold text-slate-900 truncate">Collection Points</h1>
@@ -346,7 +371,7 @@ export default function CollectionPointsScreen() {
                 onClick={() => loadCollectionPoints()}
                 variant="outline"
                 size="sm"
-                className="border-slate-200 hover:bg-slate-50 text-slate-600 text-xs sm:text-sm"
+                className="text-gray-600  hover:bg-slate-50 text-xs sm:text-sm"
                 disabled={loading}
               >
                 <RefreshCw className={`h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -355,7 +380,7 @@ export default function CollectionPointsScreen() {
               
               <Button 
                 onClick={handleCreate}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm"
+                className="bg-[#C8E298] hover:bg-blue-700 text-black text-xs sm:text-sm"
               >
                 <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 <span className="hidden sm:inline">Add Collection Point</span>
@@ -411,7 +436,7 @@ export default function CollectionPointsScreen() {
                     <p className="text-xs sm:text-sm font-medium text-gray-600">Total Points</p>
                     <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">{stats.total}</p>
                   </div>
-                  <MapPin className="h-6 w-6 sm:h-7 sm:w-7 lg:h-6 lg:w-6 text-blue-600" />
+                  <MapPin className="h-6 w-6 sm:h-7 sm:w-7 lg:h-6 lg:w-6 text-[#274690]" />
                 </div>
               </CardContent>
             </Card>
@@ -459,7 +484,7 @@ export default function CollectionPointsScreen() {
                     <p className="text-xs sm:text-sm font-medium text-gray-600">Total Vehicles</p>
                     <p className="text-lg sm:text-xl lg:text-2xl font-bold text-black">{stats.totalVehicles}</p>
                   </div>
-                  <Car className="h-6 w-6 sm:h-7 sm:w-7 lg:h-7 lg:w-7 text-purple-600" />
+                  <Car className="h-6 w-6 sm:h-7 sm:w-7 lg:h-7 lg:w-7 text-[#C97C5D]" />
                 </div>
               </CardContent>
             </Card>
@@ -493,7 +518,7 @@ export default function CollectionPointsScreen() {
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <MapPin className="h-12 w-12 mx-auto text-slate-400 mb-4" />
-              <h3 className="text-lg font-medium text-slate-900 mb-2">No collection points found</h3>
+              <h3 className="text-lg font-medium text-[#274690] mb-2">No collection points found</h3>
               <p className="text-slate-500 mb-4">
                 {searchTerm || selectedType !== "all" || selectedStatus !== "all"
                   ? "Try adjusting your filters"
@@ -501,7 +526,7 @@ export default function CollectionPointsScreen() {
                 }
               </p>
               {!searchTerm && selectedType === "all" && selectedStatus === "all" && (
-                <Button onClick={handleCreate} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Button onClick={handleCreate} className="bg-[#C8E298] hover:bg-blue-700 text-black">
                   <Plus className="h-4 w-4 mr-2" />
                   Add Collection Point
                 </Button>
@@ -515,7 +540,7 @@ export default function CollectionPointsScreen() {
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center space-x-3 min-w-0 flex-1">
-                      <div className="h-10 w-10 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
+                      <div className="h-10 w-10 bg-[#EFF0EB] rounded-full flex items-center justify-center flex-shrink-0">
                         {getTypeIcon(point.type)}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -574,18 +599,18 @@ export default function CollectionPointsScreen() {
                     </p>
                   )}
 
-                  <div className="flex items-center justify-between pt-2 border-t border-slate-100">
-                    <div className="flex items-center space-x-4 text-xs text-slate-500">
+                  <div className="flex items-center justify-end pt-2 border-t border-slate-100">
+                    {/* <div className="flex items-center space-x-4 text-xs text-slate-500">
                       <span>Capacity: {point.capacity}</span>
                       <span>Vehicles: {point.assignmentVehicles}</span>
-                    </div>
+                    </div> */}
                     
                     <div className="flex items-center space-x-1">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => handleEdit(point)}
-                        className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        className="h-8 w-8 p-0 text-[#274690] hover:text-blue-700 hover:bg-blue-50"
                       >
                         <Edit3 className="h-4 w-4" />
                       </Button>
@@ -618,7 +643,7 @@ export default function CollectionPointsScreen() {
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center space-x-2">
-              <MapPin className="h-5 w-5 text-blue-600" />
+              <MapPin className="h-5 w-5 text-[#274690]" />
               <span>{isCreateDialogOpen ? "Add New Collection Point" : "Edit Collection Point"}</span>
             </DialogTitle>
           </DialogHeader>
@@ -912,11 +937,11 @@ export default function CollectionPointsScreen() {
               <Button 
                 type="submit"
                 disabled={submitting || (Object.keys(formik.errors).length > 0 && formik.submitCount > 0)}
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-[#C8E298] hover:bg-blue-700 text-black"
               >
                 {submitting ? (
                   <div className="flex items-center space-x-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-black text-black"></div>
                     <span>Saving...</span>
                   </div>
                 ) : (
