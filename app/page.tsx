@@ -341,7 +341,6 @@ export default function HomePage() {
                         <Input
                           id="password"
                           type={showPassword ? "text" : "password"}
-                          placeholder="••••••••"
                           className="pl-10"
                           value={authForm.password}
                           onChange={(e) =>
@@ -443,7 +442,6 @@ export default function HomePage() {
                         <Input
                           id="signup-password"
                           type={showPassword ? "text" : "password"}
-                          placeholder="••••••••"
                           className="pl-10"
                           value={authForm.password}
                           onChange={(e) =>
@@ -474,7 +472,6 @@ export default function HomePage() {
                         <Input
                           id="confirm-password"
                           type={showConfirmPassword ? "text" : "password"}
-                          placeholder="••••••••"
                           className="pl-10"
                           value={authForm.confirmPassword}
                           onChange={(e) =>
