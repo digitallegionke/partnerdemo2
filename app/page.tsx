@@ -33,6 +33,7 @@ import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
+import { AuthService } from "@/lib/services/auth";
 
 type OnboardingStep = "auth" | "setup" | "complete";
 
@@ -67,6 +68,7 @@ export default function HomePage() {
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
     try {
       if (authMode === "signup") {
@@ -75,32 +77,30 @@ export default function HomePage() {
 
         if (password !== confirmPassword) {
           setError("Passwords do not match.");
+          setIsLoading(false);
           return;
         }
 
-        const { data, error } = await supabase.auth.signUp({
+        const response = await AuthService.signup(
           email,
           password,
-          options: {
-            data: {
-              full_name: fullName,
-              phone: phoneNumber,
-            },
-          },
-        });
+          fullName,
+          phoneNumber
+        );
 
-        if (error) {
-          setError(error.message);
-          throw error;
+        if (response.error) {
+          setError(response.error);
+          toast.error(response.error);
+          return;
         }
 
-        const user = data.user;
-
-        if (!user) {
+        if (!response.user) {
+          setError("Failed to create account. Please try again.");
           toast.error("Failed to create account! Please retry");
-        };
+          return;
+        }
+
         toast.success("User created successfully");
-        setError(null);
 
         // For new users, redirect to comprehensive onboarding
         router.push("/onboarding/organization");
