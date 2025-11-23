@@ -7,15 +7,15 @@ const createCollectionPointSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
   address: z.string().min(1, 'Address is required').max(200, 'Address too long'),
   coordinates: z.array(z.number()).length(2, 'Coordinates must be [lat, lng]').optional(),
-  locationName: z.string().max(200, 'Location name too long').optional().or(z.literal('')),
+  locationName: z.string().max(200, 'Location name too long').nullable().optional(),
   type: z.enum(['warehouse', 'depot', 'pickup_point', 'hub']), 
   capacity: z.number().min(1, 'Capacity must be at least 1').max(10000, 'Capacity too large'),
   openingHours: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/, 'Invalid time format'),
   closingHours: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9](:[0-5][0-9])?$/, 'Invalid time format'),
   contactPerson: z.string().min(1, 'Contact person is required').max(100, 'Name too long'),
   phone: z.string().min(1, 'Phone is required').max(20, 'Phone too long'),
-  email: z.string().email('Invalid email').optional().or(z.literal('')),
-  description: z.string().max(500, 'Description too long').optional().or(z.literal(''))
+  email: z.string().email('Invalid email').nullable().optional().or(z.literal('')),
+  description: z.string().max(500, 'Description too long').nullable().optional().or(z.literal(''))
 })
 
 // GET /api/collection-points

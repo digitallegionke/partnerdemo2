@@ -1,10 +1,20 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { BarChart3, TrendingUp, Timer, Package, Truck, MapPin, ArrowUpRight, AlertCircle, Warehouse } from "lucide-react"
+import { BarChart3, TrendingUp, Timer, Package, Truck, MapPin, ArrowUpRight, AlertCircle, Warehouse, Calendar, DollarSign } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import RoutesTest from "@/components/routes-test"
 import { DeliveryService } from "@/lib/services/deliveries"
 import { DriverService } from "@/lib/services/drivers"
@@ -17,12 +27,37 @@ interface KPI {
   icon: React.ComponentType<{ className?: string }>
   trend: string
   trendIsPositive: boolean
+  hasZeroTrend?: boolean
 }
 
 export default function AnalyticsScreen() {
   const [kpis, setKpis] = useState<KPI[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isDateDialogOpen, setIsDateDialogOpen] = useState(false)
+  const [isInitialized, setIsInitialized] = useState(false)
+  
+  // Date range state - default to today vs yesterday
+  const getYesterdayDate = () => {
+    const date = new Date()
+    date.setDate(date.getDate() - 1)
+    return date.toISOString().split("T")[0]
+  }
+  
+  const getTodayDate = () => new Date().toISOString().split("T")[0]
+
+  const [compareStartDate, setCompareStartDate] = useState("")
+  const [compareEndDate, setCompareEndDate] = useState("")
+  
+  // Initialize dates on client side only
+  useEffect(() => {
+    if (!isInitialized) {
+      setCompareStartDate(getYesterdayDate())
+      setCompareEndDate(getTodayDate())
+      setIsInitialized(true)
+    }
+  }, [isInitialized])
+  
   const [stats, setStats] = useState({
     totalDeliveries: 0,
     completedDeliveries: 0,
@@ -45,6 +80,15 @@ export default function AnalyticsScreen() {
       pickup_point: 0,
     },
     totalVehiclesAtPoints: 0,
+    secondPeriodCollectionPointsLength: 0,
+    secondPeriodActiveCollectionPoints: 0,
+    secondPeriodActiveDrivers: 0,
+  })
+
+  const [collectionPointsTotalTrend, setCollectionPointsTotalTrend] = useState({
+    trend: "0",
+    isPositive: false,
+    hasZeroTrend: true,
   })
 
   const fetchAnalyticsData = async () => {
@@ -66,13 +110,195 @@ export default function AnalyticsScreen() {
 
       // Fetch collection points data
       const collectionPointsStats = await CollectionPointService.getCollectionPointStats()
+      const collectionPointsData = await CollectionPointService.getAllCollectionPoints()
 
-      // Calculate metrics
+      // Calculate metrics for current period
       const completedCount = deliveriesData.filter((d) => d.status === "completed").length
       const inTransitCount = deliveriesData.filter((d) => d.status === "in-progress").length
       const pendingCount = deliveriesData.filter((d) => d.status === "pending").length
       const failedCount = deliveriesData.filter((d) => d.status === "failed").length
       const activeDriverCount = driverStats.active
+
+      // Get deliveries for a specific date
+      const getDeliveriesForDate = (date: string) => {
+        return deliveriesData.filter(
+          (d) => d.created_at && d.created_at.startsWith(date)
+        )
+      }
+
+      // Get deliveries for a date range (inclusive)
+      const getDeliveriesForDateRange = (startDate: string, endDate: string) => {
+        return deliveriesData.filter(
+          (d) =>
+            d.created_at &&
+            d.created_at >= `${startDate}T00:00:00` &&
+            d.created_at <= `${endDate}T23:59:59`
+        )
+      }
+
+      // Determine if we're comparing specific dates or a range
+      const isComparingConsecutiveDays = 
+        new Date(compareEndDate).getTime() - new Date(compareStartDate).getTime() === 24 * 60 * 60 * 1000
+
+      let firstPeriodDeliveries: any[] = []
+      let secondPeriodDeliveries: any[] = []
+
+      if (isComparingConsecutiveDays) {
+        // If comparing consecutive days (e.g., yesterday vs today), compare each day
+        firstPeriodDeliveries = getDeliveriesForDate(compareStartDate)
+        secondPeriodDeliveries = getDeliveriesForDate(compareEndDate)
+      } else {
+        // Otherwise split the range in half
+        const rangeStart = new Date(compareStartDate)
+        const rangeEnd = new Date(compareEndDate)
+        const midPoint = new Date(rangeStart.getTime() + (rangeEnd.getTime() - rangeStart.getTime()) / 2)
+        const midDateStr = midPoint.toISOString().split("T")[0]
+
+        firstPeriodDeliveries = getDeliveriesForDateRange(compareStartDate, midDateStr)
+        secondPeriodDeliveries = getDeliveriesForDateRange(
+          new Date(midPoint.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+          compareEndDate
+        )
+      }
+
+      // Calculate trends
+      const calculateTrend = (currentValue: number, previousValue: number) => {
+        if (previousValue === 0) {
+          if (currentValue === 0) {
+            return { trend: "0", isPositive: false, hasZeroTrend: true }
+          }
+          return { trend: currentValue > 0 ? `+${currentValue}` : "0", isPositive: currentValue > 0, hasZeroTrend: false }
+        }
+        const percentChange = Math.round(((currentValue - previousValue) / previousValue) * 100)
+        
+        if (percentChange === 0) {
+          return { trend: "0", isPositive: false, hasZeroTrend: true }
+        }
+        
+        const trendStr = percentChange >= 0 ? `+${percentChange}%` : `${percentChange}%`
+        return { trend: trendStr, isPositive: percentChange > 0, hasZeroTrend: false }
+      }
+
+      // Calculate metrics for each period
+      const firstPeriodCompleted = firstPeriodDeliveries.filter((d) => d.status === "completed").length
+      const secondPeriodCompleted = secondPeriodDeliveries.filter((d) => d.status === "completed").length
+      const completedTrend = calculateTrend(secondPeriodCompleted, firstPeriodCompleted)
+
+      const firstPeriodOnTime = firstPeriodDeliveries.length > 0 ? Math.round((firstPeriodCompleted / firstPeriodDeliveries.length) * 100) : 0
+      const secondPeriodOnTime = secondPeriodDeliveries.length > 0 ? Math.round((secondPeriodCompleted / secondPeriodDeliveries.length) * 100) : 0
+      const onTimeTrend = calculateTrend(secondPeriodOnTime, firstPeriodOnTime)
+
+      const deliveryTimeTrend = calculateTrend(secondPeriodDeliveries.length, firstPeriodDeliveries.length)
+
+      const firstPeriodAvgRoute = routesData.length > 0 ? Math.round(firstPeriodDeliveries.length / routesData.length) : 0
+      const secondPeriodAvgRoute = routesData.length > 0 ? Math.round(secondPeriodDeliveries.length / routesData.length) : 0
+      const routeTrend = calculateTrend(secondPeriodAvgRoute, firstPeriodAvgRoute)
+
+      // Calculate drivers trend based on date periods
+      const getDriversForDate = (date: string) => {
+        return driversData.filter(
+          (d) => d.created_at && d.created_at.startsWith(date)
+        )
+      }
+
+      const getDriversForDateRange = (startDate: string, endDate: string) => {
+        return driversData.filter(
+          (d) =>
+            d.created_at &&
+            d.created_at >= `${startDate}T00:00:00` &&
+            d.created_at <= `${endDate}T23:59:59`
+        )
+      }
+
+      let firstPeriodDrivers: any[] = []
+      let secondPeriodDrivers: any[] = []
+
+      if (isComparingConsecutiveDays) {
+        firstPeriodDrivers = getDriversForDate(compareStartDate)
+        secondPeriodDrivers = getDriversForDate(compareEndDate)
+      } else {
+        const rangeStart = new Date(compareStartDate)
+        const rangeEnd = new Date(compareEndDate)
+        const midPoint = new Date(rangeStart.getTime() + (rangeEnd.getTime() - rangeStart.getTime()) / 2)
+        const midDateStr = midPoint.toISOString().split("T")[0]
+
+        firstPeriodDrivers = getDriversForDateRange(compareStartDate, midDateStr)
+        secondPeriodDrivers = getDriversForDateRange(
+          new Date(midPoint.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+          compareEndDate
+        )
+      }
+
+      const firstPeriodActiveDrivers = firstPeriodDrivers.filter((d) => d.status === "active").length
+      const secondPeriodActiveDrivers = secondPeriodDrivers.filter((d) => d.status === "active").length
+      const driversTrend = calculateTrend(secondPeriodActiveDrivers, firstPeriodActiveDrivers)
+
+      // Calculate collection points trend based on date periods
+      // For total collection points, we count all points that were created by the end of each period
+      const getCollectionPointsCreatedByDate = (beforeDate: string) => {
+        return collectionPointsData.filter(
+          (cp) =>
+            cp.created_at &&
+            cp.created_at <= `${beforeDate}T23:59:59`
+        )
+      }
+
+      const firstPeriodEndDate = isComparingConsecutiveDays 
+        ? compareStartDate
+        : (() => {
+            const rangeStart = new Date(compareStartDate)
+            const rangeEnd = new Date(compareEndDate)
+            const midPoint = new Date(rangeStart.getTime() + (rangeEnd.getTime() - rangeStart.getTime()) / 2)
+            return midPoint.toISOString().split("T")[0]
+          })()
+
+      const secondPeriodEndDate = compareEndDate
+
+      const firstPeriodCollectionPointsTotal = getCollectionPointsCreatedByDate(firstPeriodEndDate)
+      const secondPeriodCollectionPointsTotal = getCollectionPointsCreatedByDate(secondPeriodEndDate)
+      
+      // For active collection points specifically, we count only those created in each period
+      const getCollectionPointsForDate = (date: string) => {
+        return collectionPointsData.filter(
+          (cp) => cp.created_at && cp.created_at.startsWith(date)
+        )
+      }
+
+      const getCollectionPointsForDateRange = (startDate: string, endDate: string) => {
+        return collectionPointsData.filter(
+          (cp) =>
+            cp.created_at &&
+            cp.created_at >= `${startDate}T00:00:00` &&
+            cp.created_at <= `${endDate}T23:59:59`
+        )
+      }
+
+      let firstPeriodCollectionPoints: any[] = []
+      let secondPeriodCollectionPoints: any[] = []
+
+      if (isComparingConsecutiveDays) {
+        firstPeriodCollectionPoints = getCollectionPointsForDate(compareStartDate)
+        secondPeriodCollectionPoints = getCollectionPointsForDate(compareEndDate)
+      } else {
+        const rangeStart = new Date(compareStartDate)
+        const rangeEnd = new Date(compareEndDate)
+        const midPoint = new Date(rangeStart.getTime() + (rangeEnd.getTime() - rangeStart.getTime()) / 2)
+        const midDateStr = midPoint.toISOString().split("T")[0]
+
+        firstPeriodCollectionPoints = getCollectionPointsForDateRange(compareStartDate, midDateStr)
+        secondPeriodCollectionPoints = getCollectionPointsForDateRange(
+          new Date(midPoint.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+          compareEndDate
+        )
+      }
+
+      const firstPeriodActiveCollectionPoints = firstPeriodCollectionPoints.filter((cp) => cp.status === "active").length
+      const secondPeriodActiveCollectionPoints = secondPeriodCollectionPoints.filter((cp) => cp.status === "active").length
+      const collectionPointsTrend = calculateTrend(secondPeriodActiveCollectionPoints, firstPeriodActiveCollectionPoints)
+
+      // Calculate total collection points trend using cumulative counts
+      const collectionPointsTotalTrendData = calculateTrend(secondPeriodCollectionPointsTotal.length, firstPeriodCollectionPointsTotal.length)
+      setCollectionPointsTotalTrend(collectionPointsTotalTrendData)
 
       // Calculate average delivery time in minutes from completed deliveries
       let avgDeliveryTime = "N/A"
@@ -86,11 +312,8 @@ export default function AnalyticsScreen() {
         ? Math.round((completedCount / deliveriesData.length) * 100)
         : 0
 
-      // Calculate total deliveries for the day
-      const today = new Date().toISOString().split("T")[0]
-      const todaysDeliveries = deliveriesData.filter((d) => 
-        d.created_at?.startsWith(today)
-      ).length
+      // Calculate total deliveries for the selected period
+      const periodDeliveries = getDeliveriesForDateRange(compareStartDate, compareEndDate).length
 
       // Calculate average route length 
       const avgRouteLength = routesData.length > 0
@@ -115,6 +338,9 @@ export default function AnalyticsScreen() {
         maintenanceCollectionPoints: collectionPointsStats.maintenance,
         collectionPointsByType: collectionPointsStats.byType,
         totalVehiclesAtPoints: collectionPointsStats.totalVehicles,
+        secondPeriodCollectionPointsLength: secondPeriodCollectionPointsTotal.length,
+        secondPeriodActiveCollectionPoints: secondPeriodActiveCollectionPoints,
+        secondPeriodActiveDrivers: secondPeriodActiveDrivers,
       })
 
       // Build KPIs array with dynamic data
@@ -123,43 +349,49 @@ export default function AnalyticsScreen() {
           label: "Avg. Delivery Time",
           value: avgDeliveryTime,
           icon: Timer,
-          trend: "+4%",
-          trendIsPositive: true,
+          trend: deliveryTimeTrend.trend,
+          trendIsPositive: deliveryTimeTrend.isPositive,
+          hasZeroTrend: deliveryTimeTrend.hasZeroTrend,
         },
         {
           label: "On-Time Rate",
-          value: `${onTimeRate}%`,
+          value: `${secondPeriodOnTime}%`,
           icon: TrendingUp,
-          trend: `${onTimeRate > 90 ? "+1.2%" : "-0.8%"}`,
-          trendIsPositive: onTimeRate > 90,
+          trend: onTimeTrend.trend,
+          trendIsPositive: onTimeTrend.isPositive,
+          hasZeroTrend: onTimeTrend.hasZeroTrend,
         },
         {
-          label: "Daily Deliveries",
-          value: todaysDeliveries.toString(),
+          label: "Period Deliveries",
+          value: secondPeriodDeliveries.length.toString(),
           icon: Package,
-          trend: `+${Math.max(0, todaysDeliveries - 5)}`,
-          trendIsPositive: true,
+          trend: deliveryTimeTrend.trend,
+          trendIsPositive: deliveryTimeTrend.isPositive,
+          hasZeroTrend: deliveryTimeTrend.hasZeroTrend,
         },
         {
           label: "Active Drivers",
-          value: activeDriverCount.toString(),
+          value: secondPeriodActiveDrivers.toString(),
           icon: Truck,
-          trend: `${activeDriverCount > 10 ? "+" : "-"}${Math.abs(activeDriverCount - 10)}`,
-          trendIsPositive: activeDriverCount > 10,
+          trend: driversTrend.trend,
+          trendIsPositive: driversTrend.isPositive,
+          hasZeroTrend: driversTrend.hasZeroTrend,
         },
         {
           label: "Avg. Route Length",
-          value: `${avgRouteLength} stops`,
+          value: `${secondPeriodAvgRoute} stops`,
           icon: MapPin,
-          trend: avgRouteLength > 10 ? "+3" : "-2",
-          trendIsPositive: avgRouteLength > 10,
+          trend: routeTrend.trend,
+          trendIsPositive: routeTrend.isPositive,
+          hasZeroTrend: routeTrend.hasZeroTrend,
         },
         {
           label: "Active Collection Points",
-          value: collectionPointsStats.active.toString(),
+          value: secondPeriodActiveCollectionPoints.toString(),
           icon: Warehouse,
-          trend: `${collectionPointsStats.active > 5 ? "+" : "-"}${Math.abs(collectionPointsStats.active - 5)}`,
-          trendIsPositive: collectionPointsStats.active > 5,
+          trend: collectionPointsTrend.trend,
+          trendIsPositive: collectionPointsTrend.isPositive,
+          hasZeroTrend: collectionPointsTrend.hasZeroTrend,
         },
       ]
 
@@ -173,30 +405,101 @@ export default function AnalyticsScreen() {
   }
 
   useEffect(() => {
-    fetchAnalyticsData()
-  }, [])
+    if (isInitialized && compareStartDate && compareEndDate) {
+      fetchAnalyticsData()
+    }
+  }, [compareStartDate, compareEndDate, isInitialized])
 
   return (
     <div className="p-6 bg-white space-y-6">
       {/* Header */}
-      <div className="mb-6 flex justify-between items-start">
+      <div className="mb-6 flex justify-between items-start gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
           <p className="text-gray-600 mt-1">Track your delivery performance and insights</p>
         </div>
-        <Button
-          onClick={fetchAnalyticsData}
-          disabled={isLoading}
-          variant="outline"
-          className="text-sm"
-        >
-          {isLoading ? "Refreshing..." : "Refresh Data"}
-        </Button>
-      </div>
-
-      {/* Temporary Routes Test */}
-      <div className="flex justify-start">
-        <RoutesTest />
+        <div className="flex items-center gap-2 flex-wrap">
+          {isInitialized && (
+            <>
+              <Dialog open={isDateDialogOpen} onOpenChange={setIsDateDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="text-sm">
+                    <Calendar className="h-4 w-4 mr-2" />
+                    {compareStartDate} to {compareEndDate}
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Select Comparison Date Range</DialogTitle>
+                    <DialogDescription>
+                      Choose two dates to compare trends. The data will be split in half between these dates.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="start-date">Start Date</Label>
+                      <Input
+                        id="start-date"
+                        type="date"
+                        value={compareStartDate}
+                        onChange={(e) => setCompareStartDate(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="end-date">End Date</Label>
+                      <Input
+                        id="end-date"
+                        type="date"
+                        value={compareEndDate}
+                        onChange={(e) => setCompareEndDate(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setCompareStartDate(getYesterdayDate())
+                          setCompareEndDate(getTodayDate())
+                        }}
+                        className="flex-1"
+                      >
+                        Today vs Yesterday
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          const weekAgo = new Date()
+                          weekAgo.setDate(weekAgo.getDate() - 7)
+                          setCompareStartDate(weekAgo.toISOString().split("T")[0])
+                          setCompareEndDate(getTodayDate())
+                        }}
+                        className="flex-1"
+                      >
+                        Last 7 Days
+                      </Button>
+                    </div>
+                    <Button
+                      onClick={() => setIsDateDialogOpen(false)}
+                      className="w-full"
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <Button
+                onClick={fetchAnalyticsData}
+                disabled={isLoading}
+                variant="outline"
+                className="text-sm"
+              >
+                {isLoading ? "Refreshing..." : "Refresh Data"}
+              </Button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Error State */}
@@ -215,77 +518,286 @@ export default function AnalyticsScreen() {
         </div>
       ) : (
         <>
-          {/* KPI cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {kpis.map(({ label, value, icon: Icon, trend, trendIsPositive }) => (
-              <Card key={label} className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
-                <CardContent className="p-4 flex items-center space-x-4">
-                  <div className="p-2 rounded-md bg-blue-50 text-blue-700">
-                    <Icon className="h-5 w-5" />
+          {/* Deliveries Analytics */}
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Deliveries Analytics</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Total Deliveries</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.totalDeliveries}</p>
+                    </div>
+                    <Package className="h-6 w-6 text-blue-600" />
                   </div>
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-500">{label}</p>
-                    <p className="text-xl font-semibold text-gray-900">{value}</p>
-                  </div>
-                  <div className={`flex items-center text-sm ${trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                    <ArrowUpRight className={`h-4 w-4 mr-1 ${!trendIsPositive ? "rotate-180" : ""}`} />
-                    {trend}
+                  <div className="flex justify-between items-end">
+                    <div className="flex gap-2 text-xs">
+                      <span className="px-2 py-1 rounded bg-green-50 text-green-700">{stats.completedDeliveries} completed</span>
+                      <span className="px-2 py-1 rounded bg-blue-50 text-blue-700">{stats.inTransitDeliveries} in transit</span>
+                    </div>
+                    {kpis[0]?.hasZeroTrend ? (
+                      <span className="font-medium text-xs text-gray-600">{kpis[0]?.trend}</span>
+                    ) : (
+                      <div className={`flex items-center text-sm ${kpis[0]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[0]?.trendIsPositive ? "rotate-180" : ""}`} />
+                        <span className="font-medium text-xs">{kpis[0]?.trend}</span>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
-            ))}
+
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">On-Time Rate</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.completedDeliveries > 0 ? Math.round((stats.completedDeliveries / stats.totalDeliveries) * 100) : 0}%</p>
+                    </div>
+                    <TrendingUp className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-gray-500">Delivery success rate</p>
+                    {kpis[1]?.hasZeroTrend ? (
+                      <span className="font-medium text-xs text-gray-600">{kpis[1]?.trend}</span>
+                    ) : (
+                      <div className={`flex items-center text-sm ${kpis[1]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[1]?.trendIsPositive ? "rotate-180" : ""}`} />
+                        <span className="font-medium text-xs">{kpis[1]?.trend}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Total Value</p>
+                      <p className="text-2xl font-bold text-gray-900">KSh {(stats.totalValue / 1000).toFixed(0)}K</p>
+                    </div>
+                    <DollarSign className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-gray-500">Total delivery value</p>
+                    {kpis[2]?.hasZeroTrend ? (
+                      <span className="font-medium text-xs text-gray-600">{kpis[2]?.trend}</span>
+                    ) : (
+                      <div className={`flex items-center text-sm ${kpis[2]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[2]?.trendIsPositive ? "rotate-180" : ""}`} />
+                        <span className="font-medium text-xs">{kpis[2]?.trend}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Avg. Delivery Time</p>
+                      <p className="text-2xl font-bold text-gray-900">32 min</p>
+                    </div>
+                    <Timer className="h-6 w-6 text-orange-600" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-gray-500">Average delivery duration</p>
+                    {kpis[0]?.hasZeroTrend ? (
+                      <span className="font-medium text-xs text-gray-600">{kpis[0]?.trend}</span>
+                    ) : (
+                      <div className={`flex items-center text-sm ${kpis[0]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[0]?.trendIsPositive ? "rotate-180" : ""}`} />
+                        <span className="font-medium text-xs">{kpis[0]?.trend}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
-          {/* Summary Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Deliveries</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalDeliveries}</p>
-                <div className="mt-2 flex gap-2 text-xs">
-                  <span className="px-2 py-1 rounded bg-green-50 text-green-700">{stats.completedDeliveries} completed</span>
-                  <span className="px-2 py-1 rounded bg-blue-50 text-blue-700">{stats.inTransitDeliveries} in transit</span>
-                </div>
-              </CardContent>
-            </Card>
+          {/* Routes Analytics */}
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Routes Analytics</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Total Routes</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.totalRoutes}</p>
+                    </div>
+                    <MapPin className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      {stats.activeRoutes} active
+                    </Badge>
+                    {kpis[4]?.hasZeroTrend ? (
+                      <span className="font-medium text-xs text-gray-600">{kpis[4]?.trend}</span>
+                    ) : (
+                      <div className={`flex items-center text-sm ${kpis[4]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[4]?.trendIsPositive ? "rotate-180" : ""}`} />
+                        <span className="font-medium text-xs">{kpis[4]?.trend}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Active Drivers</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.activeDrivers}</p>
-                <p className="text-xs text-gray-500 mt-2">of {stats.totalDrivers} total</p>
-              </CardContent>
-            </Card>
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Avg. Route Length</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.totalRoutes > 0 ? Math.round(stats.totalDeliveries / stats.totalRoutes) : 0} stops</p>
+                    </div>
+                    <Truck className="h-6 w-6 text-purple-600" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-gray-500">Stops per route</p>
+                    {kpis[4]?.hasZeroTrend ? (
+                      <span className="font-medium text-xs text-gray-600">{kpis[4]?.trend}</span>
+                    ) : (
+                      <div className={`flex items-center text-sm ${kpis[4]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[4]?.trendIsPositive ? "rotate-180" : ""}`} />
+                        <span className="font-medium text-xs">{kpis[4]?.trend}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
 
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Active Routes</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.activeRoutes}</p>
-                <p className="text-xs text-gray-500 mt-2">of {stats.totalRoutes} total</p>
-              </CardContent>
-            </Card>
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Route Efficiency</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.activeRoutes > 0 ? Math.round((stats.completedDeliveries / stats.totalDeliveries) * 100) : 0}%</p>
+                    </div>
+                    <TrendingUp className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-gray-500">Completion rate</p>
+                    {kpis[1]?.hasZeroTrend ? (
+                      <span className="font-medium text-xs text-gray-600">{kpis[1]?.trend}</span>
+                    ) : (
+                      <div className={`flex items-center text-sm ${kpis[1]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[1]?.trendIsPositive ? "rotate-180" : ""}`} />
+                        <span className="font-medium text-xs">{kpis[1]?.trend}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
 
-            <Card>
-              <CardContent className="p-4">
-                <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Value</p>
-                <p className="text-2xl font-bold text-gray-900">KSh {stats.totalValue.toLocaleString()}</p>
-                <p className="text-xs text-gray-500 mt-2">across all deliveries</p>
-              </CardContent>
-            </Card>
+          {/* Drivers Analytics */}
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Drivers Analytics</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Total Drivers</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.totalDrivers}</p>
+                    </div>
+                    <Truck className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      {stats.activeDrivers} active
+                    </Badge>
+                    {kpis[3]?.hasZeroTrend ? (
+                      <span className="font-medium text-xs text-gray-600">{kpis[3]?.trend}</span>
+                    ) : (
+                      <div className={`flex items-center text-sm ${kpis[3]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[3]?.trendIsPositive ? "rotate-180" : ""}`} />
+                        <span className="font-medium text-xs">{kpis[3]?.trend}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Active Rate</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.totalDrivers > 0 ? Math.round((stats.activeDrivers / stats.totalDrivers) * 100) : 0}%</p>
+                    </div>
+                    <TrendingUp className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-gray-500">Active drivers ratio</p>
+                    {kpis[3]?.hasZeroTrend ? (
+                      <span className="font-medium text-xs text-gray-600">{kpis[3]?.trend}</span>
+                    ) : (
+                      <div className={`flex items-center text-sm ${kpis[3]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[3]?.trendIsPositive ? "rotate-180" : ""}`} />
+                        <span className="font-medium text-xs">{kpis[3]?.trend}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Deliveries per Driver</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.activeDrivers > 0 ? Math.round(stats.totalDeliveries / stats.activeDrivers) : 0}</p>
+                    </div>
+                    <Package className="h-6 w-6 text-orange-600" />
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <p className="text-xs text-gray-500">Average per active driver</p>
+                    {kpis[3]?.hasZeroTrend ? (
+                      <span className="font-medium text-xs text-gray-600">{kpis[3]?.trend}</span>
+                    ) : (
+                      <div className={`flex items-center text-sm ${kpis[3]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[3]?.trendIsPositive ? "rotate-180" : ""}`} />
+                        <span className="font-medium text-xs">{kpis[3]?.trend}</span>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
           {/* Collection Points Analytics */}
-          <div className="mt-8">
+          <div>
             <h2 className="text-xl font-bold text-gray-900 mb-4">Collection Points Analytics</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card>
                 <CardContent className="p-4">
-                  <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Collection Points</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.totalCollectionPoints}</p>
-                  <div className="mt-2 flex gap-2 text-xs">
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Points</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.secondPeriodCollectionPointsLength}</p>
+                    </div>
+                    <Warehouse className="h-6 w-6 text-blue-600" />
+                  </div>
+                  <div className="flex justify-between items-center">
                     <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      {stats.activeCollectionPoints} active
+                      {stats.secondPeriodActiveCollectionPoints} active
                     </Badge>
+                    {collectionPointsTotalTrend.hasZeroTrend ? (
+                      <span className="font-medium text-xs text-gray-600">{collectionPointsTotalTrend.trend}</span>
+                    ) : (
+                      <div className={`flex items-center text-sm ${collectionPointsTotalTrend.isPositive ? "text-green-600" : "text-red-600"}`}>
+                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!collectionPointsTotalTrend.isPositive ? "rotate-180" : ""}`} />
+                        <span className="font-medium text-xs">{collectionPointsTotalTrend.trend}</span>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>

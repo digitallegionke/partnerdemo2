@@ -34,7 +34,7 @@ const updateCollectionPointSchema = z.object({
     .max(200, "Address too long")
     .optional(),
   coordinates: z.array(z.number()).length(2, 'Coordinates must be [lat, lng]').optional(),
-  locationName: z.string().max(200, 'Location name too long').optional().or(z.literal('')).nullable(),
+  locationName: z.string().max(200, 'Location name too long').nullable().optional(),
   type: z.enum(["warehouse", "depot", "pickup_point", "hub"]).optional(), 
   capacity: z
     .number()
@@ -59,10 +59,11 @@ const updateCollectionPointSchema = z.object({
     .min(1, "Phone is required")
     .max(20, "Phone too long")
     .optional(),
-  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  email: z.string().email("Invalid email").nullable().optional().or(z.literal("")),
   description: z
     .string()
     .max(500, "Description too long")
+    .nullable()
     .optional()
     .or(z.literal("")),
   status: z.enum(["active", "inactive", "maintenance"]).optional(),
