@@ -20,6 +20,24 @@ import { DeliveryService } from "@/lib/services/deliveries"
 import { DriverService } from "@/lib/services/drivers"
 import { RouteService } from "@/lib/services/routes"
 import { CollectionPointService } from "@/lib/services/collection-points"
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  // Label,
+} from "recharts"
 
 interface KPI {
   label: string
@@ -89,6 +107,12 @@ export default function AnalyticsScreen() {
     trend: "0",
     isPositive: false,
     hasZeroTrend: true,
+  })
+
+  const [periodValues, setPeriodValues] = useState({
+    firstPeriodValue: 0,
+    secondPeriodValue: 0,
+    monthlyValues: [] as Array<{ month: string; value: number }>,
   })
 
   const fetchAnalyticsData = async () => {
@@ -300,11 +324,60 @@ export default function AnalyticsScreen() {
       const collectionPointsTotalTrendData = calculateTrend(secondPeriodCollectionPointsTotal.length, firstPeriodCollectionPointsTotal.length)
       setCollectionPointsTotalTrend(collectionPointsTotalTrendData)
 
+      // Use overall active collection points for the KPI trend (not period-based)
+      const collectionPointsActiveTrend = {
+        trend: collectionPointsTotalTrendData.trend,
+        isPositive: collectionPointsTotalTrendData.isPositive,
+        hasZeroTrend: collectionPointsTotalTrendData.hasZeroTrend,
+      }
+
+      // Calculate total value for each period from deliveries
+      const getDeliveryValueForDeliveries = (deliveries: any[]) => {
+        return deliveries.reduce((sum, d) => {
+          const amount = typeof d.estimated_value === 'string' ? parseFloat(d.estimated_value) || 0 : (typeof d.estimated_value === 'number' ? d.estimated_value : 0)
+          return sum + amount
+        }, 0)
+      }
+
+      // Calculate monthly values for all deliveries
+      const monthlyValueMap: { [key: string]: number } = {}
+      deliveriesData.forEach((delivery) => {
+        if (delivery.created_at) {
+          const date = new Date(delivery.created_at)
+          const monthKey = date.toLocaleString('default', { month: 'short', year: 'numeric' })
+          const amount = typeof delivery.estimated_value === 'string' ? parseFloat(delivery.estimated_value) || 0 : (typeof delivery.estimated_value === 'number' ? delivery.estimated_value : 0)
+          monthlyValueMap[monthKey] = (monthlyValueMap[monthKey] || 0) + amount
+        }
+      })
+
+      // Generate all 12 months of the current year
+      const currentYear = new Date().getFullYear()
+      const allMonths = []
+      for (let month = 0; month < 12; month++) {
+        const date = new Date(currentYear, month, 1)
+        const monthKey = date.toLocaleString('default', { month: 'short' })
+        allMonths.push({
+          month: monthKey,
+          value: monthlyValueMap[`${monthKey} ${currentYear}`] || 0,
+        })
+      }
+
+      const monthlyValues = allMonths
+
+      const firstPeriodValue = getDeliveryValueForDeliveries(firstPeriodDeliveries)
+      const secondPeriodValue = getDeliveryValueForDeliveries(secondPeriodDeliveries)
+      setPeriodValues({
+        firstPeriodValue,
+        secondPeriodValue,
+        monthlyValues,
+      })
+
       // Calculate average delivery time in minutes from completed deliveries
       let avgDeliveryTime = "N/A"
       const completedDeliveries = deliveriesData.filter((d) => d.status === "completed")
       if (completedDeliveries.length > 0) {
-        avgDeliveryTime = "32 min"
+        // Since we don't have completed_at timestamp, show number of completed deliveries as estimate
+        avgDeliveryTime = `${completedDeliveries.length} deliveries`
       }
 
       // Calculate on-time rate 
@@ -411,7 +484,7 @@ export default function AnalyticsScreen() {
   }, [compareStartDate, compareEndDate, isInitialized])
 
   return (
-    <div className="p-6 bg-white space-y-6">
+    <div className="p-6 bg-[#EFF0EB] space-y-6">
       {/* Header */}
       <div className="mb-6 flex justify-between items-start gap-4 flex-wrap">
         <div>
@@ -482,7 +555,7 @@ export default function AnalyticsScreen() {
                     </div>
                     <Button
                       onClick={() => setIsDateDialogOpen(false)}
-                      className="w-full"
+                      className="w-full bg-[#C8E298] text-black"
                     >
                       Apply
                     </Button>
@@ -782,13 +855,13 @@ export default function AnalyticsScreen() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Points</p>
-                      <p className="text-2xl font-bold text-gray-900">{stats.secondPeriodCollectionPointsLength}</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.totalCollectionPoints}</p>
                     </div>
                     <Warehouse className="h-6 w-6 text-blue-600" />
                   </div>
                   <div className="flex justify-between items-center">
                     <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      {stats.secondPeriodActiveCollectionPoints} active
+                      {stats.activeCollectionPoints} active
                     </Badge>
                     {collectionPointsTotalTrend.hasZeroTrend ? (
                       <span className="font-medium text-xs text-gray-600">{collectionPointsTotalTrend.trend}</span>
@@ -856,10 +929,194 @@ export default function AnalyticsScreen() {
             </div>
           </div>
 
-          {/* Placeholder for charts */}
-          <div className="flex items-center justify-center h-64 rounded-lg border border-dashed border-gray-300 text-gray-400">
-            <BarChart3 className="h-8 w-8 mr-2" />
-            Charts coming soon…
+          {/* Statistical Charts Section */}
+          <div>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Statistical Analysis</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Delivery Status Distribution Pie Chart */}
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold text-gray-900">Delivery Status Distribution</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: "Completed", value: stats.completedDeliveries, fill: "#10b981" },
+                          { name: "In Transit", value: stats.inTransitDeliveries, fill: "#3b82f6" },
+                          { name: "Pending", value: stats.pendingDeliveries, fill: "#f59e0b" },
+                          { name: "Failed", value: stats.failedDeliveries, fill: "#ef4444" },
+                        ].filter(item => item.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        <Cell fill="#10b981" />
+                        <Cell fill="#3b82f6" />
+                        <Cell fill="#f59e0b" />
+                        <Cell fill="#ef4444" />
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Collection Points by Type Pie Chart */}
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold text-gray-900">Collection Points by Type</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: "Warehouses", value: stats.collectionPointsByType.warehouse, fill: "#6366f1" },
+                          { name: "Depots", value: stats.collectionPointsByType.depot, fill: "#06b6d4" },
+                          { name: "Hubs", value: stats.collectionPointsByType.hub, fill: "#8b5cf6" },
+                          { name: "Pickup Points", value: stats.collectionPointsByType.pickup_point, fill: "#ec4899" },
+                        ].filter(item => item.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        <Cell fill="#6366f1" />
+                        <Cell fill="#06b6d4" />
+                        <Cell fill="#8b5cf6" />
+                        <Cell fill="#ec4899" />
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Collection Points Status Pie Chart */}
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold text-gray-900">Collection Points Status</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: "Active", value: stats.activeCollectionPoints, fill: "#10b981" },
+                          { name: "Inactive", value: stats.inactiveCollectionPoints, fill: "#9ca3af" },
+                          { name: "Maintenance", value: stats.maintenanceCollectionPoints, fill: "#f59e0b" },
+                        ].filter(item => item.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        <Cell fill="#10b981" />
+                        <Cell fill="#9ca3af" />
+                        <Cell fill="#f59e0b" />
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Driver Status Pie Chart */}
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold text-gray-900">Driver Status</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: "Active", value: stats.activeDrivers, fill: "#10b981" },
+                          { name: "Inactive", value: stats.totalDrivers - stats.activeDrivers, fill: "#9ca3af" },
+                        ].filter(item => item.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        <Cell fill="#10b981" />
+                        <Cell fill="#9ca3af" />
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Route Status Pie Chart */}
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold text-gray-900">Route Status</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: "Active", value: stats.activeRoutes, fill: "#10b981" },
+                          { name: "Pending", value: Math.max(stats.totalRoutes - stats.activeRoutes - stats.completedDeliveries, 0), fill: "#f59e0b" },
+                          { name: "Completed", value: stats.completedDeliveries, fill: "#3b82f6" },
+                        ].filter(item => item.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        <Cell fill="#10b981" />
+                        <Cell fill="#f59e0b" />
+                        <Cell fill="#10b981" />
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+
+              {/* Total Value Bar Chart - Monthly */}
+              <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow lg:col-span-2">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold text-gray-900">Total Delivery Value by Month - {new Date().getFullYear()}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={periodValues.monthlyValues.length > 0 ? periodValues.monthlyValues : [{ month: 'No data', value: 0 }]} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                      <XAxis dataKey="month" stroke="#6b7280" />
+                      <YAxis stroke="#6b7280" />
+                      <Tooltip 
+                        contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }}
+                        cursor={{ fill: "rgba(0, 0, 0, 0.05)" }}
+                        formatter={(value) => `KSh ${(value / 1000).toFixed(0)}K`}
+                      />
+                      <Bar dataKey="value" fill="#06b6d4" radius={[8, 8, 0, 0]} name="Total Value" label={{ position: 'top', formatter: (value) => `KSh ${(value / 1000).toFixed(0)}K`, fill: '#374151' }} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </>
       )}
