@@ -54,15 +54,18 @@ export default function AnalyticsScreen() {
   const [error, setError] = useState<string | null>(null)
   const [isDateDialogOpen, setIsDateDialogOpen] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
   
   // Date range state - default to today vs yesterday
+  const formatAsLocalDate = (date: Date) => date.toLocaleDateString("en-CA")
+
   const getYesterdayDate = () => {
     const date = new Date()
     date.setDate(date.getDate() - 1)
-    return date.toISOString().split("T")[0]
+    return formatAsLocalDate(date)
   }
   
-  const getTodayDate = () => new Date().toISOString().split("T")[0]
+  const getTodayDate = () => formatAsLocalDate(new Date())
 
   const [compareStartDate, setCompareStartDate] = useState("")
   const [compareEndDate, setCompareEndDate] = useState("")
@@ -116,48 +119,54 @@ export default function AnalyticsScreen() {
   })
 
   const fetchAnalyticsData = async () => {
+    if (!compareStartDate || !compareEndDate) {
+      return
+    }
+
+    if (new Date(compareStartDate) > new Date(compareEndDate)) {
+      setValidationError("Start date cannot be after end date.")
+      return
+    }
+
     try {
       setIsLoading(true)
       setError(null)
+      setValidationError(null)
 
       // Fetch deliveries data
       const deliveriesData = await DeliveryService.getAllDeliveries()
-      const deliveryStats = await DeliveryService.getDeliveryStats()
 
       // Fetch drivers data
       const driversData = await DriverService.getAllDrivers()
-      const driverStats = await DriverService.getDriverStats()
 
       // Fetch routes data
       const routesData = await RouteService.getAllRoutes()
-      const activeRoutes = routesData.filter((r) => r.status === "active")
 
       // Fetch collection points data
-      const collectionPointsStats = await CollectionPointService.getCollectionPointStats()
       const collectionPointsData = await CollectionPointService.getAllCollectionPoints()
 
-      // Calculate metrics for current period
-      const completedCount = deliveriesData.filter((d) => d.status === "completed").length
-      const inTransitCount = deliveriesData.filter((d) => d.status === "in-progress").length
-      const pendingCount = deliveriesData.filter((d) => d.status === "pending").length
-      const failedCount = deliveriesData.filter((d) => d.status === "failed").length
-      const activeDriverCount = driverStats.active
+      const startOfDayMs = (date: string) => new Date(`${date}T00:00:00Z`).getTime()
+      const endOfDayMs = (date: string) => new Date(`${date}T23:59:59Z`).getTime()
+      const isWithinRange = (timestamp: string | null, start: string, end: string) => {
+        if (!timestamp) return false
+        const created = new Date(timestamp).getTime()
+        return created >= startOfDayMs(start) && created <= endOfDayMs(end)
+      }
+
+      const getCollectionPointTimestamp = (cp: any) => cp?.created_at ?? cp?.createdAt ?? null
 
       // Get deliveries for a specific date
       const getDeliveriesForDate = (date: string) => {
-        return deliveriesData.filter(
-          (d) => d.created_at && d.created_at.startsWith(date)
-        )
+        return deliveriesData.filter((d) => isWithinRange(d.created_at, date, date))
       }
 
       // Get deliveries for a date range (inclusive)
       const getDeliveriesForDateRange = (startDate: string, endDate: string) => {
-        return deliveriesData.filter(
-          (d) =>
-            d.created_at &&
-            d.created_at >= `${startDate}T00:00:00` &&
-            d.created_at <= `${endDate}T23:59:59`
-        )
+        return deliveriesData.filter((d) => isWithinRange(d.created_at, startDate, endDate))
+      }
+
+      const getRoutesForDateRange = (startDate: string, endDate: string) => {
+        return routesData.filter((route) => isWithinRange(route.created_at, startDate, endDate))
       }
 
       // Determine if we're comparing specific dates or a range
@@ -214,24 +223,19 @@ export default function AnalyticsScreen() {
 
       const deliveryTimeTrend = calculateTrend(secondPeriodDeliveries.length, firstPeriodDeliveries.length)
 
-      const firstPeriodAvgRoute = routesData.length > 0 ? Math.round(firstPeriodDeliveries.length / routesData.length) : 0
-      const secondPeriodAvgRoute = routesData.length > 0 ? Math.round(secondPeriodDeliveries.length / routesData.length) : 0
+      const routesInRange = getRoutesForDateRange(compareStartDate, compareEndDate)
+
+      const firstPeriodAvgRoute = routesInRange.length > 0 ? Math.round(firstPeriodDeliveries.length / routesInRange.length) : 0
+      const secondPeriodAvgRoute = routesInRange.length > 0 ? Math.round(secondPeriodDeliveries.length / routesInRange.length) : 0
       const routeTrend = calculateTrend(secondPeriodAvgRoute, firstPeriodAvgRoute)
 
       // Calculate drivers trend based on date periods
       const getDriversForDate = (date: string) => {
-        return driversData.filter(
-          (d) => d.created_at && d.created_at.startsWith(date)
-        )
+        return driversData.filter((d) => isWithinRange(d.created_at, date, date))
       }
 
       const getDriversForDateRange = (startDate: string, endDate: string) => {
-        return driversData.filter(
-          (d) =>
-            d.created_at &&
-            d.created_at >= `${startDate}T00:00:00` &&
-            d.created_at <= `${endDate}T23:59:59`
-        )
+        return driversData.filter((d) => isWithinRange(d.created_at, startDate, endDate))
       }
 
       let firstPeriodDrivers: any[] = []
@@ -253,6 +257,8 @@ export default function AnalyticsScreen() {
         )
       }
 
+      const driversInRange = getDriversForDateRange(compareStartDate, compareEndDate)
+
       const firstPeriodActiveDrivers = firstPeriodDrivers.filter((d) => d.status === "active").length
       const secondPeriodActiveDrivers = secondPeriodDrivers.filter((d) => d.status === "active").length
       const driversTrend = calculateTrend(secondPeriodActiveDrivers, firstPeriodActiveDrivers)
@@ -260,11 +266,10 @@ export default function AnalyticsScreen() {
       // Calculate collection points trend based on date periods
       // For total collection points, we count all points that were created by the end of each period
       const getCollectionPointsCreatedByDate = (beforeDate: string) => {
-        return collectionPointsData.filter(
-          (cp) =>
-            cp.created_at &&
-            cp.created_at <= `${beforeDate}T23:59:59`
-        )
+        return collectionPointsData.filter((cp) => {
+          const createdAt = getCollectionPointTimestamp(cp)
+          return isWithinRange(createdAt, "1970-01-01", beforeDate)
+        })
       }
 
       const firstPeriodEndDate = isComparingConsecutiveDays 
@@ -283,18 +288,17 @@ export default function AnalyticsScreen() {
       
       // For active collection points specifically, we count only those created in each period
       const getCollectionPointsForDate = (date: string) => {
-        return collectionPointsData.filter(
-          (cp) => cp.created_at && cp.created_at.startsWith(date)
-        )
+        return collectionPointsData.filter((cp) => {
+          const createdAt = getCollectionPointTimestamp(cp)
+          return isWithinRange(createdAt, date, date)
+        })
       }
 
       const getCollectionPointsForDateRange = (startDate: string, endDate: string) => {
-        return collectionPointsData.filter(
-          (cp) =>
-            cp.created_at &&
-            cp.created_at >= `${startDate}T00:00:00` &&
-            cp.created_at <= `${endDate}T23:59:59`
-        )
+        return collectionPointsData.filter((cp) => {
+          const createdAt = getCollectionPointTimestamp(cp)
+          return isWithinRange(createdAt, startDate, endDate)
+        })
       }
 
       let firstPeriodCollectionPoints: any[] = []
@@ -316,6 +320,8 @@ export default function AnalyticsScreen() {
         )
       }
 
+      const collectionPointsInRange = getCollectionPointsForDateRange(compareStartDate, compareEndDate)
+
       const firstPeriodActiveCollectionPoints = firstPeriodCollectionPoints.filter((cp) => cp.status === "active").length
       const secondPeriodActiveCollectionPoints = secondPeriodCollectionPoints.filter((cp) => cp.status === "active").length
       const collectionPointsTrend = calculateTrend(secondPeriodActiveCollectionPoints, firstPeriodActiveCollectionPoints)
@@ -324,28 +330,22 @@ export default function AnalyticsScreen() {
       const collectionPointsTotalTrendData = calculateTrend(secondPeriodCollectionPointsTotal.length, firstPeriodCollectionPointsTotal.length)
       setCollectionPointsTotalTrend(collectionPointsTotalTrendData)
 
-      // Use overall active collection points for the KPI trend (not period-based)
-      const collectionPointsActiveTrend = {
-        trend: collectionPointsTotalTrendData.trend,
-        isPositive: collectionPointsTotalTrendData.isPositive,
-        hasZeroTrend: collectionPointsTotalTrendData.hasZeroTrend,
-      }
-
       // Calculate total value for each period from deliveries
       const getDeliveryValueForDeliveries = (deliveries: any[]) => {
         return deliveries.reduce((sum, d) => {
-          const amount = typeof d.estimated_value === 'string' ? parseFloat(d.estimated_value) || 0 : (typeof d.estimated_value === 'number' ? d.estimated_value : 0)
+          const amount = typeof d.estimated_value === "string" ? parseFloat(d.estimated_value) || 0 : (typeof d.estimated_value === "number" ? d.estimated_value : 0)
           return sum + amount
         }, 0)
       }
 
-      // Calculate monthly values for all deliveries
+      // Calculate monthly values for deliveries within the selected range
       const monthlyValueMap: { [key: string]: number } = {}
-      deliveriesData.forEach((delivery) => {
+      const periodDeliveries = getDeliveriesForDateRange(compareStartDate, compareEndDate)
+      periodDeliveries.forEach((delivery) => {
         if (delivery.created_at) {
           const date = new Date(delivery.created_at)
-          const monthKey = date.toLocaleString('default', { month: 'short', year: 'numeric' })
-          const amount = typeof delivery.estimated_value === 'string' ? parseFloat(delivery.estimated_value) || 0 : (typeof delivery.estimated_value === 'number' ? delivery.estimated_value : 0)
+          const monthKey = date.toLocaleString("default", { month: "short", year: "numeric" })
+          const amount = typeof delivery.estimated_value === "string" ? parseFloat(delivery.estimated_value) || 0 : (typeof delivery.estimated_value === "number" ? delivery.estimated_value : 0)
           monthlyValueMap[monthKey] = (monthlyValueMap[monthKey] || 0) + amount
         }
       })
@@ -355,7 +355,7 @@ export default function AnalyticsScreen() {
       const allMonths = []
       for (let month = 0; month < 12; month++) {
         const date = new Date(currentYear, month, 1)
-        const monthKey = date.toLocaleString('default', { month: 'short' })
+        const monthKey = date.toLocaleString("default", { month: "short" })
         allMonths.push({
           month: monthKey,
           value: monthlyValueMap[`${monthKey} ${currentYear}`] || 0,
@@ -372,45 +372,68 @@ export default function AnalyticsScreen() {
         monthlyValues,
       })
 
+      const completedCount = periodDeliveries.filter((d) => d.status === "completed").length
+      const inTransitCount = periodDeliveries.filter((d) => d.status === "in-progress").length
+      const pendingCount = periodDeliveries.filter((d) => d.status === "pending").length
+      const failedCount = periodDeliveries.filter((d) => d.status === "failed").length
+
       // Calculate average delivery time in minutes from completed deliveries
       let avgDeliveryTime = "N/A"
-      const completedDeliveries = deliveriesData.filter((d) => d.status === "completed")
-      if (completedDeliveries.length > 0) {
+      if (completedCount > 0) {
         // Since we don't have completed_at timestamp, show number of completed deliveries as estimate
-        avgDeliveryTime = `${completedDeliveries.length} deliveries`
+        avgDeliveryTime = `${completedCount} deliveries`
       }
 
-      // Calculate on-time rate 
-      const onTimeRate = deliveriesData.length > 0 
-        ? Math.round((completedCount / deliveriesData.length) * 100)
+      // Calculate average route length within the range
+      const avgRouteLength = routesInRange.length > 0
+        ? Math.round(periodDeliveries.length / routesInRange.length)
         : 0
 
-      // Calculate total deliveries for the selected period
-      const periodDeliveries = getDeliveriesForDateRange(compareStartDate, compareEndDate).length
+      const deliveryValueForRange = getDeliveryValueForDeliveries(periodDeliveries)
+      const driversInRangeActive = driversInRange.filter((d) => d.status === "active")
+      const routesInRangeActive = routesInRange.filter((r) => r.status === "active")
 
-      // Calculate average route length 
-      const avgRouteLength = routesData.length > 0
-        ? Math.round(deliveriesData.length / routesData.length)
-        : 0
+      const collectionPointsByType = {
+        warehouse: 0,
+        depot: 0,
+        hub: 0,
+        pickup_point: 0,
+      }
+
+      const collectionPointsStatusCounts = {
+        active: 0,
+        inactive: 0,
+        maintenance: 0,
+      }
+
+      let totalVehiclesAtPoints = 0
+
+      collectionPointsInRange.forEach((cp) => {
+        const typeKey = cp.type as keyof typeof collectionPointsByType
+        const statusKey = cp.status as keyof typeof collectionPointsStatusCounts
+        collectionPointsByType[typeKey] += 1
+        collectionPointsStatusCounts[statusKey] += 1
+        totalVehiclesAtPoints += cp.assignmentVehicles || 0
+      })
 
       // Update stats state
       setStats({
-        totalDeliveries: deliveriesData.length,
+        totalDeliveries: periodDeliveries.length,
         completedDeliveries: completedCount,
         inTransitDeliveries: inTransitCount,
         pendingDeliveries: pendingCount,
         failedDeliveries: failedCount,
-        totalValue: deliveryStats.totalValue,
-        activeDrivers: activeDriverCount,
-        totalDrivers: driverStats.total,
-        totalRoutes: routesData.length,
-        activeRoutes: activeRoutes.length,
-        totalCollectionPoints: collectionPointsStats.total,
-        activeCollectionPoints: collectionPointsStats.active,
-        inactiveCollectionPoints: collectionPointsStats.inactive,
-        maintenanceCollectionPoints: collectionPointsStats.maintenance,
-        collectionPointsByType: collectionPointsStats.byType,
-        totalVehiclesAtPoints: collectionPointsStats.totalVehicles,
+        totalValue: deliveryValueForRange,
+        activeDrivers: driversInRangeActive.length,
+        totalDrivers: driversInRange.length,
+        totalRoutes: routesInRange.length,
+        activeRoutes: routesInRangeActive.length,
+        totalCollectionPoints: collectionPointsInRange.length,
+        activeCollectionPoints: collectionPointsStatusCounts.active,
+        inactiveCollectionPoints: collectionPointsStatusCounts.inactive,
+        maintenanceCollectionPoints: collectionPointsStatusCounts.maintenance,
+        collectionPointsByType,
+        totalVehiclesAtPoints,
         secondPeriodCollectionPointsLength: secondPeriodCollectionPointsTotal.length,
         secondPeriodActiveCollectionPoints: secondPeriodActiveCollectionPoints,
         secondPeriodActiveDrivers: secondPeriodActiveDrivers,
@@ -436,7 +459,7 @@ export default function AnalyticsScreen() {
         },
         {
           label: "Period Deliveries",
-          value: secondPeriodDeliveries.length.toString(),
+          value: periodDeliveries.length.toString(),
           icon: Package,
           trend: deliveryTimeTrend.trend,
           trendIsPositive: deliveryTimeTrend.isPositive,
@@ -478,9 +501,18 @@ export default function AnalyticsScreen() {
   }
 
   useEffect(() => {
-    if (isInitialized && compareStartDate && compareEndDate) {
-      fetchAnalyticsData()
+    if (!isInitialized || !compareStartDate || !compareEndDate) {
+      return
     }
+
+    if (new Date(compareStartDate) > new Date(compareEndDate)) {
+      setValidationError("Start date cannot be after end date.")
+      setIsLoading(false)
+      return
+    }
+
+    setValidationError(null)
+    fetchAnalyticsData()
   }, [compareStartDate, compareEndDate, isInitialized])
 
   return (
@@ -564,7 +596,7 @@ export default function AnalyticsScreen() {
               </Dialog>
               <Button
                 onClick={fetchAnalyticsData}
-                disabled={isLoading}
+                disabled={isLoading || Boolean(validationError)}
                 variant="outline"
                 className="text-sm"
               >
@@ -574,6 +606,14 @@ export default function AnalyticsScreen() {
           )}
         </div>
       </div>
+
+      {/* Validation State */}
+      {validationError && (
+        <div className="flex items-center gap-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <AlertCircle className="h-5 w-5 text-yellow-700" />
+          <p className="text-sm text-yellow-700">{validationError}</p>
+        </div>
+      )}
 
       {/* Error State */}
       {error && (
@@ -672,7 +712,7 @@ export default function AnalyticsScreen() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="text-sm text-gray-500 mb-1">Avg. Delivery Time</p>
-                      <p className="text-2xl font-bold text-gray-900">32 min</p>
+                      <p className="text-2xl font-bold text-gray-900">{kpis[0]?.value}</p>
                     </div>
                     <Timer className="h-6 w-6 text-orange-600" />
                   </div>
@@ -951,7 +991,7 @@ export default function AnalyticsScreen() {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         outerRadius={80}
                         fill="#8884d8"
                         dataKey="value"
@@ -985,7 +1025,7 @@ export default function AnalyticsScreen() {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         outerRadius={80}
                         fill="#8884d8"
                         dataKey="value"
@@ -1018,7 +1058,7 @@ export default function AnalyticsScreen() {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         outerRadius={80}
                         fill="#8884d8"
                         dataKey="value"
@@ -1049,7 +1089,7 @@ export default function AnalyticsScreen() {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         outerRadius={80}
                         fill="#8884d8"
                         dataKey="value"
@@ -1080,7 +1120,7 @@ export default function AnalyticsScreen() {
                         cx="50%"
                         cy="50%"
                         labelLine={false}
-                        label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                        label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                         outerRadius={80}
                         fill="#8884d8"
                         dataKey="value"
@@ -1109,9 +1149,25 @@ export default function AnalyticsScreen() {
                       <Tooltip 
                         contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }}
                         cursor={{ fill: "rgba(0, 0, 0, 0.05)" }}
-                        formatter={(value) => `KSh ${(value / 1000).toFixed(0)}K`}
+                        formatter={(value) => {
+                          const numericValue = Number(value) || 0
+                          return `KSh ${(numericValue / 1000).toFixed(0)}K`
+                        }}
                       />
-                      <Bar dataKey="value" fill="#06b6d4" radius={[8, 8, 0, 0]} name="Total Value" label={{ position: 'top', formatter: (value) => `KSh ${(value / 1000).toFixed(0)}K`, fill: '#374151' }} />
+                      <Bar
+                        dataKey="value"
+                        fill="#06b6d4"
+                        radius={[8, 8, 0, 0]}
+                        name="Total Value"
+                        label={{
+                          position: "top",
+                          formatter: (value) => {
+                            const numericValue = Number(value) || 0
+                            return `KSh ${(numericValue / 1000).toFixed(0)}K`
+                          },
+                          fill: "#374151",
+                        }}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </CardContent>
