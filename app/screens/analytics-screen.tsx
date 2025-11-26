@@ -73,8 +73,10 @@ export default function AnalyticsScreen() {
   // Initialize dates on client side only
   useEffect(() => {
     if (!isInitialized) {
-      setCompareStartDate(getYesterdayDate())
-      setCompareEndDate(getTodayDate())
+      // Default to today only
+      const today = getTodayDate()
+      setCompareStartDate(today)
+      setCompareEndDate(today)
       setIsInitialized(true)
     }
   }, [isInitialized])
@@ -145,8 +147,8 @@ export default function AnalyticsScreen() {
       // Fetch collection points data
       const collectionPointsData = await CollectionPointService.getAllCollectionPoints()
 
-      const startOfDayMs = (date: string) => new Date(`${date}T00:00:00Z`).getTime()
-      const endOfDayMs = (date: string) => new Date(`${date}T23:59:59Z`).getTime()
+      const startOfDayMs = (date: string) => new Date(`${date}T00:00:00`).getTime()
+      const endOfDayMs = (date: string) => new Date(`${date}T23:59:59.999`).getTime()
       const isWithinRange = (timestamp: string | null, start: string, end: string) => {
         if (!timestamp) return false
         const created = new Date(timestamp).getTime()
@@ -169,9 +171,28 @@ export default function AnalyticsScreen() {
         return routesData.filter((route) => isWithinRange(route.created_at, startDate, endDate))
       }
 
+      const getCollectionPointsForDateRange = (startDate: string, endDate: string) => {
+        return collectionPointsData.filter((cp) => {
+          const createdAt = getCollectionPointTimestamp(cp)
+          return isWithinRange(createdAt, startDate, endDate)
+        })
+      }
+
       // Determine if we're comparing specific dates or a range
-      const isComparingConsecutiveDays = 
-        new Date(compareEndDate).getTime() - new Date(compareStartDate).getTime() === 24 * 60 * 60 * 1000
+      const getDayDiff = (start: string, end: string) => {
+        const startDate = new Date(`${start}T00:00:00`)
+        const endDate = new Date(`${end}T00:00:00`)
+        const diffMs = endDate.getTime() - startDate.getTime()
+        return Math.round(diffMs / (24 * 60 * 60 * 1000))
+      }
+
+      const isComparingConsecutiveDays = getDayDiff(compareStartDate, compareEndDate) === 1
+
+      const hasRange = Boolean(compareStartDate && compareEndDate)
+      const isTodayOnly =
+        hasRange &&
+        compareStartDate === compareEndDate &&
+        compareStartDate === getTodayDate()
 
       let firstPeriodDeliveries: any[] = []
       let secondPeriodDeliveries: any[] = []
@@ -223,7 +244,9 @@ export default function AnalyticsScreen() {
 
       const deliveryTimeTrend = calculateTrend(secondPeriodDeliveries.length, firstPeriodDeliveries.length)
 
-      const routesInRange = getRoutesForDateRange(compareStartDate, compareEndDate)
+      const routesInRange = hasRange && !isTodayOnly
+        ? getRoutesForDateRange(compareStartDate, compareEndDate)
+        : routesData
 
       const firstPeriodAvgRoute = routesInRange.length > 0 ? Math.round(firstPeriodDeliveries.length / routesInRange.length) : 0
       const secondPeriodAvgRoute = routesInRange.length > 0 ? Math.round(secondPeriodDeliveries.length / routesInRange.length) : 0
@@ -257,7 +280,9 @@ export default function AnalyticsScreen() {
         )
       }
 
-      const driversInRange = getDriversForDateRange(compareStartDate, compareEndDate)
+      const driversInRange = hasRange && !isTodayOnly
+        ? getDriversForDateRange(compareStartDate, compareEndDate)
+        : driversData
 
       const firstPeriodActiveDrivers = firstPeriodDrivers.filter((d) => d.status === "active").length
       const secondPeriodActiveDrivers = secondPeriodDrivers.filter((d) => d.status === "active").length
@@ -294,13 +319,6 @@ export default function AnalyticsScreen() {
         })
       }
 
-      const getCollectionPointsForDateRange = (startDate: string, endDate: string) => {
-        return collectionPointsData.filter((cp) => {
-          const createdAt = getCollectionPointTimestamp(cp)
-          return isWithinRange(createdAt, startDate, endDate)
-        })
-      }
-
       let firstPeriodCollectionPoints: any[] = []
       let secondPeriodCollectionPoints: any[] = []
 
@@ -320,7 +338,9 @@ export default function AnalyticsScreen() {
         )
       }
 
-      const collectionPointsInRange = getCollectionPointsForDateRange(compareStartDate, compareEndDate)
+      const collectionPointsInRange = hasRange && !isTodayOnly
+        ? getCollectionPointsForDateRange(compareStartDate, compareEndDate)
+        : collectionPointsData
 
       const firstPeriodActiveCollectionPoints = firstPeriodCollectionPoints.filter((cp) => cp.status === "active").length
       const secondPeriodActiveCollectionPoints = secondPeriodCollectionPoints.filter((cp) => cp.status === "active").length
@@ -338,31 +358,36 @@ export default function AnalyticsScreen() {
         }, 0)
       }
 
-      // Calculate monthly values for deliveries within the selected range
+      // Deliveries in the selected comparison range (or all if it's "today" only / no range)
+      const periodDeliveries = hasRange && !isTodayOnly
+        ? getDeliveriesForDateRange(compareStartDate, compareEndDate)
+        : deliveriesData
+
+      // Calculate monthly values for deliveries within the effective range
       const monthlyValueMap: { [key: string]: number } = {}
-      const periodDeliveries = getDeliveriesForDateRange(compareStartDate, compareEndDate)
       periodDeliveries.forEach((delivery) => {
         if (delivery.created_at) {
           const date = new Date(delivery.created_at)
-          const monthKey = date.toLocaleString("default", { month: "short", year: "numeric" })
-          const amount = typeof delivery.estimated_value === "string" ? parseFloat(delivery.estimated_value) || 0 : (typeof delivery.estimated_value === "number" ? delivery.estimated_value : 0)
-          monthlyValueMap[monthKey] = (monthlyValueMap[monthKey] || 0) + amount
+          const monthLabel = date.toLocaleString("default", { month: "short" })
+          const year = date.getFullYear()
+          const key = `${monthLabel} ${year}`
+          const amount =
+            typeof delivery.estimated_value === "string"
+              ? parseFloat(delivery.estimated_value) || 0
+              : typeof delivery.estimated_value === "number"
+              ? delivery.estimated_value
+              : 0
+          monthlyValueMap[key] = (monthlyValueMap[key] || 0) + amount
         }
       })
 
-      // Generate all 12 months of the current year
-      const currentYear = new Date().getFullYear()
-      const allMonths = []
-      for (let month = 0; month < 12; month++) {
-        const date = new Date(currentYear, month, 1)
-        const monthKey = date.toLocaleString("default", { month: "short" })
-        allMonths.push({
-          month: monthKey,
-          value: monthlyValueMap[`${monthKey} ${currentYear}`] || 0,
+      // Only include months that actually have value; chart falls back to "No data" when empty
+      const monthlyValues = Object.entries(monthlyValueMap)
+        .filter(([, value]) => value > 0)
+        .map(([key, value]) => {
+          const [month] = key.split(" ")
+          return { month, value }
         })
-      }
-
-      const monthlyValues = allMonths
 
       const firstPeriodValue = getDeliveryValueForDeliveries(firstPeriodDeliveries)
       const secondPeriodValue = getDeliveryValueForDeliveries(secondPeriodDeliveries)
@@ -372,19 +397,16 @@ export default function AnalyticsScreen() {
         monthlyValues,
       })
 
-      const completedCount = periodDeliveries.filter((d) => d.status === "completed").length
-      const inTransitCount = periodDeliveries.filter((d) => d.status === "in-progress").length
-      const pendingCount = periodDeliveries.filter((d) => d.status === "pending").length
-      const failedCount = periodDeliveries.filter((d) => d.status === "failed").length
+      const completedCountPeriod = periodDeliveries.filter((d) => d.status === "completed").length
 
-      // Calculate average delivery time in minutes from completed deliveries
+      // Calculate average delivery time estimate for the comparison period
       let avgDeliveryTime = "N/A"
-      if (completedCount > 0) {
+      if (completedCountPeriod > 0) {
         // Since we don't have completed_at timestamp, show number of completed deliveries as estimate
-        avgDeliveryTime = `${completedCount} deliveries`
+        avgDeliveryTime = `${completedCountPeriod} deliveries`
       }
 
-      // Calculate average route length within the range
+      // Calculate average route length within the comparison range
       const avgRouteLength = routesInRange.length > 0
         ? Math.round(periodDeliveries.length / routesInRange.length)
         : 0
@@ -393,28 +415,34 @@ export default function AnalyticsScreen() {
       const driversInRangeActive = driversInRange.filter((d) => d.status === "active")
       const routesInRangeActive = routesInRange.filter((r) => r.status === "active")
 
+      // Stats based on the effective range (full DB when no date selected, or filtered by created_at when range is set)
+      const completedCount = periodDeliveries.filter((d) => d.status === "completed").length
+      const inTransitCount = periodDeliveries.filter((d) => d.status === "in-progress").length
+      const pendingCount = periodDeliveries.filter((d) => d.status === "pending").length
+      const failedCount = periodDeliveries.filter((d) => d.status === "failed").length
+      const totalValue = getDeliveryValueForDeliveries(periodDeliveries)
+
+      const activeDrivers = driversInRangeActive.length
+      const totalDrivers = driversInRange.length
+
+      const totalRoutes = routesInRange.length
+      const activeRoutes = routesInRangeActive.length
+
       const collectionPointsByType = {
-        warehouse: 0,
-        depot: 0,
-        hub: 0,
-        pickup_point: 0,
+        warehouse: collectionPointsInRange.filter((cp) => cp.type === "warehouse").length,
+        depot: collectionPointsInRange.filter((cp) => cp.type === "depot").length,
+        hub: collectionPointsInRange.filter((cp) => cp.type === "hub").length,
+        pickup_point: collectionPointsInRange.filter((cp) => cp.type === "pickup_point").length,
       }
 
-      const collectionPointsStatusCounts = {
-        active: 0,
-        inactive: 0,
-        maintenance: 0,
-      }
+      const activeCollectionPoints = collectionPointsInRange.filter((cp) => cp.status === "active").length
+      const inactiveCollectionPoints = collectionPointsInRange.filter((cp) => cp.status === "inactive").length
+      const maintenanceCollectionPoints = collectionPointsInRange.filter((cp) => cp.status === "maintenance").length
 
-      let totalVehiclesAtPoints = 0
-
-      collectionPointsInRange.forEach((cp) => {
-        const typeKey = cp.type as keyof typeof collectionPointsByType
-        const statusKey = cp.status as keyof typeof collectionPointsStatusCounts
-        collectionPointsByType[typeKey] += 1
-        collectionPointsStatusCounts[statusKey] += 1
-        totalVehiclesAtPoints += cp.assignmentVehicles || 0
-      })
+      const totalVehiclesAtPoints = collectionPointsInRange.reduce(
+        (sum, cp) => sum + (cp.assignmentVehicles || 0),
+        0
+      )
 
       // Update stats state
       setStats({
@@ -423,15 +451,15 @@ export default function AnalyticsScreen() {
         inTransitDeliveries: inTransitCount,
         pendingDeliveries: pendingCount,
         failedDeliveries: failedCount,
-        totalValue: deliveryValueForRange,
-        activeDrivers: driversInRangeActive.length,
-        totalDrivers: driversInRange.length,
-        totalRoutes: routesInRange.length,
-        activeRoutes: routesInRangeActive.length,
+        totalValue,
+        activeDrivers,
+        totalDrivers,
+        totalRoutes,
+        activeRoutes,
         totalCollectionPoints: collectionPointsInRange.length,
-        activeCollectionPoints: collectionPointsStatusCounts.active,
-        inactiveCollectionPoints: collectionPointsStatusCounts.inactive,
-        maintenanceCollectionPoints: collectionPointsStatusCounts.maintenance,
+        activeCollectionPoints,
+        inactiveCollectionPoints,
+        maintenanceCollectionPoints,
         collectionPointsByType,
         totalVehiclesAtPoints,
         secondPeriodCollectionPointsLength: secondPeriodCollectionPointsTotal.length,
@@ -565,24 +593,40 @@ export default function AnalyticsScreen() {
                       <Button
                         variant="outline"
                         onClick={() => {
-                          setCompareStartDate(getYesterdayDate())
-                          setCompareEndDate(getTodayDate())
+                          const today = getTodayDate()
+                          setCompareStartDate(today)
+                          setCompareEndDate(today)
                         }}
                         className="flex-1"
                       >
-                        Today vs Yesterday
+                        Today
                       </Button>
                       <Button
                         variant="outline"
                         onClick={() => {
                           const weekAgo = new Date()
-                          weekAgo.setDate(weekAgo.getDate() - 7)
-                          setCompareStartDate(weekAgo.toISOString().split("T")[0])
+                          weekAgo.setDate(weekAgo.getDate() - 6)
+                          setCompareStartDate(formatAsLocalDate(weekAgo))
                           setCompareEndDate(getTodayDate())
                         }}
                         className="flex-1"
                       >
                         Last 7 Days
+                      </Button>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          const today = new Date()
+                          const thirtyDaysAgo = new Date()
+                          thirtyDaysAgo.setDate(today.getDate() - 29)
+                          setCompareStartDate(formatAsLocalDate(thirtyDaysAgo))
+                          setCompareEndDate(getTodayDate())
+                        }}
+                        className="flex-1"
+                      >
+                        Last 30 Days
                       </Button>
                     </div>
                     <Button
@@ -689,7 +733,7 @@ export default function AnalyticsScreen() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="text-sm text-gray-500 mb-1">Total Value</p>
-                      <p className="text-2xl font-bold text-gray-900">KSh {(stats.totalValue / 1000).toFixed(0)}K</p>
+                      <p className="text-2xl font-bold text-gray-900">KSh {(stats.totalValue.toLocaleString())}</p>
                     </div>
                     <DollarSign className="h-6 w-6 text-green-600" />
                   </div>
@@ -1151,7 +1195,7 @@ export default function AnalyticsScreen() {
                         cursor={{ fill: "rgba(0, 0, 0, 0.05)" }}
                         formatter={(value) => {
                           const numericValue = Number(value) || 0
-                          return `KSh ${(numericValue / 1000).toFixed(0)}K`
+                          return `KSh ${(numericValue.toLocaleString())}`
                         }}
                       />
                       <Bar
@@ -1163,7 +1207,7 @@ export default function AnalyticsScreen() {
                           position: "top",
                           formatter: (value) => {
                             const numericValue = Number(value) || 0
-                            return `KSh ${(numericValue / 1000).toFixed(0)}K`
+                            return `KSh ${(numericValue.toLocaleString())}`
                           },
                           fill: "#374151",
                         }}
