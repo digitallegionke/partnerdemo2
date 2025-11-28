@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { BarChart3, TrendingUp, Timer, Package, Truck, MapPin, ArrowUpRight, AlertCircle, Warehouse, Calendar, DollarSign } from "lucide-react"
+import { TrendingUp, Timer, Package, Truck, MapPin, ArrowUpRight, AlertCircle, Warehouse, Calendar, DollarSign } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -644,7 +644,7 @@ export default function AnalyticsScreen() {
                 variant="outline"
                 className="text-sm"
               >
-                {isLoading ? "Refreshing..." : "Refresh Data"}
+                {isLoading ? "Refreshing..." : "Refresh"}
               </Button>
             </>
           )}
@@ -684,24 +684,28 @@ export default function AnalyticsScreen() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="text-sm text-gray-500 mb-1">Total Deliveries</p>
-                      <p className="text-2xl font-bold text-gray-900">{stats.totalDeliveries}</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.totalDeliveries || 0}</p>
                     </div>
                     <Package className="h-6 w-6 text-blue-600" />
                   </div>
-                  <div className="flex justify-between items-end">
-                    <div className="flex gap-2 text-xs">
-                      <span className="px-2 py-1 rounded bg-green-50 text-green-700">{stats.completedDeliveries} completed</span>
-                      <span className="px-2 py-1 rounded bg-blue-50 text-blue-700">{stats.inTransitDeliveries} in transit</span>
-                    </div>
-                    {kpis[0]?.hasZeroTrend ? (
-                      <span className="font-medium text-xs text-gray-600">{kpis[0]?.trend}</span>
-                    ) : (
-                      <div className={`flex items-center text-sm ${kpis[0]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[0]?.trendIsPositive ? "rotate-180" : ""}`} />
-                        <span className="font-medium text-xs">{kpis[0]?.trend}</span>
+                  {stats.totalDeliveries > 0 ? (
+                    <div className="flex justify-between items-end">
+                      <div className="flex gap-2 text-xs">
+                        <span className="px-2 py-1 rounded bg-green-50 text-green-700">{stats.completedDeliveries} completed</span>
+                        <span className="px-2 py-1 rounded bg-blue-50 text-blue-700">{stats.inTransitDeliveries} in transit</span>
                       </div>
-                    )}
-                  </div>
+                      {kpis[0]?.hasZeroTrend ? (
+                        <span className="font-medium text-xs text-gray-600">{kpis[0]?.trend}</span>
+                      ) : (
+                        <div className={`flex items-center text-sm ${kpis[0]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                          <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[0]?.trendIsPositive ? "rotate-180" : ""}`} />
+                          <span className="font-medium text-xs">{kpis[0]?.trend}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No data to show</p>
+                  )}
                 </CardContent>
               </Card>
 
@@ -714,17 +718,21 @@ export default function AnalyticsScreen() {
                     </div>
                     <TrendingUp className="h-6 w-6 text-green-600" />
                   </div>
-                  <div className="flex justify-between items-center">
-                    <p className="text-xs text-gray-500">Delivery success rate</p>
-                    {kpis[1]?.hasZeroTrend ? (
-                      <span className="font-medium text-xs text-gray-600">{kpis[1]?.trend}</span>
-                    ) : (
-                      <div className={`flex items-center text-sm ${kpis[1]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[1]?.trendIsPositive ? "rotate-180" : ""}`} />
-                        <span className="font-medium text-xs">{kpis[1]?.trend}</span>
-                      </div>
-                    )}
-                  </div>
+                  {stats.totalDeliveries > 0 ? (
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs text-gray-500">Delivery success rate</p>
+                      {kpis[1]?.hasZeroTrend ? (
+                        <span className="font-medium text-xs text-gray-600">{kpis[1]?.trend}</span>
+                      ) : (
+                        <div className={`flex items-center text-sm ${kpis[1]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                          <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[1]?.trendIsPositive ? "rotate-180" : ""}`} />
+                          <span className="font-medium text-xs">{kpis[1]?.trend}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No data to show</p>
+                  )}
                 </CardContent>
               </Card>
 
@@ -733,21 +741,25 @@ export default function AnalyticsScreen() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="text-sm text-gray-500 mb-1">Total Value</p>
-                      <p className="text-2xl font-bold text-gray-900">KSh {(stats.totalValue.toLocaleString())}</p>
+                      <p className="text-2xl font-bold text-gray-900">KSh {(stats.totalValue || 0).toLocaleString()}</p>
                     </div>
                     <DollarSign className="h-6 w-6 text-green-600" />
                   </div>
-                  <div className="flex justify-between items-center">
-                    <p className="text-xs text-gray-500">Total delivery value</p>
-                    {kpis[2]?.hasZeroTrend ? (
-                      <span className="font-medium text-xs text-gray-600">{kpis[2]?.trend}</span>
-                    ) : (
-                      <div className={`flex items-center text-sm ${kpis[2]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[2]?.trendIsPositive ? "rotate-180" : ""}`} />
-                        <span className="font-medium text-xs">{kpis[2]?.trend}</span>
-                      </div>
-                    )}
-                  </div>
+                  {stats.totalValue > 0 ? (
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs text-gray-500">Total delivery value</p>
+                      {kpis[2]?.hasZeroTrend ? (
+                        <span className="font-medium text-xs text-gray-600">{kpis[2]?.trend}</span>
+                      ) : (
+                        <div className={`flex items-center text-sm ${kpis[2]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                          <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[2]?.trendIsPositive ? "rotate-180" : ""}`} />
+                          <span className="font-medium text-xs">{kpis[2]?.trend}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No data to show</p>
+                  )}
                 </CardContent>
               </Card>
 
@@ -756,21 +768,25 @@ export default function AnalyticsScreen() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="text-sm text-gray-500 mb-1">Avg. Delivery Time</p>
-                      <p className="text-2xl font-bold text-gray-900">{kpis[0]?.value}</p>
+                      <p className="text-2xl font-bold text-gray-900">{kpis[0]?.value || "N/A"}</p>
                     </div>
                     <Timer className="h-6 w-6 text-orange-600" />
                   </div>
-                  <div className="flex justify-between items-center">
-                    <p className="text-xs text-gray-500">Average delivery duration</p>
-                    {kpis[0]?.hasZeroTrend ? (
-                      <span className="font-medium text-xs text-gray-600">{kpis[0]?.trend}</span>
-                    ) : (
-                      <div className={`flex items-center text-sm ${kpis[0]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[0]?.trendIsPositive ? "rotate-180" : ""}`} />
-                        <span className="font-medium text-xs">{kpis[0]?.trend}</span>
-                      </div>
-                    )}
-                  </div>
+                  {kpis[0]?.value && kpis[0]?.value !== "N/A" ? (
+                    <div className="flex justify-between items-center">
+                      <p className="text-xs text-gray-500">Average delivery duration</p>
+                      {kpis[0]?.hasZeroTrend ? (
+                        <span className="font-medium text-xs text-gray-600">{kpis[0]?.trend}</span>
+                      ) : (
+                        <div className={`flex items-center text-sm ${kpis[0]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                          <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[0]?.trendIsPositive ? "rotate-180" : ""}`} />
+                          <span className="font-medium text-xs">{kpis[0]?.trend}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No data to show</p>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -785,23 +801,27 @@ export default function AnalyticsScreen() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="text-sm text-gray-500 mb-1">Total Routes</p>
-                      <p className="text-2xl font-bold text-gray-900">{stats.totalRoutes}</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.totalRoutes || 0}</p>
                     </div>
                     <MapPin className="h-6 w-6 text-blue-600" />
                   </div>
-                  <div className="flex justify-between items-center">
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      {stats.activeRoutes} active
-                    </Badge>
-                    {kpis[4]?.hasZeroTrend ? (
-                      <span className="font-medium text-xs text-gray-600">{kpis[4]?.trend}</span>
-                    ) : (
-                      <div className={`flex items-center text-sm ${kpis[4]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[4]?.trendIsPositive ? "rotate-180" : ""}`} />
-                        <span className="font-medium text-xs">{kpis[4]?.trend}</span>
-                      </div>
-                    )}
-                  </div>
+                  {stats.totalRoutes > 0 ? (
+                    <div className="flex justify-between items-center">
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        {stats.activeRoutes} active
+                      </Badge>
+                      {kpis[4]?.hasZeroTrend ? (
+                        <span className="font-medium text-xs text-gray-600">{kpis[4]?.trend}</span>
+                      ) : (
+                        <div className={`flex items-center text-sm ${kpis[4]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                          <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[4]?.trendIsPositive ? "rotate-180" : ""}`} />
+                          <span className="font-medium text-xs">{kpis[4]?.trend}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No data to show</p>
+                  )}
                 </CardContent>
               </Card>
 
@@ -862,23 +882,27 @@ export default function AnalyticsScreen() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="text-sm text-gray-500 mb-1">Total Drivers</p>
-                      <p className="text-2xl font-bold text-gray-900">{stats.totalDrivers}</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.totalDrivers || 0}</p>
                     </div>
                     <Truck className="h-6 w-6 text-blue-600" />
                   </div>
-                  <div className="flex justify-between items-center">
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      {stats.activeDrivers} active
-                    </Badge>
-                    {kpis[3]?.hasZeroTrend ? (
-                      <span className="font-medium text-xs text-gray-600">{kpis[3]?.trend}</span>
-                    ) : (
-                      <div className={`flex items-center text-sm ${kpis[3]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[3]?.trendIsPositive ? "rotate-180" : ""}`} />
-                        <span className="font-medium text-xs">{kpis[3]?.trend}</span>
-                      </div>
-                    )}
-                  </div>
+                  {stats.totalDrivers > 0 ? (
+                    <div className="flex justify-between items-center">
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        {stats.activeDrivers} active
+                      </Badge>
+                      {kpis[3]?.hasZeroTrend ? (
+                        <span className="font-medium text-xs text-gray-600">{kpis[3]?.trend}</span>
+                      ) : (
+                        <div className={`flex items-center text-sm ${kpis[3]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
+                          <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[3]?.trendIsPositive ? "rotate-180" : ""}`} />
+                          <span className="font-medium text-xs">{kpis[3]?.trend}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No data to show</p>
+                  )}
                 </CardContent>
               </Card>
 
@@ -939,23 +963,27 @@ export default function AnalyticsScreen() {
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Points</p>
-                      <p className="text-2xl font-bold text-gray-900">{stats.totalCollectionPoints}</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.totalCollectionPoints || 0}</p>
                     </div>
                     <Warehouse className="h-6 w-6 text-blue-600" />
                   </div>
-                  <div className="flex justify-between items-center">
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      {stats.activeCollectionPoints} active
-                    </Badge>
-                    {collectionPointsTotalTrend.hasZeroTrend ? (
-                      <span className="font-medium text-xs text-gray-600">{collectionPointsTotalTrend.trend}</span>
-                    ) : (
-                      <div className={`flex items-center text-sm ${collectionPointsTotalTrend.isPositive ? "text-green-600" : "text-red-600"}`}>
-                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!collectionPointsTotalTrend.isPositive ? "rotate-180" : ""}`} />
-                        <span className="font-medium text-xs">{collectionPointsTotalTrend.trend}</span>
-                      </div>
-                    )}
-                  </div>
+                  {stats.totalCollectionPoints > 0 ? (
+                    <div className="flex justify-between items-center">
+                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                        {stats.activeCollectionPoints} active
+                      </Badge>
+                      {collectionPointsTotalTrend.hasZeroTrend ? (
+                        <span className="font-medium text-xs text-gray-600">{collectionPointsTotalTrend.trend}</span>
+                      ) : (
+                        <div className={`flex items-center text-sm ${collectionPointsTotalTrend.isPositive ? "text-green-600" : "text-red-600"}`}>
+                          <ArrowUpRight className={`h-4 w-4 mr-1 ${!collectionPointsTotalTrend.isPositive ? "rotate-180" : ""}`} />
+                          <span className="font-medium text-xs">{collectionPointsTotalTrend.trend}</span>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 italic">No data to show</p>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1023,31 +1051,37 @@ export default function AnalyticsScreen() {
                   <CardTitle className="text-base font-semibold text-gray-900">Delivery Status Distribution</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={[
-                          { name: "Completed", value: stats.completedDeliveries, fill: "#10b981" },
-                          { name: "In Transit", value: stats.inTransitDeliveries, fill: "#3b82f6" },
-                          { name: "Pending", value: stats.pendingDeliveries, fill: "#f59e0b" },
-                          { name: "Failed", value: stats.failedDeliveries, fill: "#ef4444" },
-                        ].filter(item => item.value > 0)}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        <Cell fill="#10b981" />
-                        <Cell fill="#3b82f6" />
-                        <Cell fill="#f59e0b" />
-                        <Cell fill="#ef4444" />
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {stats.totalDeliveries > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: "Completed", value: stats.completedDeliveries, fill: "#10b981" },
+                            { name: "In Transit", value: stats.inTransitDeliveries, fill: "#3b82f6" },
+                            { name: "Pending", value: stats.pendingDeliveries, fill: "#f59e0b" },
+                            { name: "Failed", value: stats.failedDeliveries, fill: "#ef4444" },
+                          ].filter(item => item.value > 0)}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          <Cell fill="#10b981" />
+                          <Cell fill="#3b82f6" />
+                          <Cell fill="#f59e0b" />
+                          <Cell fill="#ef4444" />
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-[300px]">
+                      <p className="text-gray-400 italic">No data to show</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1057,31 +1091,37 @@ export default function AnalyticsScreen() {
                   <CardTitle className="text-base font-semibold text-gray-900">Collection Points by Type</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={[
-                          { name: "Warehouses", value: stats.collectionPointsByType.warehouse, fill: "#6366f1" },
-                          { name: "Depots", value: stats.collectionPointsByType.depot, fill: "#06b6d4" },
-                          { name: "Hubs", value: stats.collectionPointsByType.hub, fill: "#8b5cf6" },
-                          { name: "Pickup Points", value: stats.collectionPointsByType.pickup_point, fill: "#ec4899" },
-                        ].filter(item => item.value > 0)}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        <Cell fill="#6366f1" />
-                        <Cell fill="#06b6d4" />
-                        <Cell fill="#8b5cf6" />
-                        <Cell fill="#ec4899" />
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {stats.totalCollectionPoints > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: "Warehouses", value: stats.collectionPointsByType.warehouse, fill: "#6366f1" },
+                            { name: "Depots", value: stats.collectionPointsByType.depot, fill: "#06b6d4" },
+                            { name: "Hubs", value: stats.collectionPointsByType.hub, fill: "#8b5cf6" },
+                            { name: "Pickup Points", value: stats.collectionPointsByType.pickup_point, fill: "#ec4899" },
+                          ].filter(item => item.value > 0)}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          <Cell fill="#6366f1" />
+                          <Cell fill="#06b6d4" />
+                          <Cell fill="#8b5cf6" />
+                          <Cell fill="#ec4899" />
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-[300px]">
+                      <p className="text-gray-400 italic">No data to show</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1091,29 +1131,35 @@ export default function AnalyticsScreen() {
                   <CardTitle className="text-base font-semibold text-gray-900">Collection Points Status</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={[
-                          { name: "Active", value: stats.activeCollectionPoints, fill: "#10b981" },
-                          { name: "Inactive", value: stats.inactiveCollectionPoints, fill: "#9ca3af" },
-                          { name: "Maintenance", value: stats.maintenanceCollectionPoints, fill: "#f59e0b" },
-                        ].filter(item => item.value > 0)}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        <Cell fill="#10b981" />
-                        <Cell fill="#9ca3af" />
-                        <Cell fill="#f59e0b" />
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {stats.totalCollectionPoints > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: "Active", value: stats.activeCollectionPoints, fill: "#10b981" },
+                            { name: "Inactive", value: stats.inactiveCollectionPoints, fill: "#9ca3af" },
+                            { name: "Maintenance", value: stats.maintenanceCollectionPoints, fill: "#f59e0b" },
+                          ].filter(item => item.value > 0)}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          <Cell fill="#10b981" />
+                          <Cell fill="#9ca3af" />
+                          <Cell fill="#f59e0b" />
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-[300px]">
+                      <p className="text-gray-400 italic">No data to show</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1123,27 +1169,33 @@ export default function AnalyticsScreen() {
                   <CardTitle className="text-base font-semibold text-gray-900">Driver Status</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={[
-                          { name: "Active", value: stats.activeDrivers, fill: "#10b981" },
-                          { name: "Inactive", value: stats.totalDrivers - stats.activeDrivers, fill: "#9ca3af" },
-                        ].filter(item => item.value > 0)}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        <Cell fill="#10b981" />
-                        <Cell fill="#9ca3af" />
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {stats.totalDrivers > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: "Active", value: stats.activeDrivers, fill: "#10b981" },
+                            { name: "Inactive", value: stats.totalDrivers - stats.activeDrivers, fill: "#9ca3af" },
+                          ].filter(item => item.value > 0)}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          <Cell fill="#10b981" />
+                          <Cell fill="#9ca3af" />
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-[300px]">
+                      <p className="text-gray-400 italic">No data to show</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1153,29 +1205,35 @@ export default function AnalyticsScreen() {
                   <CardTitle className="text-base font-semibold text-gray-900">Route Status</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={[
-                          { name: "Active", value: stats.activeRoutes, fill: "#10b981" },
-                          { name: "Pending", value: Math.max(stats.totalRoutes - stats.activeRoutes - stats.completedDeliveries, 0), fill: "#f59e0b" },
-                          { name: "Completed", value: stats.completedDeliveries, fill: "#3b82f6" },
-                        ].filter(item => item.value > 0)}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        <Cell fill="#10b981" />
-                        <Cell fill="#f59e0b" />
-                        <Cell fill="#10b981" />
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {stats.totalRoutes > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: "Active", value: stats.activeRoutes, fill: "#10b981" },
+                            { name: "Pending", value: Math.max(stats.totalRoutes - stats.activeRoutes - stats.completedDeliveries, 0), fill: "#f59e0b" },
+                            { name: "Completed", value: stats.completedDeliveries, fill: "#3b82f6" },
+                          ].filter(item => item.value > 0)}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, percent = 0 }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                          dataKey="value"
+                        >
+                          <Cell fill="#10b981" />
+                          <Cell fill="#f59e0b" />
+                          <Cell fill="#10b981" />
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-[300px]">
+                      <p className="text-gray-400 italic">No data to show</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1185,35 +1243,41 @@ export default function AnalyticsScreen() {
                   <CardTitle className="text-base font-semibold text-gray-900">Total Delivery Value by Month - {new Date().getFullYear()}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={periodValues.monthlyValues.length > 0 ? periodValues.monthlyValues : [{ month: 'No data', value: 0 }]} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                      <XAxis dataKey="month" stroke="#6b7280" />
-                      <YAxis stroke="#6b7280" />
-                      <Tooltip 
-                        contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }}
-                        cursor={{ fill: "rgba(0, 0, 0, 0.05)" }}
-                        formatter={(value) => {
-                          const numericValue = Number(value) || 0
-                          return `KSh ${(numericValue.toLocaleString())}`
-                        }}
-                      />
-                      <Bar
-                        dataKey="value"
-                        fill="#06b6d4"
-                        radius={[8, 8, 0, 0]}
-                        name="Total Value"
-                        label={{
-                          position: "top",
-                          formatter: (value) => {
+                  {periodValues.monthlyValues.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={300}>
+                      <BarChart data={periodValues.monthlyValues} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <XAxis dataKey="month" stroke="#6b7280" />
+                        <YAxis stroke="#6b7280" />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }}
+                          cursor={{ fill: "rgba(0, 0, 0, 0.05)" }}
+                          formatter={(value) => {
                             const numericValue = Number(value) || 0
                             return `KSh ${(numericValue.toLocaleString())}`
-                          },
-                          fill: "#374151",
-                        }}
-                      />
-                    </BarChart>
-                  </ResponsiveContainer>
+                          }}
+                        />
+                        <Bar
+                          dataKey="value"
+                          fill="#06b6d4"
+                          radius={[8, 8, 0, 0]}
+                          name="Total Value"
+                          label={{
+                            position: "top",
+                            formatter: (value) => {
+                              const numericValue = Number(value) || 0
+                              return `KSh ${(numericValue.toLocaleString())}`
+                            },
+                            fill: "#374151",
+                          }}
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="flex items-center justify-center h-[300px]">
+                      <p className="text-gray-400 italic">No data to show</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
