@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { TrendingUp, Timer, Package, Truck, MapPin, ArrowUpRight, AlertCircle, Warehouse, Calendar, DollarSign } from "lucide-react"
+import { useEffect, useState, useMemo } from "react"
+import { Package, Truck, MapPin, AlertCircle, Warehouse, Calendar, DollarSign, TrendingUp } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -15,7 +15,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import RoutesTest from "@/components/routes-test"
 import { DeliveryService } from "@/lib/services/deliveries"
 import { DriverService } from "@/lib/services/drivers"
 import { RouteService } from "@/lib/services/routes"
@@ -23,8 +22,6 @@ import { CollectionPointService } from "@/lib/services/collection-points"
 import {
   BarChart,
   Bar,
-  LineChart,
-  Line,
   PieChart,
   Pie,
   Cell,
@@ -32,40 +29,22 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
-  AreaChart,
-  Area,
-  // Label,
 } from "recharts"
 
-interface KPI {
-  label: string
-  value: string
-  icon: React.ComponentType<{ className?: string }>
-  trend: string
-  trendIsPositive: boolean
-  hasZeroTrend?: boolean
-}
-
 export default function AnalyticsScreen() {
-  const [kpis, setKpis] = useState<KPI[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isDateDialogOpen, setIsDateDialogOpen] = useState(false)
   const [isInitialized, setIsInitialized] = useState(false)
   const [validationError, setValidationError] = useState<string | null>(null)
   
-  // Date range state - default to today vs yesterday
+  // Date range state
   const formatAsLocalDate = (date: Date) => date.toLocaleDateString("en-CA")
-
-  const getYesterdayDate = () => {
-    const date = new Date()
-    date.setDate(date.getDate() - 1)
-    return formatAsLocalDate(date)
-  }
   
   const getTodayDate = () => formatAsLocalDate(new Date())
+
+  const [selectedPreset, setSelectedPreset] = useState("")
 
   const [compareStartDate, setCompareStartDate] = useState("")
   const [compareEndDate, setCompareEndDate] = useState("")
@@ -80,6 +59,39 @@ export default function AnalyticsScreen() {
       setIsInitialized(true)
     }
   }, [isInitialized])
+
+  // Update selected preset when dates change
+  useEffect(() => {
+    if (!compareStartDate || !compareEndDate) {
+      setSelectedPreset("")
+      return
+    }
+    
+    const today = getTodayDate()
+    
+    if (compareStartDate === today && compareEndDate === today) {
+      setSelectedPreset("Today")
+      return
+    }
+    
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 6)
+    const weekAgoStr = formatAsLocalDate(weekAgo)
+    if (compareStartDate === weekAgoStr && compareEndDate === today) {
+      setSelectedPreset("Last 7 Days")
+      return
+    }
+    
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29)
+    const thirtyDaysAgoStr = formatAsLocalDate(thirtyDaysAgo)
+    if (compareStartDate === thirtyDaysAgoStr && compareEndDate === today) {
+      setSelectedPreset("Last 30 Days")
+      return
+    }
+    
+    setSelectedPreset("")
+  }, [compareStartDate, compareEndDate])
   
   const [stats, setStats] = useState({
     totalDeliveries: 0,
@@ -108,17 +120,14 @@ export default function AnalyticsScreen() {
     secondPeriodActiveDrivers: 0,
   })
 
-  const [collectionPointsTotalTrend, setCollectionPointsTotalTrend] = useState({
-    trend: "0",
-    isPositive: false,
-    hasZeroTrend: true,
-  })
-
   const [periodValues, setPeriodValues] = useState({
     firstPeriodValue: 0,
     secondPeriodValue: 0,
     monthlyValues: [] as Array<{ month: string; value: number }>,
+    maxYAxis: 0,
   })
+
+  const [chartTitle, setChartTitle] = useState("Total Delivery Value by Month")
 
   const fetchAnalyticsData = async () => {
     if (!compareStartDate || !compareEndDate) {
@@ -157,11 +166,6 @@ export default function AnalyticsScreen() {
 
       const getCollectionPointTimestamp = (cp: any) => cp?.created_at ?? cp?.createdAt ?? null
 
-      // Get deliveries for a specific date
-      const getDeliveriesForDate = (date: string) => {
-        return deliveriesData.filter((d) => isWithinRange(d.created_at, date, date))
-      }
-
       // Get deliveries for a date range (inclusive)
       const getDeliveriesForDateRange = (startDate: string, endDate: string) => {
         return deliveriesData.filter((d) => isWithinRange(d.created_at, startDate, endDate))
@@ -178,7 +182,7 @@ export default function AnalyticsScreen() {
         })
       }
 
-      // Determine if we're comparing specific dates or a range
+      // Determine date range and split in half
       const getDayDiff = (start: string, end: string) => {
         const startDate = new Date(`${start}T00:00:00`)
         const endDate = new Date(`${end}T00:00:00`)
@@ -186,77 +190,23 @@ export default function AnalyticsScreen() {
         return Math.round(diffMs / (24 * 60 * 60 * 1000))
       }
 
-      const isComparingConsecutiveDays = getDayDiff(compareStartDate, compareEndDate) === 1
-
       const hasRange = Boolean(compareStartDate && compareEndDate)
-      const isTodayOnly =
-        hasRange &&
-        compareStartDate === compareEndDate &&
-        compareStartDate === getTodayDate()
 
       let firstPeriodDeliveries: any[] = []
       let secondPeriodDeliveries: any[] = []
 
-      if (isComparingConsecutiveDays) {
-        // If comparing consecutive days (e.g., yesterday vs today), compare each day
-        firstPeriodDeliveries = getDeliveriesForDate(compareStartDate)
-        secondPeriodDeliveries = getDeliveriesForDate(compareEndDate)
-      } else {
-        // Otherwise split the range in half
-        const rangeStart = new Date(compareStartDate)
-        const rangeEnd = new Date(compareEndDate)
-        const midPoint = new Date(rangeStart.getTime() + (rangeEnd.getTime() - rangeStart.getTime()) / 2)
-        const midDateStr = midPoint.toISOString().split("T")[0]
-
-        firstPeriodDeliveries = getDeliveriesForDateRange(compareStartDate, midDateStr)
-        secondPeriodDeliveries = getDeliveriesForDateRange(
-          new Date(midPoint.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-          compareEndDate
-        )
+      if (hasRange) {
+        // Fetch all deliveries for the selected range
+        const rangeDeliveries = getDeliveriesForDateRange(compareStartDate, compareEndDate)
+        firstPeriodDeliveries = rangeDeliveries
+        secondPeriodDeliveries = rangeDeliveries
       }
 
-      // Calculate trends
-      const calculateTrend = (currentValue: number, previousValue: number) => {
-        if (previousValue === 0) {
-          if (currentValue === 0) {
-            return { trend: "0", isPositive: false, hasZeroTrend: true }
-          }
-          return { trend: currentValue > 0 ? `+${currentValue}` : "0", isPositive: currentValue > 0, hasZeroTrend: false }
-        }
-        const percentChange = Math.round(((currentValue - previousValue) / previousValue) * 100)
-        
-        if (percentChange === 0) {
-          return { trend: "0", isPositive: false, hasZeroTrend: true }
-        }
-        
-        const trendStr = percentChange >= 0 ? `+${percentChange}%` : `${percentChange}%`
-        return { trend: trendStr, isPositive: percentChange > 0, hasZeroTrend: false }
-      }
-
-      // Calculate metrics for each period
-      const firstPeriodCompleted = firstPeriodDeliveries.filter((d) => d.status === "completed").length
-      const secondPeriodCompleted = secondPeriodDeliveries.filter((d) => d.status === "completed").length
-      const completedTrend = calculateTrend(secondPeriodCompleted, firstPeriodCompleted)
-
-      const firstPeriodOnTime = firstPeriodDeliveries.length > 0 ? Math.round((firstPeriodCompleted / firstPeriodDeliveries.length) * 100) : 0
-      const secondPeriodOnTime = secondPeriodDeliveries.length > 0 ? Math.round((secondPeriodCompleted / secondPeriodDeliveries.length) * 100) : 0
-      const onTimeTrend = calculateTrend(secondPeriodOnTime, firstPeriodOnTime)
-
-      const deliveryTimeTrend = calculateTrend(secondPeriodDeliveries.length, firstPeriodDeliveries.length)
-
-      const routesInRange = hasRange && !isTodayOnly
+      const routesInRange = hasRange && compareStartDate !== compareEndDate
         ? getRoutesForDateRange(compareStartDate, compareEndDate)
         : routesData
 
-      const firstPeriodAvgRoute = routesInRange.length > 0 ? Math.round(firstPeriodDeliveries.length / routesInRange.length) : 0
-      const secondPeriodAvgRoute = routesInRange.length > 0 ? Math.round(secondPeriodDeliveries.length / routesInRange.length) : 0
-      const routeTrend = calculateTrend(secondPeriodAvgRoute, firstPeriodAvgRoute)
-
-      // Calculate drivers trend based on date periods
-      const getDriversForDate = (date: string) => {
-        return driversData.filter((d) => isWithinRange(d.created_at, date, date))
-      }
-
+      // Calculate drivers based on date periods
       const getDriversForDateRange = (startDate: string, endDate: string) => {
         return driversData.filter((d) => isWithinRange(d.created_at, startDate, endDate))
       }
@@ -264,31 +214,20 @@ export default function AnalyticsScreen() {
       let firstPeriodDrivers: any[] = []
       let secondPeriodDrivers: any[] = []
 
-      if (isComparingConsecutiveDays) {
-        firstPeriodDrivers = getDriversForDate(compareStartDate)
-        secondPeriodDrivers = getDriversForDate(compareEndDate)
-      } else {
-        const rangeStart = new Date(compareStartDate)
-        const rangeEnd = new Date(compareEndDate)
-        const midPoint = new Date(rangeStart.getTime() + (rangeEnd.getTime() - rangeStart.getTime()) / 2)
-        const midDateStr = midPoint.toISOString().split("T")[0]
-
-        firstPeriodDrivers = getDriversForDateRange(compareStartDate, midDateStr)
-        secondPeriodDrivers = getDriversForDateRange(
-          new Date(midPoint.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-          compareEndDate
-        )
+      if (hasRange) {
+        // Fetch all drivers for the selected range
+        const rangeDrivers = getDriversForDateRange(compareStartDate, compareEndDate)
+        firstPeriodDrivers = rangeDrivers
+        secondPeriodDrivers = rangeDrivers
       }
 
-      const driversInRange = hasRange && !isTodayOnly
+      const driversInRange = hasRange && compareStartDate !== compareEndDate
         ? getDriversForDateRange(compareStartDate, compareEndDate)
         : driversData
 
-      const firstPeriodActiveDrivers = firstPeriodDrivers.filter((d) => d.status === "active").length
       const secondPeriodActiveDrivers = secondPeriodDrivers.filter((d) => d.status === "active").length
-      const driversTrend = calculateTrend(secondPeriodActiveDrivers, firstPeriodActiveDrivers)
 
-      // Calculate collection points trend based on date periods
+      // Get collection points for date period
       // For total collection points, we count all points that were created by the end of each period
       const getCollectionPointsCreatedByDate = (beforeDate: string) => {
         return collectionPointsData.filter((cp) => {
@@ -297,58 +236,31 @@ export default function AnalyticsScreen() {
         })
       }
 
-      const firstPeriodEndDate = isComparingConsecutiveDays 
-        ? compareStartDate
-        : (() => {
-            const rangeStart = new Date(compareStartDate)
-            const rangeEnd = new Date(compareEndDate)
-            const midPoint = new Date(rangeStart.getTime() + (rangeEnd.getTime() - rangeStart.getTime()) / 2)
-            return midPoint.toISOString().split("T")[0]
-          })()
-
+      // Calculate end dates for each period
+      const firstPeriodEndDate = compareStartDate
       const secondPeriodEndDate = compareEndDate
 
       const firstPeriodCollectionPointsTotal = getCollectionPointsCreatedByDate(firstPeriodEndDate)
       const secondPeriodCollectionPointsTotal = getCollectionPointsCreatedByDate(secondPeriodEndDate)
       
-      // For active collection points specifically, we count only those created in each period
-      const getCollectionPointsForDate = (date: string) => {
-        return collectionPointsData.filter((cp) => {
-          const createdAt = getCollectionPointTimestamp(cp)
-          return isWithinRange(createdAt, date, date)
-        })
-      }
-
       let firstPeriodCollectionPoints: any[] = []
       let secondPeriodCollectionPoints: any[] = []
 
-      if (isComparingConsecutiveDays) {
-        firstPeriodCollectionPoints = getCollectionPointsForDate(compareStartDate)
-        secondPeriodCollectionPoints = getCollectionPointsForDate(compareEndDate)
-      } else {
-        const rangeStart = new Date(compareStartDate)
-        const rangeEnd = new Date(compareEndDate)
-        const midPoint = new Date(rangeStart.getTime() + (rangeEnd.getTime() - rangeStart.getTime()) / 2)
-        const midDateStr = midPoint.toISOString().split("T")[0]
-
-        firstPeriodCollectionPoints = getCollectionPointsForDateRange(compareStartDate, midDateStr)
-        secondPeriodCollectionPoints = getCollectionPointsForDateRange(
-          new Date(midPoint.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-          compareEndDate
-        )
+      if (hasRange) {
+        // Fetch all collection points for the selected range
+        const rangeCollectionPoints = getCollectionPointsForDateRange(compareStartDate, compareEndDate)
+        firstPeriodCollectionPoints = rangeCollectionPoints
+        secondPeriodCollectionPoints = rangeCollectionPoints
       }
 
-      const collectionPointsInRange = hasRange && !isTodayOnly
+      const collectionPointsInRange = hasRange && compareStartDate !== compareEndDate
         ? getCollectionPointsForDateRange(compareStartDate, compareEndDate)
         : collectionPointsData
 
       const firstPeriodActiveCollectionPoints = firstPeriodCollectionPoints.filter((cp) => cp.status === "active").length
       const secondPeriodActiveCollectionPoints = secondPeriodCollectionPoints.filter((cp) => cp.status === "active").length
-      const collectionPointsTrend = calculateTrend(secondPeriodActiveCollectionPoints, firstPeriodActiveCollectionPoints)
 
-      // Calculate total collection points trend using cumulative counts
-      const collectionPointsTotalTrendData = calculateTrend(secondPeriodCollectionPointsTotal.length, firstPeriodCollectionPointsTotal.length)
-      setCollectionPointsTotalTrend(collectionPointsTotalTrendData)
+      // Calculate total collection points using cumulative counts
 
       // Calculate total value for each period from deliveries
       const getDeliveryValueForDeliveries = (deliveries: any[]) => {
@@ -358,8 +270,9 @@ export default function AnalyticsScreen() {
         }, 0)
       }
 
-      // Deliveries in the selected comparison range (or all if it's "today" only / no range)
-      const periodDeliveries = hasRange && !isTodayOnly
+      // Deliveries in the selected comparison range
+      // For date range selection, use filtered data; for today, use all data
+      const periodDeliveries = hasRange && compareStartDate !== compareEndDate
         ? getDeliveriesForDateRange(compareStartDate, compareEndDate)
         : deliveriesData
 
@@ -381,13 +294,45 @@ export default function AnalyticsScreen() {
         }
       })
 
+      // Create a map of all 12 months in order
+      const monthOrder = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+      
       // Only include months that actually have value; chart falls back to "No data" when empty
-      const monthlyValues = Object.entries(monthlyValueMap)
+      const monthlyValuesMap = Object.entries(monthlyValueMap)
         .filter(([, value]) => value > 0)
         .map(([key, value]) => {
           const [month] = key.split(" ")
           return { month, value }
         })
+
+      // Create data for all 12 months, filling in 0 for months with no data
+      const monthlyValues = monthOrder.map((month) => {
+        const found = monthlyValuesMap.find((m) => m.month === month)
+        return {
+          month,
+          value: found ? found.value : 0,
+        }
+      })
+
+      // Calculate max value for Y-axis scaling
+      const maxValue = Math.max(...monthlyValues.map((m) => m.value), 1)
+      // Round up to the nearest reasonable increment (10, 100, 1000, 10000, etc.)
+      const orderOfMagnitude = Math.pow(10, Math.floor(Math.log10(maxValue)))
+      const roundedMax = Math.ceil(maxValue / orderOfMagnitude) * orderOfMagnitude
+
+      // Extract unique years from the data and generate dynamic title
+      const yearsInData = Array.from(
+        new Set(
+          Object.entries(monthlyValueMap)
+            .filter(([, value]) => value > 0)
+            .map(([key]) => key.split(" ")[1])
+        )
+      ).sort()
+
+      const dynamicChartTitle = yearsInData.length > 0
+        ? `Total Delivery Value by Month - ${yearsInData.join(", ")}`
+        : "Total Delivery Value by Month"
+      setChartTitle(dynamicChartTitle)
 
       const firstPeriodValue = getDeliveryValueForDeliveries(firstPeriodDeliveries)
       const secondPeriodValue = getDeliveryValueForDeliveries(secondPeriodDeliveries)
@@ -395,6 +340,7 @@ export default function AnalyticsScreen() {
         firstPeriodValue,
         secondPeriodValue,
         monthlyValues,
+        maxYAxis: roundedMax,
       })
 
       const completedCountPeriod = periodDeliveries.filter((d) => d.status === "completed").length
@@ -467,59 +413,7 @@ export default function AnalyticsScreen() {
         secondPeriodActiveDrivers: secondPeriodActiveDrivers,
       })
 
-      // Build KPIs array with dynamic data
-      const kpisData: KPI[] = [
-        {
-          label: "Avg. Delivery Time",
-          value: avgDeliveryTime,
-          icon: Timer,
-          trend: deliveryTimeTrend.trend,
-          trendIsPositive: deliveryTimeTrend.isPositive,
-          hasZeroTrend: deliveryTimeTrend.hasZeroTrend,
-        },
-        {
-          label: "On-Time Rate",
-          value: `${secondPeriodOnTime}%`,
-          icon: TrendingUp,
-          trend: onTimeTrend.trend,
-          trendIsPositive: onTimeTrend.isPositive,
-          hasZeroTrend: onTimeTrend.hasZeroTrend,
-        },
-        {
-          label: "Period Deliveries",
-          value: periodDeliveries.length.toString(),
-          icon: Package,
-          trend: deliveryTimeTrend.trend,
-          trendIsPositive: deliveryTimeTrend.isPositive,
-          hasZeroTrend: deliveryTimeTrend.hasZeroTrend,
-        },
-        {
-          label: "Active Drivers",
-          value: secondPeriodActiveDrivers.toString(),
-          icon: Truck,
-          trend: driversTrend.trend,
-          trendIsPositive: driversTrend.isPositive,
-          hasZeroTrend: driversTrend.hasZeroTrend,
-        },
-        {
-          label: "Avg. Route Length",
-          value: `${secondPeriodAvgRoute} stops`,
-          icon: MapPin,
-          trend: routeTrend.trend,
-          trendIsPositive: routeTrend.isPositive,
-          hasZeroTrend: routeTrend.hasZeroTrend,
-        },
-        {
-          label: "Active Collection Points",
-          value: secondPeriodActiveCollectionPoints.toString(),
-          icon: Warehouse,
-          trend: collectionPointsTrend.trend,
-          trendIsPositive: collectionPointsTrend.isPositive,
-          hasZeroTrend: collectionPointsTrend.hasZeroTrend,
-        },
-      ]
 
-      setKpis(kpisData)
     } catch (err) {
       console.error("Error fetching analytics data:", err)
       setError("Failed to load analytics data. Please try again.")
@@ -558,14 +452,14 @@ export default function AnalyticsScreen() {
                 <DialogTrigger asChild>
                   <Button variant="outline" className="text-sm">
                     <Calendar className="h-4 w-4 mr-2" />
-                    {compareStartDate} to {compareEndDate}
+                    {selectedPreset || `${compareStartDate} to ${compareEndDate}`}
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-md">
                   <DialogHeader>
                     <DialogTitle>Select Comparison Date Range</DialogTitle>
                     <DialogDescription>
-                      Choose two dates to compare trends. The data will be split in half between these dates.
+                      {selectedPreset ? `Selected: ${selectedPreset}` : "Choose two dates to compare analytics data."}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
@@ -591,32 +485,32 @@ export default function AnalyticsScreen() {
                     </div>
                     <div className="flex gap-2">
                       <Button
-                        variant="outline"
+                        variant={selectedPreset === "Today" ? "default" : "outline"}
                         onClick={() => {
                           const today = getTodayDate()
                           setCompareStartDate(today)
                           setCompareEndDate(today)
                         }}
-                        className="flex-1"
+                        className={`flex-1 ${selectedPreset === "Today" ? "bg-[#C8E298] text-black hover:bg-[#B8D289]" : ""}`}
                       >
                         Today
                       </Button>
                       <Button
-                        variant="outline"
+                        variant={selectedPreset === "Last 7 Days" ? "default" : "outline"}
                         onClick={() => {
                           const weekAgo = new Date()
                           weekAgo.setDate(weekAgo.getDate() - 6)
                           setCompareStartDate(formatAsLocalDate(weekAgo))
                           setCompareEndDate(getTodayDate())
                         }}
-                        className="flex-1"
+                        className={`flex-1 ${selectedPreset === "Last 7 Days" ? "bg-[#C8E298] text-black hover:bg-[#B8D289]" : ""}`}
                       >
                         Last 7 Days
                       </Button>
                     </div>
                     <div className="flex gap-2">
                       <Button
-                        variant="outline"
+                        variant={selectedPreset === "Last 30 Days" ? "default" : "outline"}
                         onClick={() => {
                           const today = new Date()
                           const thirtyDaysAgo = new Date()
@@ -624,7 +518,7 @@ export default function AnalyticsScreen() {
                           setCompareStartDate(formatAsLocalDate(thirtyDaysAgo))
                           setCompareEndDate(getTodayDate())
                         }}
-                        className="flex-1"
+                        className={`flex-1 ${selectedPreset === "Last 30 Days" ? "bg-[#C8E298] text-black hover:bg-[#B8D289]" : ""}`}
                       >
                         Last 30 Days
                       </Button>
@@ -689,19 +583,9 @@ export default function AnalyticsScreen() {
                     <Package className="h-6 w-6 text-blue-600" />
                   </div>
                   {stats.totalDeliveries > 0 ? (
-                    <div className="flex justify-between items-end">
-                      <div className="flex gap-2 text-xs">
-                        <span className="px-2 py-1 rounded bg-green-50 text-green-700">{stats.completedDeliveries} completed</span>
-                        <span className="px-2 py-1 rounded bg-blue-50 text-blue-700">{stats.inTransitDeliveries} in transit</span>
-                      </div>
-                      {kpis[0]?.hasZeroTrend ? (
-                        <span className="font-medium text-xs text-gray-600">{kpis[0]?.trend}</span>
-                      ) : (
-                        <div className={`flex items-center text-sm ${kpis[0]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                          <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[0]?.trendIsPositive ? "rotate-180" : ""}`} />
-                          <span className="font-medium text-xs">{kpis[0]?.trend}</span>
-                        </div>
-                      )}
+                    <div className="flex gap-2 text-xs">
+                      <span className="px-2 py-1 rounded bg-green-50 text-green-700">{stats.completedDeliveries} completed</span>
+                      <span className="px-2 py-1 rounded bg-blue-50 text-blue-700">{stats.inTransitDeliveries} in transit</span>
                     </div>
                   ) : (
                     <p className="text-sm text-gray-400 italic">No data to show</p>
@@ -719,17 +603,7 @@ export default function AnalyticsScreen() {
                     <TrendingUp className="h-6 w-6 text-green-600" />
                   </div>
                   {stats.totalDeliveries > 0 ? (
-                    <div className="flex justify-between items-center">
-                      <p className="text-xs text-gray-500">Delivery success rate</p>
-                      {kpis[1]?.hasZeroTrend ? (
-                        <span className="font-medium text-xs text-gray-600">{kpis[1]?.trend}</span>
-                      ) : (
-                        <div className={`flex items-center text-sm ${kpis[1]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                          <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[1]?.trendIsPositive ? "rotate-180" : ""}`} />
-                          <span className="font-medium text-xs">{kpis[1]?.trend}</span>
-                        </div>
-                      )}
-                    </div>
+                    <p className="text-xs text-gray-500">Delivery success rate</p>
                   ) : (
                     <p className="text-sm text-gray-400 italic">No data to show</p>
                   )}
@@ -746,17 +620,7 @@ export default function AnalyticsScreen() {
                     <DollarSign className="h-6 w-6 text-green-600" />
                   </div>
                   {stats.totalValue > 0 ? (
-                    <div className="flex justify-between items-center">
-                      <p className="text-xs text-gray-500">Total delivery value</p>
-                      {kpis[2]?.hasZeroTrend ? (
-                        <span className="font-medium text-xs text-gray-600">{kpis[2]?.trend}</span>
-                      ) : (
-                        <div className={`flex items-center text-sm ${kpis[2]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                          <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[2]?.trendIsPositive ? "rotate-180" : ""}`} />
-                          <span className="font-medium text-xs">{kpis[2]?.trend}</span>
-                        </div>
-                      )}
-                    </div>
+                    <p className="text-xs text-gray-500">Total delivery value</p>
                   ) : (
                     <p className="text-sm text-gray-400 italic">No data to show</p>
                   )}
@@ -767,28 +631,20 @@ export default function AnalyticsScreen() {
                 <CardContent className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div>
-                      <p className="text-sm text-gray-500 mb-1">Avg. Delivery Time</p>
-                      <p className="text-2xl font-bold text-gray-900">{kpis[0]?.value || "N/A"}</p>
+                      <p className="text-sm text-gray-500 mb-1">Pending Deliveries</p>
+                      <p className="text-2xl font-bold text-gray-900">{stats.pendingDeliveries || 0}</p>
                     </div>
-                    <Timer className="h-6 w-6 text-orange-600" />
+                    <Package className="h-6 w-6 text-orange-600" />
                   </div>
-                  {kpis[0]?.value && kpis[0]?.value !== "N/A" ? (
-                    <div className="flex justify-between items-center">
-                      <p className="text-xs text-gray-500">Average delivery duration</p>
-                      {kpis[0]?.hasZeroTrend ? (
-                        <span className="font-medium text-xs text-gray-600">{kpis[0]?.trend}</span>
-                      ) : (
-                        <div className={`flex items-center text-sm ${kpis[0]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                          <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[0]?.trendIsPositive ? "rotate-180" : ""}`} />
-                          <span className="font-medium text-xs">{kpis[0]?.trend}</span>
-                        </div>
-                      )}
-                    </div>
+                  {stats.totalDeliveries > 0 ? (
+                    <p className="text-xs text-gray-500">Awaiting delivery</p>
                   ) : (
                     <p className="text-sm text-gray-400 italic">No data to show</p>
                   )}
                 </CardContent>
               </Card>
+
+
             </div>
           </div>
 
@@ -806,19 +662,9 @@ export default function AnalyticsScreen() {
                     <MapPin className="h-6 w-6 text-blue-600" />
                   </div>
                   {stats.totalRoutes > 0 ? (
-                    <div className="flex justify-between items-center">
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        {stats.activeRoutes} active
-                      </Badge>
-                      {kpis[4]?.hasZeroTrend ? (
-                        <span className="font-medium text-xs text-gray-600">{kpis[4]?.trend}</span>
-                      ) : (
-                        <div className={`flex items-center text-sm ${kpis[4]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                          <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[4]?.trendIsPositive ? "rotate-180" : ""}`} />
-                          <span className="font-medium text-xs">{kpis[4]?.trend}</span>
-                        </div>
-                      )}
-                    </div>
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      {stats.activeRoutes} active
+                    </Badge>
                   ) : (
                     <p className="text-sm text-gray-400 italic">No data to show</p>
                   )}
@@ -836,14 +682,6 @@ export default function AnalyticsScreen() {
                   </div>
                   <div className="flex justify-between items-center">
                     <p className="text-xs text-gray-500">Stops per route</p>
-                    {kpis[4]?.hasZeroTrend ? (
-                      <span className="font-medium text-xs text-gray-600">{kpis[4]?.trend}</span>
-                    ) : (
-                      <div className={`flex items-center text-sm ${kpis[4]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[4]?.trendIsPositive ? "rotate-180" : ""}`} />
-                        <span className="font-medium text-xs">{kpis[4]?.trend}</span>
-                      </div>
-                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -859,14 +697,6 @@ export default function AnalyticsScreen() {
                   </div>
                   <div className="flex justify-between items-center">
                     <p className="text-xs text-gray-500">Completion rate</p>
-                    {kpis[1]?.hasZeroTrend ? (
-                      <span className="font-medium text-xs text-gray-600">{kpis[1]?.trend}</span>
-                    ) : (
-                      <div className={`flex items-center text-sm ${kpis[1]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[1]?.trendIsPositive ? "rotate-180" : ""}`} />
-                        <span className="font-medium text-xs">{kpis[1]?.trend}</span>
-                      </div>
-                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -887,19 +717,9 @@ export default function AnalyticsScreen() {
                     <Truck className="h-6 w-6 text-blue-600" />
                   </div>
                   {stats.totalDrivers > 0 ? (
-                    <div className="flex justify-between items-center">
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        {stats.activeDrivers} active
-                      </Badge>
-                      {kpis[3]?.hasZeroTrend ? (
-                        <span className="font-medium text-xs text-gray-600">{kpis[3]?.trend}</span>
-                      ) : (
-                        <div className={`flex items-center text-sm ${kpis[3]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                          <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[3]?.trendIsPositive ? "rotate-180" : ""}`} />
-                          <span className="font-medium text-xs">{kpis[3]?.trend}</span>
-                        </div>
-                      )}
-                    </div>
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      {stats.activeDrivers} active
+                    </Badge>
                   ) : (
                     <p className="text-sm text-gray-400 italic">No data to show</p>
                   )}
@@ -917,14 +737,6 @@ export default function AnalyticsScreen() {
                   </div>
                   <div className="flex justify-between items-center">
                     <p className="text-xs text-gray-500">Active drivers ratio</p>
-                    {kpis[3]?.hasZeroTrend ? (
-                      <span className="font-medium text-xs text-gray-600">{kpis[3]?.trend}</span>
-                    ) : (
-                      <div className={`flex items-center text-sm ${kpis[3]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[3]?.trendIsPositive ? "rotate-180" : ""}`} />
-                        <span className="font-medium text-xs">{kpis[3]?.trend}</span>
-                      </div>
-                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -940,14 +752,6 @@ export default function AnalyticsScreen() {
                   </div>
                   <div className="flex justify-between items-center">
                     <p className="text-xs text-gray-500">Average per active driver</p>
-                    {kpis[3]?.hasZeroTrend ? (
-                      <span className="font-medium text-xs text-gray-600">{kpis[3]?.trend}</span>
-                    ) : (
-                      <div className={`flex items-center text-sm ${kpis[3]?.trendIsPositive ? "text-green-600" : "text-red-600"}`}>
-                        <ArrowUpRight className={`h-4 w-4 mr-1 ${!kpis[3]?.trendIsPositive ? "rotate-180" : ""}`} />
-                        <span className="font-medium text-xs">{kpis[3]?.trend}</span>
-                      </div>
-                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -968,19 +772,9 @@ export default function AnalyticsScreen() {
                     <Warehouse className="h-6 w-6 text-blue-600" />
                   </div>
                   {stats.totalCollectionPoints > 0 ? (
-                    <div className="flex justify-between items-center">
-                      <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                        {stats.activeCollectionPoints} active
-                      </Badge>
-                      {collectionPointsTotalTrend.hasZeroTrend ? (
-                        <span className="font-medium text-xs text-gray-600">{collectionPointsTotalTrend.trend}</span>
-                      ) : (
-                        <div className={`flex items-center text-sm ${collectionPointsTotalTrend.isPositive ? "text-green-600" : "text-red-600"}`}>
-                          <ArrowUpRight className={`h-4 w-4 mr-1 ${!collectionPointsTotalTrend.isPositive ? "rotate-180" : ""}`} />
-                          <span className="font-medium text-xs">{collectionPointsTotalTrend.trend}</span>
-                        </div>
-                      )}
-                    </div>
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      {stats.activeCollectionPoints} active
+                    </Badge>
                   ) : (
                     <p className="text-sm text-gray-400 italic">No data to show</p>
                   )}
@@ -1240,7 +1034,7 @@ export default function AnalyticsScreen() {
               {/* Total Value Bar Chart - Monthly */}
               <Card className="bg-white border border-gray-200 hover:shadow-lg transition-shadow lg:col-span-2">
                 <CardHeader>
-                  <CardTitle className="text-base font-semibold text-gray-900">Total Delivery Value by Month - {new Date().getFullYear()}</CardTitle>
+                  <CardTitle className="text-base font-semibold text-gray-900">{chartTitle}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {periodValues.monthlyValues.length > 0 ? (
@@ -1248,7 +1042,7 @@ export default function AnalyticsScreen() {
                       <BarChart data={periodValues.monthlyValues} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="month" stroke="#6b7280" />
-                        <YAxis stroke="#6b7280" />
+                        <YAxis stroke="#6b7280" domain={[0, periodValues.maxYAxis]} />
                         <Tooltip 
                           contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }}
                           cursor={{ fill: "rgba(0, 0, 0, 0.05)" }}
