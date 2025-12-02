@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import { AuthService } from "@/lib/services/auth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -109,15 +110,24 @@ export default function HomePage() {
         if (!email || !password) {
           throw new Error("Email and password are required.");
         }
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
+
+        const response = await fetch("/api/auth/signin", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email, password }),
         });
 
-        if (error) {
-          setError(error.message);
-          throw error;
+        const result = await response.json();
+
+        if (!response.ok) {
+          setError(result.error || "Sign-in failed");
+          throw new Error(result.error);
         }
+
+        toast.success("Signed in successfully");
+        setError(null);
 
         // For existing users, redirect to dashboard
         router.push("/dashboard");
