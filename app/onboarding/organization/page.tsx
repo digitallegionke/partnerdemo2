@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
 import OperatingHoursSelector from "@/app/components/operating-picker";
 import { Router } from "express";
 import { useRouter } from "next/navigation";
@@ -174,72 +173,54 @@ function OrganizationSetup() {
 
     setIsLoading(true);
     try {
-      // Create business profile record in Supabase
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      const res = await fetch('/api/onboarding/organization', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          organizationName: orgForm.organizationName,
+          contactEmail: orgForm.contactEmail,
+          contactPhone: orgForm.contactPhone,
+          address: orgForm.address,
+          website: orgForm.website,
+          ordersPerDay: orgForm.ordersPerDay,
+          teamSize: orgForm.teamSize,
+          driversCount: orgForm.driversCount,
+          yearsInBusiness: orgForm.yearsInBusiness,
+          industry: orgForm.industry,
+          operatingHours: orgForm.operatingHours,
+          operatingDays: orgForm.operatingDays,
+          primaryDeliveryArea: orgForm.primaryDeliveryArea,
+          deliveryChallenge: orgForm.deliveryChallenge,
+          desiredFeatures: orgForm.desiredFeatures,
+          termsAccepted: orgForm.termsAccepted,
+        }),
+      })
 
-      if (userError || !user) {
-        console.error(userError?.message || "User not authenticated");
-        throw userError;
-      }
+      const data = await res.json().catch(() => ({}))
 
-      if (userError || !user) throw new Error("User not authenticated");
-
-      const { error: orgError } = await supabase.from("organization").insert({
-        company_name: orgForm.organizationName,
-        industry: orgForm.industry,
-        company_email: orgForm.contactEmail,
-        company_phone: orgForm.contactPhone,
-        headquarters: orgForm.address,
-        operating_hours: orgForm.operatingHours,
-        operating_days: orgForm.operatingDays,
-        accepted_terms: orgForm.termsAccepted,
-        company_website: orgForm.website,
-        user: user.id,
-      });
-
-      if (orgError) {
-        console.error(orgError.message);
-        throw orgError;
-      }
-
-      const { data, error } = await supabase.from("business_profiles").insert([
-        {
-          orders_per_day: orgForm.ordersPerDay,
-          team_size: orgForm.teamSize,
-          drivers_count: orgForm.driversCount,
-          years_in_business: orgForm.yearsInBusiness,
-          primary_delivery_area: orgForm.primaryDeliveryArea,
-          delivery_challenge: orgForm.deliveryChallenge.join(", "),
-          features_wishlist: orgForm.desiredFeatures,
-          user_id: user.id,
-        },
-      ]);
-
-      if (error) {
+      if (!res.ok) {
         toast({
-          title: "Application error",
-          description:
-            "Failed to setup your organization. Contact us for help!",
-        });
-      } else {
-        toast({
-          title: "Success!",
-          description: "Your organization has been registered successfully.",
-        });
+          title: 'Application error',
+          description: data.error || 'Failed to setup your organization. Contact us for help!',
+        })
+        throw new Error(data.error || 'Onboarding failed')
       }
 
-      setCurrentStep("complete");
-    } catch (error) {
-      console.error("Submission error:", error);
       toast({
-        title: "Application Error",
-        description: "Error setting up your organization. Contact us for help!",
-      });
+        title: 'Success!',
+        description: 'Your organization has been registered successfully.',
+      })
+
+      setCurrentStep('complete')
+    } catch (error) {
+      console.error('Submission error:', error)
+      toast({
+        title: 'Application Error',
+        description: 'Error setting up your organization. Contact us for help!',
+      })
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
   };
 

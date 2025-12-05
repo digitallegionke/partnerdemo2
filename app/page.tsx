@@ -30,9 +30,11 @@ import {
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
+import { AuthService } from "@/lib/services/auth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
+
 
 type OnboardingStep = "auth" | "setup" | "complete";
 
@@ -67,6 +69,7 @@ export default function HomePage() {
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
     try {
       if (authMode === "signup") {
@@ -75,49 +78,45 @@ export default function HomePage() {
 
         if (password !== confirmPassword) {
           setError("Passwords do not match.");
+          setIsLoading(false);
           return;
         }
 
-        const { data, error } = await supabase.auth.signUp({
+        const response = await AuthService.signup(
           email,
           password,
-          options: {
-            data: {
-              full_name: fullName,
-              phone: phoneNumber,
-            },
-          },
-        });
+          fullName,
+          phoneNumber
+        );
 
-        if (error) {
-          setError(error.message);
-          throw error;
+        if (response.error) {
+          setError(response.error);
+          toast.error(response.error);
+          return;
         }
 
-        const user = data.user;
-
-        if (!user) {
+        if (!response.user) {
+          setError("Failed to create account. Please try again.");
           toast.error("Failed to create account! Please retry");
-        };
+          return;
+        }
+
         toast.success("User created successfully");
-        setError(null);
 
         // For new users, redirect to comprehensive onboarding
         router.push("/onboarding/organization");
       } else {
         const { email, password } = authForm;
-        if (!email || !password) {
-          throw new Error("Email and password are required.");
-        }
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
 
-        if (error) {
-          setError(error.message);
-          throw error;
+        const response = await AuthService.signIn(email, password);
+
+        if (!response.success) {
+          setError(response.error || "Sign-in failed");
+          return;
         }
+
+        toast.success("Signed in successfully");
+        setError(null);
 
         // For existing users, redirect to dashboard
         router.push("/dashboard");

@@ -434,11 +434,9 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
             if (createdRoute?.id && createdDelivery?.id) {
               await supabase
                 .from("deliveries")
-                .update({ route_id: createdRoute.id })
+                .update({ route_id: createdRoute.id, order_index: i })
                 .eq("id", createdDelivery.id);
             }
-
-            return createdDelivery;
           } catch (err) {
             console.error("Failed to create delivery:", err, deliveryData);
           }
