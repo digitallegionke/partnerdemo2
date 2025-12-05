@@ -35,6 +35,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 
+
 type OnboardingStep = "auth" | "setup" | "complete";
 
 export default function HomePage() {
@@ -68,6 +69,7 @@ export default function HomePage() {
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
 
     try {
       if (authMode === "signup") {
@@ -76,54 +78,41 @@ export default function HomePage() {
 
         if (password !== confirmPassword) {
           setError("Passwords do not match.");
+          setIsLoading(false);
           return;
         }
 
-        const { data, error } = await supabase.auth.signUp({
+        const response = await AuthService.signup(
           email,
           password,
-          options: {
-            data: {
-              full_name: fullName,
-              phone: phoneNumber,
-            },
-          },
-        });
+          fullName,
+          phoneNumber
+        );
 
-        if (error) {
-          setError(error.message);
-          throw error;
+        if (response.error) {
+          setError(response.error);
+          toast.error(response.error);
+          return;
         }
 
-        const user = data.user;
-
-        if (!user) {
+        if (!response.user) {
+          setError("Failed to create account. Please try again.");
           toast.error("Failed to create account! Please retry");
-        };
+          return;
+        }
+
         toast.success("User created successfully");
-        setError(null);
 
         // For new users, redirect to comprehensive onboarding
         router.push("/onboarding/organization");
       } else {
         const { email, password } = authForm;
-        if (!email || !password) {
-          throw new Error("Email and password are required.");
-        }
 
-        const response = await fetch("/api/auth/signin", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ email, password }),
-        });
+        const response = await AuthService.signIn(email, password);
 
-        const result = await response.json();
-
-        if (!response.ok) {
-          setError(result.error || "Sign-in failed");
-          throw new Error(result.error);
+        if (!response.success) {
+          setError(response.error || "Sign-in failed");
+          return;
         }
 
         toast.success("Signed in successfully");

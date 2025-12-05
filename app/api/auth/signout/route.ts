@@ -1,13 +1,13 @@
+import { supabase } from "@/lib/supabase"
 import { NextRequest, NextResponse } from "next/server"
-import { AuthService } from "@/lib/services/auth"
 
 export async function POST(req: NextRequest) {
   try {
-    const result = await AuthService.signOut()
+    const { error } = await supabase.auth.signOut()
 
-    if (!result.success) {
+    if (error) {
       return NextResponse.json(
-        { error: result.error },
+        { error: error.message },
         { status: 400 }
       )
     }

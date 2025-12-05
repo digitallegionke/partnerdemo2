@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { AuthService } from "@/lib/services/auth"
+import { supabase } from "@/lib/supabase"
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,11 +12,21 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const result = await AuthService.signIn({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
-    if (!result.success) {
+    if (error) {
       return NextResponse.json(
-        { error: result.error },
+        { error: error.message },
+        { status: 401 }
+      )
+    }
+
+    if (!data.user || !data.session) {
+      return NextResponse.json(
+        { error: "Authentication failed" },
         { status: 401 }
       )
     }
@@ -24,7 +34,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        data: result.data,
+        user: {
+          id: data.user.id,
+          email: data.user.email,
+          user_metadata: data.user.user_metadata,
+        },
+        session: {
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        },
       },
       { status: 200 }
     )
