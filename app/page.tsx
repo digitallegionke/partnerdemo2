@@ -101,9 +101,26 @@ export default function HomePage() {
           return;
         }
 
-        toast.success("User created successfully");
+        toast.success("Account created successfully!");
 
-        // For new users, redirect to comprehensive onboarding
+        // Now automatically sign in the new user
+        const signInResponse = await AuthService.signIn(email, password);
+
+        if (!signInResponse.success) {
+          setError(signInResponse.error || "Failed to sign in after signup");
+          toast.error("Account created but failed to sign in. Please try signing in manually.");
+          setAuthMode("login");
+          setAuthForm(prev => ({
+            ...prev,
+            email: authForm.email,
+            password: "", // Clear password for security
+          }));
+          return;
+        }
+
+        toast.success("Welcome! Redirecting to onboarding...");
+        
+        // Redirect to onboarding for new users
         router.push("/onboarding/organization");
       } else {
         const { email, password } = authForm;

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 
 /**
  * POST /api/auth/signup
  * 
- * Purpose: Create a new user account via API instead of direct Supabase call
+ * Purpose: Create a new user account via secure server-side endpoint
+ * Keeps credentials server-side so API key is never exposed in client network requests
  */
 export async function POST(request: NextRequest) {
   try {
@@ -34,8 +35,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Use the supabase client for signup (no auth needed)
+    // Create server-side Supabase client with anon key (credentials handled server-side)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error('Missing Supabase environment variables')
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      )
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+      },
+    })
+
+    // Sign up user - request is handled server-side, not exposed in client
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -50,7 +69,7 @@ export async function POST(request: NextRequest) {
     if (error) {
       console.error('Error creating user:', error)
       return NextResponse.json(
-        { error: error.message },
+        { error: error.message || 'Failed to create account' },
         { status: 400 }
       )
     }
@@ -64,6 +83,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
+        success: true,
         user: {
           id: data.user.id,
           email: data.user.email,
