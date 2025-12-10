@@ -49,12 +49,35 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Missing required fields: ${missing.join(', ')}` }, { status: 400 })
     }
 
+    // Create authenticated client with user's authorization
     const supabase = createAuthenticatedClient(request.headers.get('authorization'))
 
     // Ensure user is authenticated server-side
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized - Please log in' }, { status: 401 })
+    }
+
+    // Insert into business_profiles with authenticated client
+    const { error: bpError } = await supabase
+      .from('business_profiles')
+      .insert([
+        {
+          orders_per_day: ordersPerDay || null,
+          team_size: teamSize || null,
+          drivers_count: driversCount || null,
+          years_in_business: yearsInBusiness,
+          primary_delivery_area: primaryDeliveryArea || null,
+          // Pass single challenge value (column accepts single challenge_type enum)
+          delivery_challenge: deliveryChallenge || null,
+          features_wishlist: desiredFeatures || null,
+          user_id: user.id,
+        },
+      ])
+
+    if (bpError) {
+      console.error('Business profile insert error:', bpError)
+      return NextResponse.json({ error: bpError.message || 'Failed to create business profile' }, { status: 500 })
     }
 
     // Insert into organization table
@@ -74,25 +97,6 @@ export async function POST(request: NextRequest) {
     if (orgError) {
       console.error('Organization insert error:', orgError)
       return NextResponse.json({ error: orgError.message || 'Failed to create organization' }, { status: 500 })
-    }
-
-    // Insert into business_profiles
-    const { error: bpError } = await supabase.from('business_profiles').insert([
-      {
-        orders_per_day: ordersPerDay || null,
-        team_size: teamSize || null,
-        drivers_count: driversCount || null,
-        years_in_business: yearsInBusiness || null,
-        primary_delivery_area: primaryDeliveryArea || null,
-        delivery_challenge: Array.isArray(deliveryChallenge) ? deliveryChallenge.join(', ') : (deliveryChallenge || null),
-        features_wishlist: desiredFeatures || null,
-        user_id: user.id,
-      },
-    ])
-
-    if (bpError) {
-      console.error('Business profile insert error:', bpError)
-      return NextResponse.json({ error: bpError.message || 'Failed to create business profile' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, message: 'Organization onboarded' }, { status: 201 })

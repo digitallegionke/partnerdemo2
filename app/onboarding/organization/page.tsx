@@ -28,6 +28,7 @@ import OperatingHoursSelector from "@/app/components/operating-picker";
 import { Router } from "express";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { supabase } from "@/lib/supabase";
 import { RequireAuth } from "@/components/require-auth";
 import { industries } from "@/lib/utils";
 
@@ -55,7 +56,7 @@ interface OrganizationForm {
 
   // Operations
   primaryDeliveryArea: string;
-  deliveryChallenge: string[];
+  deliveryChallenge: string;
   desiredFeatures: string;
 
   // Additional Info
@@ -83,7 +84,7 @@ function OrganizationSetup() {
     yearsInBusiness: "",
     industry: "",
     primaryDeliveryArea: "",
-    deliveryChallenge: [],
+    deliveryChallenge: "",
     desiredFeatures: "",
     termsAccepted: false,
     operatingHours: "",
@@ -173,10 +174,24 @@ function OrganizationSetup() {
 
     setIsLoading(true);
     try {
+      // Get the JWT token from Supabase session
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+
+      if (!token) {
+        toast({
+          title: 'Authentication Error',
+          description: 'You must be logged in to complete onboarding.',
+        })
+        return
+      }
+
       const res = await fetch('/api/onboarding/organization', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
         body: JSON.stringify({
           organizationName: orgForm.organizationName,
           contactEmail: orgForm.contactEmail,
@@ -744,53 +759,38 @@ function OrganizationSetup() {
                   </div>
 
                   <div>
-                    <Label>Biggest delivery challenge</Label>
+                    <Label htmlFor="deliveryChallenge">Biggest delivery challenge *</Label>
                     <div className="grid grid-cols-2 gap-2 mt-2">
                       {[
-                        { value: "Late deliveries", label: "Late deliveries" },
-                        {
-                          value: "High delivery costs",
-                          label: "High delivery costs",
-                        },
-                        {
-                          value: "Unreliable drivers/riders",
-                          label: "Unreliable drivers/riders",
-                        },
-                        {
-                          value: "Poor route planning",
-                          label: "Poor route planning",
-                        },
-                        {
-                          value: "Tracking & visibility issues",
-                          label: "Tracking & visibility issues",
-                        },
-                        { value: "Other", label: "Other" },
+                        "Late deliveries",
+                        "High delivery costs",
+                        "Unreliable drivers/riders",
+                        "Poor route planning",
+                        "Tracking & visibility issues",
+                        "Other",
                       ].map((option) => (
                         <label
-                          key={option.value}
+                          key={option}
                           className={`flex items-center space-x-2 p-3 border rounded cursor-pointer hover:bg-gray-50 ${
-                            orgForm.deliveryChallenge.includes(option.value)
+                            orgForm.deliveryChallenge === option
                               ? "border-blue-500 bg-blue-50"
                               : ""
                           }`}
                         >
                           <input
-                            type="checkbox"
+                            type="radio"
                             name="deliveryChallenge"
-                            value={option.value}
-                            checked={orgForm.deliveryChallenge.includes(option.value)}
-                            onChange={(e) => {
-                              const { value, checked } = e.target;
+                            value={option}
+                            checked={orgForm.deliveryChallenge === option}
+                            onChange={(e) =>
                               setOrgForm({
                                 ...orgForm,
-                                deliveryChallenge: checked
-                                  ? [...orgForm.deliveryChallenge, value]
-                                  : orgForm.deliveryChallenge.filter((item) => item !== value)
-                              });
-                            }}
+                                deliveryChallenge: e.target.value,
+                              })
+                            }
                             className="sr-only"
                           />
-                          <span className="text-sm">{option.label}</span>
+                          <span className="text-sm">{option}</span>
                         </label>
                       ))}
                     </div>
@@ -889,9 +889,9 @@ function OrganizationSetup() {
                         {orgForm.primaryDeliveryArea?.replace("-", " ")}
                       </div>
                       <div>
-                        <span className="font-medium">Main challenges:</span>{" "}
-                        {orgForm.deliveryChallenge.length > 0 
-                          ? orgForm.deliveryChallenge.join(", ")
+                        <span className="font-medium">Main challenge:</span>{" "}
+                        {orgForm.deliveryChallenge
+                          ? orgForm.deliveryChallenge
                           : "None selected"
                         }
                       </div>

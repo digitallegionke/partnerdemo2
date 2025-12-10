@@ -87,32 +87,38 @@ export class AuthService {
     phone?: string
   ): Promise<AuthResponse> {
     try {
-      // Sign up with Supabase directly on the frontend
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name,
-            phone: phone || null,
-          },
+      // Call secure backend endpoint instead of direct Supabase call
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
+        body: JSON.stringify({
+          email,
+          password,
+          full_name,
+          phone: phone || null,
+        }),
       })
 
-      if (error) {
+      const data = await response.json()
+
+      if (!response.ok) {
         return {
           success: false,
-          error: error.message,
+          error: data.error || 'Signup failed',
         }
       }
 
       if (!data.user) {
         return {
           success: false,
-          error: "Signup failed",
+          error: 'Signup failed',
         }
       }
 
+      // After signup via backend, user must sign in to get session
+      // This is handled by redirecting to login or auto-signin on next step
       return {
         success: true,
         user: {
@@ -120,10 +126,6 @@ export class AuthService {
           email: data.user.email || "",
           user_metadata: data.user.user_metadata,
         },
-        session: data.session ? {
-          access_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-        } : undefined,
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred"
