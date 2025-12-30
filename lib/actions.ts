@@ -2,6 +2,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { redirect } from "next/navigation";
+import { validateKenyanPhone } from "@/lib/utils";
 
 export async function signIn(prevState: any, formData: FormData) {
   if (!formData) {
@@ -87,6 +88,12 @@ export async function acceptInviteWithSignup(
   }
 
   try {
+    // Validate phone format
+    const phoneValidation = validateKenyanPhone(phoneNumber.toString())
+    if (!phoneValidation.valid) {
+      return { error: phoneValidation.error || "Invalid phone number format" }
+    }
+
     // First, verify the invite token
     const { data: invite, error: inviteError } = await supabase.rpc(
       "get_invite_by_token",
@@ -104,6 +111,17 @@ export async function acceptInviteWithSignup(
       return { error: "Email does not match the invited email address" };
     }
 
+    // Check if phone is already in use
+    const { data: existingPhoneUsers } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('phone', phoneValidation.normalized)
+      .limit(1)
+
+    if (existingPhoneUsers && existingPhoneUsers.length > 0) {
+      return { error: "This phone number is already registered" }
+    }
+
     // Create the user account
     const { data: authData, error: signUpError } = await supabase.auth.signUp({
       email: email.toString(),
@@ -111,7 +129,7 @@ export async function acceptInviteWithSignup(
       options: {
         data: {
           full_name: fullName.toString() || "",
-          phone: phoneNumber.toString(),
+          phone: phoneValidation.normalized,
         },
       },
     });

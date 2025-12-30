@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthenticatedClient } from '@/lib/supabase'
+import { validateKenyanPhone } from '@/lib/utils'
 
 export async function GET(request: NextRequest) {
   try {
@@ -77,9 +78,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Missing required fields: ${missing.join(', ')}` }, { status: 400 })
     }
 
+    // Validate phone format
+    const phoneValidation = validateKenyanPhone(body.phone)
+    if (!phoneValidation.valid) {
+      return NextResponse.json(
+        { error: phoneValidation.error || 'Invalid phone format' },
+        { status: 400 }
+      )
+    }
+
+    // Check if phone already exists for this organization
+    const { data: existingDriver } = await supabase
+      .from('drivers')
+      .select('id')
+      .eq('org_id', membership.organization_id)
+      .eq('phone', phoneValidation.normalized)
+      .limit(1)
+
+    if (existingDriver && existingDriver.length > 0) {
+      return NextResponse.json(
+        { error: 'This phone number is already registered for another driver in your organization' },
+        { status: 400 }
+      )
+    }
+
     const insertData: any = {
       name: body.name,
-      phone: body.phone,
+      phone: phoneValidation.normalized,
       email: body.email ?? null,
       avatar_url: body.avatar_url ?? null,
       status: body.status ?? 'active',

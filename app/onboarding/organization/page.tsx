@@ -25,12 +25,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import OperatingHoursSelector from "@/app/components/operating-picker";
-import { Router } from "express";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { RequireAuth } from "@/components/require-auth";
-import { industries } from "@/lib/utils";
+import { industries, validateKenyanPhone } from "@/lib/utils";
 
 type OrganizationOnboardingStep =
   | "welcome"
@@ -117,6 +116,13 @@ function OrganizationSetup() {
         newErrors.contactEmail = "Contact email is required";
       if (!orgForm.contactPhone.trim())
         newErrors.contactPhone = "Contact phone is required";
+      else {
+        // Validate phone format
+        const phoneValidation = validateKenyanPhone(orgForm.contactPhone)
+        if (!phoneValidation.valid) {
+          newErrors.contactPhone = phoneValidation.error || "Invalid phone format"
+        }
+      }
       if (!orgForm.industry) newErrors.industry = "Please select your industry";
       if (!orgForm.yearsInBusiness.trim())
         newErrors.yearsInBusiness =

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthenticatedClient } from '@/lib/supabase'
+import { validateKenyanPhone } from '@/lib/utils'
 
 /**
  * POST /api/onboarding/organization
@@ -49,6 +50,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: `Missing required fields: ${missing.join(', ')}` }, { status: 400 })
     }
 
+    // Validate contact phone format
+    const phoneValidation = validateKenyanPhone(contactPhone)
+    if (!phoneValidation.valid) {
+      return NextResponse.json(
+        { error: phoneValidation.error || 'Invalid contact phone format' },
+        { status: 400 }
+      )
+    }
+
     // Create authenticated client with user's authorization
     const supabase = createAuthenticatedClient(request.headers.get('authorization'))
 
@@ -56,6 +66,20 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: userError } = await supabase.auth.getUser()
     if (userError || !user) {
       return NextResponse.json({ error: 'Unauthorized - Please log in' }, { status: 401 })
+    }
+
+    // Check if this phone number is already in use
+    const { data: existingPhoneUsers } = await supabase
+      .from('organization')
+      .select('id')
+      .eq('company_phone', phoneValidation.normalized)
+      .limit(1)
+
+    if (existingPhoneUsers && existingPhoneUsers.length > 0) {
+      return NextResponse.json(
+        { error: 'This phone number is already registered with another organization' },
+        { status: 400 }
+      )
     }
 
     // Insert into business_profiles with authenticated client
@@ -85,7 +109,7 @@ export async function POST(request: NextRequest) {
       company_name: organizationName,
       industry,
       company_email: contactEmail,
-      company_phone: contactPhone,
+      company_phone: phoneValidation.normalized,
       headquarters: address || null,
       operating_hours: operatingHours || null,
       operating_days: operatingDays || null,

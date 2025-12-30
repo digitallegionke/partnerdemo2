@@ -17,6 +17,7 @@ import { supabase } from "@/lib/supabase";
 import { CheckCircle, XCircle, Loader2, UserPlus } from "lucide-react";
 import { acceptInviteWithSignup } from "@/lib/actions";
 import Link from "next/link";
+import { validateKenyanPhone } from "@/lib/utils";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -45,6 +46,7 @@ export default function AcceptInvite() {
     "loading" | "valid" | "invalid" | "used"
   >("loading");
   const [inviteData, setInviteData] = useState<any>(null);
+  const [phoneError, setPhoneError] = useState<string>("");
   const [state, formAction] = useActionState(acceptInviteWithSignup, null);
 
   useEffect(() => {
@@ -77,6 +79,16 @@ export default function AcceptInvite() {
     } catch (error) {
       console.error("Error checking invite:", error);
       setStatus("invalid");
+    }
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value) {
+      const validation = validateKenyanPhone(value);
+      setPhoneError(validation.valid ? "" : (validation.error || ""));
+    } else {
+      setPhoneError("");
     }
   };
  
@@ -194,15 +206,20 @@ export default function AcceptInvite() {
                     htmlFor="phoneNumber"
                     className="block text-sm font-medium"
                   >
-                    Phone Number
+                    Phone Number *
                   </label>
                   <Input
                     id="phoneNumber"
                     name="phoneNumber"
                     type="tel"
-                    placeholder="254712345678"
+                    placeholder="+254712345678"
+                    onChange={handlePhoneChange}
+                    className={phoneError ? "border-red-500" : ""}
                     required
                   />
+                  {phoneError && (
+                    <p className="text-sm text-red-500">{phoneError}</p>
+                  )}
                 </div>
               </div>
 
