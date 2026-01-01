@@ -43,6 +43,8 @@ export interface Database {
           created_at: string;
           updated_at: string;
           org_id: number;
+          user_id: string | null;
+          phone_verified_at: string | null;
         };
         Insert: {
           name: string;
@@ -52,6 +54,8 @@ export interface Database {
           status?: "active" | "inactive" | "on_break";
           vehicle_type: string;
           license_number: string;
+          user_id?: string | null;
+          phone_verified_at?: string | null;
         };
         Update: {
           name?: string;
@@ -61,6 +65,8 @@ export interface Database {
           status?: "active" | "inactive" | "on_break";
           vehicle_type?: string;
           license_number?: string;
+          user_id?: string | null;
+          phone_verified_at?: string | null;
         };
       };
       routes: {
