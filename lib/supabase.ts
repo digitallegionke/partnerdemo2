@@ -54,6 +54,7 @@ export interface Database {
           status?: "active" | "inactive" | "on_break";
           vehicle_type: string;
           license_number: string;
+          org_id: number;
           user_id?: string | null;
           phone_verified_at?: string | null;
         };
