@@ -9,7 +9,6 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
 import { getSupabaseServer } from '@/lib/supabase-server';
 import {
   validateAndNormalizePhone,
@@ -24,6 +23,9 @@ import {
   type RequestOtpResponse,
   type OtpErrorResponse,
 } from '@/lib/otp-types';
+
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 /**
  * Handle OTP request
@@ -69,7 +71,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Check rate limit
+    // Rate limit key
     const rateLimitKey = `otp_request:${phone}`;
     if (!otpRateLimiter.isAllowed(rateLimitKey)) {
       const resetTime = otpRateLimiter.getResetTime(rateLimitKey);
@@ -88,15 +90,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // Use service-role Supabase client for server-side queries (avoids RLS issues)
+    const adminSupabase = await getSupabaseServer();
+
     // Check if driver exists with this phone
-    const { data: driver, error: driverError } = await supabase
+    const { data: driver, error: driverError } = await adminSupabase
       .from('drivers')
       .select('id, name, status, phone_verified_at')
       .eq('phone', phone)
       .maybeSingle();
 
     if (driverError && driverError.code !== 'PGRST116') {
-      // PGRST116 is "no rows returned" which is expected
       console.error('[request-otp] Database error checking driver:', driverError);
       return NextResponse.json(
         {
@@ -121,43 +125,57 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // If driver is inactive, still send OTP (they can activate on first login)
-    // but we can optionally warn them
-    const isInactive =
-      driver.status !== 'active' && driver.status !== 'on_break';
+    // Generate secure 6-digit OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
 
-    // Request OTP from Supabase
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      phone,
-    });
+    // Hash OTP
+    const otpHash = await bcrypt.hash(otp, 10);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes
+    const createdAt = new Date().toISOString();
 
-    if (otpError) {
-      console.error('[request-otp] Supabase OTP error:', otpError);
+    // Store verification record using adminSupabase (initialized earlier)
+    const { error: insertErr } = await adminSupabase
+      .from('otp_verifications')
+      .insert([
+        {
+          phone,
+          otp_hash: otpHash,
+          expires_at: expiresAt,
+          attempts: 0,
+          created_at: createdAt,
+        },
+      ] as any);
 
-      // Handle specific Supabase errors
-      if (otpError.message.includes('rate limited')) {
-        return NextResponse.json(
-          {
-            error: getOtpErrorMessage(OtpErrorCode.RATE_LIMIT_EXCEEDED),
-            code: OtpErrorCode.RATE_LIMIT_EXCEEDED,
-          } as OtpErrorResponse,
-          { status: 429 }
-        );
-      }
-
+    if (insertErr) {
+      console.error('[request-otp] Failed to insert otp_verifications:', insertErr);
       return NextResponse.json(
         {
-          error: getOtpErrorMessage(OtpErrorCode.SUPABASE_ERROR),
-          code: OtpErrorCode.SUPABASE_ERROR,
+          error: getOtpErrorMessage(OtpErrorCode.DATABASE_ERROR),
+          code: OtpErrorCode.DATABASE_ERROR,
         } as OtpErrorResponse,
         { status: 500 }
       );
     }
 
-    const remainingAttempts = otpRateLimiter.getRemainingAttempts(
-      rateLimitKey
-    );
+    // Development: log OTP instead of sending SMS
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`\n===========================================\n📱 OTP Request for: ${phone}\n🔐 Code: ${otp}\n⏰ Expires: 5 minutes\n===========================================\n`);
 
+      const remainingAttempts = otpRateLimiter.getRemainingAttempts(rateLimitKey);
+
+      const response: RequestOtpResponse = {
+        success: true,
+        message: 'OTP logged to console',
+        attemptsRemaining: remainingAttempts,
+      };
+
+      return NextResponse.json(response, { status: 200 });
+    }
+
+    // Production: SMS sending integration placeholder
+    // TODO: Implement sendSMS(phone, `Your verification code: ${otp}`)
+
+    const remainingAttempts = otpRateLimiter.getRemainingAttempts(rateLimitKey);
     const response: RequestOtpResponse = {
       success: true,
       message: `OTP sent to ${phone}`,

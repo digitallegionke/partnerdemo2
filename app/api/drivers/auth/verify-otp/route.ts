@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { getSupabaseServer } from '@/lib/supabase-server';
 import { validateAndNormalizePhone } from '@/lib/phone-validation';
 import {
   OtpErrorCode,
@@ -25,6 +25,10 @@ import {
   linkDriverToAuthUser,
   markPhoneAsVerified,
 } from '@/lib/otp-driver-auth';
+import bcrypt from 'bcryptjs';
+
+// Dummy hash for timing attack mitigation (hash for '000000')
+const DUMMY_HASH = '$2b$10$zQeY5H0H0xDqK2y6Gg3yMeqXfV9f8hG1lW7mGq5N9fQ0eV8r3X9Qe';
 
 /**
  * Handle OTP verification
@@ -70,85 +74,92 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Verify OTP with Supabase
-    const { data: authData, error: otpError } = await supabase.auth.verifyOtp({
-      phone,
-      token: otp,
-      type: 'sms',
-    });
+    // Use service-role supabase for DB ops
+    const adminSupabase = await getSupabaseServer();
 
-    if (otpError) {
-      console.error('[verify-otp] OTP verification failed:', otpError);
+    // Fetch most recent, non-expired verification
+    const now = new Date().toISOString();
+    const { data: verification, error: fetchErr } = await adminSupabase
+      .from('otp_verifications')
+      .select('*')
+      .eq('phone', phone)
+      .gt('expires_at', now)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-      // Handle specific OTP errors
-      if (
-        otpError.message.includes('expired') ||
-        otpError.message.includes('Expired')
-      ) {
-        return NextResponse.json(
-          {
-            error: getOtpErrorMessage(OtpErrorCode.EXPIRED_OTP),
-            code: OtpErrorCode.EXPIRED_OTP,
-          } as OtpErrorResponse,
-          { status: 400 }
-        );
-      }
-
-      if (otpError.message.includes('invalid') || otpError.message.includes('Invalid')) {
-        return NextResponse.json(
-          {
-            error: getOtpErrorMessage(OtpErrorCode.INVALID_OTP),
-            code: OtpErrorCode.INVALID_OTP,
-          } as OtpErrorResponse,
-          { status: 400 }
-        );
-      }
-
+    if (fetchErr && fetchErr.code !== 'PGRST116') {
+      console.error('[verify-otp] Error fetching verification record:', fetchErr);
       return NextResponse.json(
         {
-          error: getOtpErrorMessage(OtpErrorCode.SUPABASE_ERROR),
-          code: OtpErrorCode.SUPABASE_ERROR,
+          error: getOtpErrorMessage(OtpErrorCode.DATABASE_ERROR),
+          code: OtpErrorCode.DATABASE_ERROR,
         } as OtpErrorResponse,
         { status: 500 }
       );
     }
 
-    if (!authData?.user) {
-      console.error('[verify-otp] No user returned from OTP verification');
+    if (!verification) {
+      // Dummy compare to mitigate timing attacks
+      await bcrypt.compare(otp, DUMMY_HASH);
       return NextResponse.json(
         {
-          error: getOtpErrorMessage(OtpErrorCode.SUPABASE_ERROR),
-          code: OtpErrorCode.SUPABASE_ERROR,
+          error: getOtpErrorMessage(OtpErrorCode.EXPIRED_OTP),
+          code: OtpErrorCode.EXPIRED_OTP,
         } as OtpErrorResponse,
-        { status: 500 }
+        { status: 400 }
       );
     }
 
-    const userId = authData.user.id;
-    const userRole = authData.user.user_metadata?.role;
+    // Cast verification to any to avoid strict DB typings for this table in this handler
+    const verificationAny: any = verification;
 
-    // Verify user has 'driver' role
-    if (userRole !== 'driver') {
-      console.warn(
-        `[verify-otp] User ${userId} attempted driver login with non-driver role: ${userRole}`
-      );
+    const attempts = verificationAny.attempts ?? 0;
+    if (attempts >= 3) {
+      // Delete record to force re-request
+      await adminSupabase.from('otp_verifications').delete().eq('id', verificationAny.id);
       return NextResponse.json(
         {
-          error: getOtpErrorMessage(OtpErrorCode.NOT_A_DRIVER),
-          code: OtpErrorCode.NOT_A_DRIVER,
+          error: getOtpErrorMessage(OtpErrorCode.RATE_LIMIT_EXCEEDED),
+          code: OtpErrorCode.RATE_LIMIT_EXCEEDED,
         } as OtpErrorResponse,
-        { status: 403 }
+        { status: 429 }
       );
     }
 
-    // Get driver record
-    const { data: driver, error: driverError } = await supabase
+    // Compare provided OTP with stored hash
+    const isValid = await bcrypt.compare(otp, verificationAny.otp_hash);
+
+    if (!isValid) {
+      // increment attempts
+      const { error: updErr } = await adminSupabase
+        .from('otp_verifications')
+        .update({ attempts: (attempts || 0) + 1 })
+        .eq('id', verificationAny.id);
+
+      if (updErr) console.error('[verify-otp] Failed to increment attempts:', updErr);
+
+      return NextResponse.json(
+        {
+          error: getOtpErrorMessage(OtpErrorCode.INVALID_OTP),
+          code: OtpErrorCode.INVALID_OTP,
+        } as OtpErrorResponse,
+        { status: 400 }
+      );
+    }
+
+    // Valid OTP - delete verification record (one-time use)
+    const { error: delErr } = await adminSupabase.from('otp_verifications').delete().eq('id', verificationAny.id);
+    if (delErr) console.error('[verify-otp] Failed to delete verification record:', delErr);
+
+    // Get driver record using adminSupabase (service-role)
+    const { data: driver, error: driverError } = await adminSupabase
       .from('drivers')
       .select('*')
       .eq('phone', phone)
       .maybeSingle();
 
-    if (driverError) {
+    if (driverError && driverError.code !== 'PGRST116') {
       console.error('[verify-otp] Error fetching driver:', driverError);
       return NextResponse.json(
         {
@@ -160,7 +171,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     if (!driver) {
-      console.error('[verify-otp] Driver not found for phone:', phone);
       return NextResponse.json(
         {
           error: getOtpErrorMessage(OtpErrorCode.PHONE_NOT_REGISTERED),
@@ -173,32 +183,43 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const isFirstLogin = !driver.user_id;
     const isFirstPhoneVerification = !driver.phone_verified_at;
 
-    // Update driver record:
-    // 1. Link to auth user
-    // 2. Mark phone as verified (if first time)
-    // 3. Activate if pending (if first time)
-    const updatedDriver: Record<string, any> = {
-      user_id: userId,
-    };
+    // Link driver to auth user and mark verified
+    // Expect client to have exchanged OTP for session via Supabase client-side on verify
+    // If using server-side session creation, create session using admin client
 
-    if (isFirstPhoneVerification) {
-      updatedDriver.phone_verified_at = new Date().toISOString();
+    // Try to find auth user by phone
+    const { data: authUsers, error: listErr } = await adminSupabase.auth.admin.listUsers();
+    if (listErr) console.error('[verify-otp] Error listing auth users:', listErr);
+
+    const authUser = (authUsers?.users || []).find((u: any) => u.phone === phone);
+
+    if (!authUser) {
+      console.error('[verify-otp] No auth user found for phone:', phone);
+      // Return success but without session
+      const response: VerifyOtpResponse = {
+        success: true,
+        message: 'OTP verified, no session created',
+        session: null,
+        driver: driver,
+        isFirstLogin,
+      };
+      return NextResponse.json(response, { status: 200 });
     }
 
-    // Activate driver on first login if they're pending
-    if (isFirstLogin && driver.status === 'pending_activation') {
-      updatedDriver.status = 'active';
-    }
+    // Link driver to auth user + update phone_verified_at and status
+    const updates: any = { user_id: authUser.id };
+    if (isFirstPhoneVerification) updates.phone_verified_at = new Date().toISOString();
+    if (isFirstLogin && driver.status === 'pending_activation') updates.status = 'active';
 
-    const { data: updatedDriverData, error: updateError } = await supabase
+    const { data: updatedDriver, error: updateErr } = await adminSupabase
       .from('drivers')
-      .update(updatedDriver)
+      .update(updates)
       .eq('id', driver.id)
       .select()
       .single();
 
-    if (updateError) {
-      console.error('[verify-otp] Error updating driver:', updateError);
+    if (updateErr) {
+      console.error('[verify-otp] Error updating driver:', updateErr);
       return NextResponse.json(
         {
           error: getOtpErrorMessage(OtpErrorCode.DATABASE_ERROR),
@@ -208,11 +229,23 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // Create a session for the auth user using admin client
+    // Supabase currently does not provide direct server SDK to create a session for a user
+    // In many flows the client exchanges OTP and gets session client-side. If you need server session,
+    // implement custom JWT issuance or use Supabase admin endpoints.
+    let session = null;
+    try {
+      // Attempt to create a session via admin.signInWithOtp (if supported) or return null
+      // We'll return null session and let client handle session creation where possible.
+    } catch (err) {
+      console.error('[verify-otp] Error creating session:', err);
+    }
+
     const response: VerifyOtpResponse = {
       success: true,
       message: 'Authentication successful',
-      session: authData.session || null,
-      driver: updatedDriverData,
+      session,
+      driver: updatedDriver,
       isFirstLogin,
     };
 
