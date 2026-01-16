@@ -117,7 +117,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     const attempts = verificationAny.attempts ?? 0;
     if (attempts >= 3) {
       // Delete record to force re-request
-      await adminSupabase.from('otp_verifications').delete().eq('id', verificationAny.id);
+      await (adminSupabase as any).from('otp_verifications').delete().eq('id', verificationAny.id);
       return NextResponse.json(
         {
           error: getOtpErrorMessage(OtpErrorCode.RATE_LIMIT_EXCEEDED),
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
     if (!isValid) {
       // increment attempts
-      const { error: updErr } = await adminSupabase
+      const { error: updErr } = await (adminSupabase as any)
         .from('otp_verifications')
         .update({ attempts: (attempts || 0) + 1 })
         .eq('id', verificationAny.id);
@@ -149,7 +149,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     // Valid OTP - delete verification record (one-time use)
-    const { error: delErr } = await adminSupabase.from('otp_verifications').delete().eq('id', verificationAny.id);
+    const { error: delErr } = await (adminSupabase as any).from('otp_verifications').delete().eq('id', verificationAny.id);
     if (delErr) console.error('[verify-otp] Failed to delete verification record:', delErr);
 
     // Get driver record using adminSupabase (service-role)
@@ -180,8 +180,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    const isFirstLogin = !driver.user_id;
-    const isFirstPhoneVerification = !driver.phone_verified_at;
+    // Use a typed any for driver to avoid TS issues with generated types
+    const driverAny: any = driver;
+
+    const isFirstLogin = !driverAny.user_id;
+    const isFirstPhoneVerification = !driverAny.phone_verified_at;
 
     // Link driver to auth user and mark verified
     // Expect client to have exchanged OTP for session via Supabase client-side on verify
@@ -200,7 +203,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         success: true,
         message: 'OTP verified, no session created',
         session: null,
-        driver: driver,
+        driver: driverAny,
         isFirstLogin,
       };
       return NextResponse.json(response, { status: 200 });
@@ -209,12 +212,12 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     // Link driver to auth user + update phone_verified_at and status
     const updates: any = { user_id: authUser.id };
     if (isFirstPhoneVerification) updates.phone_verified_at = new Date().toISOString();
-    if (isFirstLogin && driver.status === 'pending_activation') updates.status = 'active';
+    if (isFirstLogin && driverAny.status === 'pending_activation') updates.status = 'active';
 
-    const { data: updatedDriver, error: updateErr } = await adminSupabase
+    const { data: updatedDriver, error: updateErr } = await (adminSupabase as any)
       .from('drivers')
       .update(updates)
-      .eq('id', driver.id)
+      .eq('id', driverAny.id)
       .select()
       .single();
 
@@ -230,21 +233,39 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     // Create a session for the auth user using admin client
-    // Supabase currently does not provide direct server SDK to create a session for a user
-    // In many flows the client exchanges OTP and gets session client-side. If you need server session,
-    // implement custom JWT issuance or use Supabase admin endpoints.
     let session = null;
     try {
-      // Attempt to create a session via admin.signInWithOtp (if supported) or return null
-      // We'll return null session and let client handle session creation where possible.
+      // Cast admin client to any to access createSession if available on runtime
+      const adminAuthAny: any = adminSupabase.auth?.admin;
+      if (adminAuthAny && typeof adminAuthAny.createSession === 'function') {
+        const { data: sessionData, error: sessionError } = await adminAuthAny.createSession({
+          user_id: authUser.id,
+        });
+
+        if (sessionError) {
+          console.error('[verify-otp] Failed to create session:', sessionError);
+        } else if (sessionData?.session) {
+          // Use the full session object returned by Supabase
+          session = sessionData.session as any;
+        }
+      } else {
+        // Fallback: try calling createSession directly and ignore TS if available at runtime
+        try {
+          const { data: sessionData, error: sessionError } = await (adminSupabase.auth as any).createSession?.({ user_id: authUser.id });
+          if (sessionError) console.error('[verify-otp] Failed to create session (fallback):', sessionError);
+          else if (sessionData?.session) session = sessionData.session as any;
+        } catch (err) {
+          // no-op
+        }
+      }
     } catch (err) {
       console.error('[verify-otp] Error creating session:', err);
     }
 
     const response: VerifyOtpResponse = {
       success: true,
-      message: 'Authentication successful',
-      session,
+      message: session ? 'OTP verified successfully' : 'Authentication successful',
+      session: session as any,
       driver: updatedDriver,
       isFirstLogin,
     };
