@@ -184,7 +184,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    console.log('[verify-otp] Driver found:', driver.id);
+    console.log('[verify-otp] Driver found:', (driver as any).id);
 
     // Use typed any for driver
     const driverAny: any = driver;
@@ -200,7 +200,7 @@ if (listErr) console.error('[verify-otp] Error listing auth users:', listErr);
 const driverEmail = `${phone.replace('+', '')}@driver.internal`;
 
 // Search by both phone and email
-const authUser = (authUsers?.users || []).find((u: any) => 
+let authUser = (authUsers?.users || []).find((u: any) =>
   u.phone === phone || u.email === driverEmail
 );
 
@@ -268,6 +268,19 @@ console.log('[verify-otp] Auth user search:', {
 
     console.log('[verify-otp] Driver updated successfully');
 
+    // Fetch organization name server-side (service role bypasses RLS)
+    let organization_name: string | null = null;
+    const orgId = (updatedDriver as any)?.org_id;
+    if (orgId) {
+      const { data: orgData } = await (adminSupabase as any)
+        .from('organizations')
+        .select('name')
+        .eq('id', orgId)
+        .maybeSingle();
+      organization_name = orgData?.name ?? null;
+    }
+    console.log('[verify-otp] Organization name:', organization_name);
+
     // Create session using temporary password method
     let session = null;
     try {
@@ -279,13 +292,18 @@ console.log('[verify-otp] Auth user search:', {
       // Get/create email for this user
       const driverEmail = `${phone.replace('+', '')}@driver.internal`;
       
-      // Update auth user with temporary password and email
+      // Update auth user with temporary password, email, and org name in metadata
       const { error: updateAuthError } = await adminSupabase.auth.admin.updateUserById(
         authUser.id,
         {
           password: tempPassword,
           email: driverEmail,
           email_confirm: true,
+          user_metadata: {
+            role: 'driver',
+            full_name: driverAny.name,
+            org_name: organization_name,
+          },
         }
       );
 
@@ -322,6 +340,7 @@ console.log('[verify-otp] Auth user search:', {
       session: session as any,
       driver: updatedDriver,
       isFirstLogin,
+      organization_name: organization_name ?? undefined,
     };
 
     console.log('[verify-otp] Returning response with session:', !!session);

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthenticatedClient } from '@/lib/supabase'
 import { getSupabaseServer } from '@/lib/supabase-server'
+import crypto from 'crypto'
+import bcrypt from 'bcryptjs'
 
 // E.164 format validation: +[country code][number]
 function validatePhoneFormat(phone: string): boolean {
@@ -46,7 +48,17 @@ async function checkPhoneUniqueness(
   return { isUnique: true }
 }
 
-// Create auth user and driver record with proper transaction handling
+/**
+ * Generate a secure 6-digit setup OTP for driver initial login
+ */
+function generateSetupOtp(): { otp: string; hash: string; expiresAt: string } {
+  const otp = crypto.randomInt(100000, 999999).toString()
+  const hash = bcrypt.hashSync(otp, 10)
+  // Setup OTP expires in 7 days
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+  return { otp, hash, expiresAt }
+}
+
 // Create auth user and driver record with proper transaction handling
 async function createDriverWithAuth(
   adminClient: Awaited<ReturnType<typeof getSupabaseServer>>,
@@ -60,7 +72,7 @@ async function createDriverWithAuth(
     license_number: string
     org_id: number
   }
-): Promise<{ success: boolean; data?: any; error?: string; authUserId?: string }> {
+): Promise<{ success: boolean; data?: any; error?: string; authUserId?: string; setupOtp?: string }> {
   // Step 1: Create auth user with email
   let authUser: any = null;
   try {
@@ -98,7 +110,11 @@ async function createDriverWithAuth(
     return { success: false, error: `Unexpected error during authentication user creation: ${err.message}` }
   }
 
-  // Step 2: Create driver record with user_id
+  // Step 2: Generate setup OTP for initial driver login
+  const setupOtpData = generateSetupOtp()
+  console.log('Generated setup OTP for driver (expires in 7 days)')
+
+  // Step 3: Create driver record with user_id and setup OTP
   try {
     const insertPayload: any = {
       name: driverData.name,
@@ -110,6 +126,9 @@ async function createDriverWithAuth(
       license_number: driverData.license_number,
       org_id: driverData.org_id,
       user_id: authUser.id,
+      setup_otp_hash: setupOtpData.hash,
+      setup_otp_expires_at: setupOtpData.expiresAt,
+      setup_otp_used: false,
     }
 
     const { data: driver, error: driverError } = await adminClient
@@ -121,7 +140,7 @@ async function createDriverWithAuth(
     if (driverError) {
       console.error('Error creating driver record:', driverError)
 
-      // Step 3: Rollback - delete auth user if driver creation fails
+      // Step 4: Rollback - delete auth user if driver creation fails
       try {
         await adminClient.auth.admin.deleteUser(authUser.id)
         console.log(`Rolled back auth user ${authUser.id} due to driver creation failure`)
@@ -148,7 +167,8 @@ async function createDriverWithAuth(
       return { success: false, error: 'Failed to create driver - no data returned', authUserId: authUser.id }
     }
 
-    return { success: true, data: driver, authUserId: authUser.id }
+    // Return the plain-text OTP along with driver data (for admin to share with driver)
+    return { success: true, data: driver, authUserId: authUser.id, setupOtp: setupOtpData.otp }
   } catch (err: any) {
     console.error('Unexpected error creating driver record:', err)
 
@@ -197,7 +217,10 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from('drivers')
-      .select('*')
+      .select(`
+        *,
+        deliveries:deliveries(count)
+      `)
       .eq('org_id', membership.organization_id)
       .order('created_at', { ascending: false })
 
@@ -293,7 +316,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: statusCode })
     }
 
-    return NextResponse.json(result.data, { status: 201 })
+    // Include setupOtp in response for admin to share with driver
+    // This OTP is one-time use and expires in 7 days
+    return NextResponse.json({
+      ...result.data,
+      setupOtp: result.setupOtp,
+    }, { status: 201 })
   } catch (error: any) {
     console.error('Unexpected error in POST /api/drivers:', error)
     return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 })
