@@ -358,7 +358,7 @@ export class RouteService {
         .from("deliveries")
         .update({
           route_id: routeId,
-          status: "in-progress",
+          status: "pending",
         })
         .eq("id", deliveryId);
 
@@ -531,6 +531,71 @@ export class RouteService {
     } catch (error) {
       console.error("Error in getTodaysActiveRoutes:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Save or update a route's polyline for delivery prioritization.
+   */
+  static async saveRoutePolyline(
+    routeId: number,
+    encodedPolyline: string,
+    waypoints: Array<{ lat: number; lng: number }>,
+    totalDistanceM?: number,
+    totalDurationS?: number
+  ): Promise<void> {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const authHeader = session?.access_token
+        ? `Bearer ${session.access_token}`
+        : "";
+
+      await fetch("/api/routes/polyline", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: authHeader,
+        },
+        body: JSON.stringify({
+          route_id: routeId,
+          encoded_polyline: encodedPolyline,
+          waypoints,
+          total_distance_m: totalDistanceM,
+          total_duration_s: totalDurationS,
+        }),
+      });
+    } catch (error) {
+      console.error("Error saving route polyline:", error);
+    }
+  }
+
+  /**
+   * Retrieve a route's stored polyline.
+   */
+  static async getRoutePolyline(
+    routeId: number
+  ): Promise<{ encoded_polyline: string; waypoints: Array<{ lat: number; lng: number }> } | null> {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const authHeader = session?.access_token
+        ? `Bearer ${session.access_token}`
+        : "";
+
+      const response = await fetch(
+        `/api/routes/polyline?route_id=${routeId}`,
+        {
+          headers: { Authorization: authHeader },
+        }
+      );
+      const data = await response.json();
+      return data || null;
+    } catch (error) {
+      console.error("Error fetching route polyline:", error);
+      return null;
     }
   }
 }

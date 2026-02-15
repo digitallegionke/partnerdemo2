@@ -170,7 +170,11 @@ export class DeliveryService {
   static async updateDeliveryOrder(
     deliveries: Array<{ id: number; order_index: number }>
   ): Promise<void> {
-    throw new Error("Update order not yet implemented via API")
+    await Promise.all(
+      deliveries.map((d) =>
+        this.updateDelivery(d.id, { order_index: d.order_index })
+      )
+    )
   }
 
   static async deleteDelivery(id: number): Promise<void> {
@@ -261,6 +265,36 @@ export class DeliveryService {
     return []
   }
 
+  /**
+   * Fetch unassigned deliveries, optionally scored/ranked for a specific route.
+   */
+  static async getUnassignedDeliveries(
+    routeId?: number,
+    maxDetourKm?: number
+  ): Promise<any[]> {
+    const params = new URLSearchParams()
+    if (routeId) params.set('route_id', String(routeId))
+    if (maxDetourKm) params.set('max_detour_km', String(maxDetourKm))
+    const result = await this.fetchWithAuth(
+      `/api/deliveries/unassigned?${params.toString()}`,
+      { method: 'GET' }
+    )
+    return result.deliveries || []
+  }
+
+  /**
+   * Assign deliveries to a route.
+   */
+  static async assignToRoute(
+    deliveryIds: number[],
+    routeId: number
+  ): Promise<{ assigned: number; total_requested: number }> {
+    return this.fetchWithAuth('/api/deliveries/assign-to-route', {
+      method: 'POST',
+      body: JSON.stringify({ delivery_ids: deliveryIds, route_id: routeId }),
+    })
+  }
+
   // Calendar-specific methods for delivery scheduling
   static async getDeliveriesForCalendar(
     startDate?: string,
@@ -280,6 +314,36 @@ export class DeliveryService {
     notes?: string;
   }>> {
     return []
+  }
+
+  static async createDeliveryForCalendar(delivery: {
+    customer_name: string;
+    location: string;
+    item: string;
+    estimated_value?: string | null;
+    weight?: string | null;
+    phone: string;
+    scheduled_date: string;
+    start_time: string;
+    end_time: string;
+    notes?: string;
+    status?: string;
+  }): Promise<Delivery> {
+    // Convert calendar format to delivery format
+    const drop_time = `${delivery.scheduled_date}T${delivery.start_time}`;
+    const deliveryData = {
+      customer_name: delivery.customer_name,
+      location: delivery.location,
+      coordinates: [0, 0] as [number, number], // Default coordinates - should be geocoded
+      item: delivery.item,
+      estimated_value: delivery.estimated_value,
+      weight: delivery.weight,
+      phone: delivery.phone,
+      drop_time,
+      status: delivery.status || 'pending',
+      delivery_notes: delivery.notes,
+    };
+    return this.createDelivery(deliveryData);
   }
 
   static async approveDelivery(

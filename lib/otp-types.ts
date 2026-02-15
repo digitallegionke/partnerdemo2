@@ -40,6 +40,7 @@ export interface VerifyOtpResponse {
   session?: Session | null;
   driver?: DriverRow | null;
   isFirstLogin?: boolean;
+  organization_name?: string;
 }
 
 /**
