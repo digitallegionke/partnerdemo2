@@ -51,6 +51,8 @@ import {
   formatCost,
 } from "@/lib/route-optimization";
 import { toast } from "@/hooks/use-toast";
+import { useDriverLocations } from "@/hooks/use-driver-locations";
+import { DeliveryService } from "@/lib/services/deliveries";
 
 type DeliveryData = {
   id: number;
@@ -106,8 +108,41 @@ export default function RouteMapScreen({
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [isLiveTrackingEnabled, setIsLiveTrackingEnabled] = useState(false);
   const [isCallModalOpen, setIsCallModalOpen] = useState(false);
-  const [callingCustomer, setCallingCustomer] = useState(null);
+  const [callingCustomer, setCallingCustomer] = useState<DeliveryData | null>(null);
   const [phoneCopied, setPhoneCopied] = useState(false);
+  const [recommendedDeliveries, setRecommendedDeliveries] = useState<any[]>([]);
+  const [showRecommended, setShowRecommended] = useState(false);
+  const [loadingRecommended, setLoadingRecommended] = useState(false);
+
+  // Get driver ID for location tracking
+  const driverId =
+    route.driver && typeof route.driver === "object" ? route.driver.id : undefined;
+
+  // Real-time driver location tracking
+  const { locations: driverLocations, isConnected } = useDriverLocations({
+    routeId: driverId ? undefined : undefined, // Track all drivers, filter in UI
+    enabled: isLiveTrackingEnabled,
+  });
+
+  // Fetch recommended unassigned deliveries for this route
+  const loadRecommendedDeliveries = async () => {
+    if (!route.id) return;
+    setLoadingRecommended(true);
+    try {
+      const scored = await DeliveryService.getUnassignedDeliveries(route.id, 5);
+      setRecommendedDeliveries(scored);
+    } catch (error) {
+      console.error("Error loading recommended deliveries:", error);
+    } finally {
+      setLoadingRecommended(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showRecommended) {
+      loadRecommendedDeliveries();
+    }
+  }, [showRecommended, route.id]);
 
   // Helper function to get driver name safely
   const getDriverName = (driver: Route["driver"]): string => {
@@ -150,10 +185,31 @@ export default function RouteMapScreen({
     }, 2000);
   };
 
-  const applyOptimization = () => {
+  const applyOptimization = async () => {
     if (optimizationResult) {
-      setOptimizedDeliveries(optimizationResult.optimizedOrder);
+      const optimized = optimizationResult.optimizedOrder as DeliveryData[];
+      setOptimizedDeliveries(optimized);
       setIsOptimizeDialogOpen(false);
+
+      // Persist the new order to the backend
+      try {
+        const orderUpdates = optimized.map((d: DeliveryData, index: number) => ({
+          id: d.id,
+          order_index: index,
+        }));
+        await DeliveryService.updateDeliveryOrder(orderUpdates);
+        toast({
+          title: "Optimization applied",
+          description: `Saved optimized order for ${orderUpdates.length} stops.`,
+        });
+      } catch (error) {
+        console.error("Failed to persist optimized order:", error);
+        toast({
+          title: "Order saved locally",
+          description: "Could not save to server. Changes are local only.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -299,7 +355,8 @@ export default function RouteMapScreen({
 
   const handleShare = () => {
     const msg = buildWhatsAppMessage(route, deliveries);
-    const phone = route.driver?.phone; // WhatsApp expects digits only
+    const driver = route.driver;
+    const phone = typeof driver === 'object' && driver !== null ? driver.phone : undefined;
     const url = `https://wa.me/${phone}?text=${msg}`;
     window.open(url, "_blank");
   };
@@ -323,7 +380,7 @@ export default function RouteMapScreen({
             </Button>
             <div className="flex items-center space-x-3">
               <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center animate-fade-in">
-                <Navigation className="h-5 w-5 text-blue-600" />
+                <Navigation className="h-5 w-5 text-[#C8E298]" />
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">
@@ -393,7 +450,7 @@ export default function RouteMapScreen({
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center space-x-2">
                   <div className="h-8 w-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <Package className="h-4 w-4 text-blue-600" />
+                    <Package className="h-4 w-4 text-[#C8E298]" />
                   </div>
                   <span className="text-sm font-medium text-slate-600 hidden md:inline">
                     Total
@@ -652,15 +709,99 @@ export default function RouteMapScreen({
             </div>
           </div>
 
+          {/* Unassigned Deliveries */}
+          <div className="border-t border-slate-100 flex-shrink-0">
+            <button
+              className="w-full p-3 flex items-center justify-between text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+              onClick={() => setShowRecommended(!showRecommended)}
+            >
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-amber-500" />
+                <span>Unassigned Deliveries</span>
+                {recommendedDeliveries.length > 0 && (
+                  <Badge variant="secondary" className="text-xs">
+                    {recommendedDeliveries.length}
+                  </Badge>
+                )}
+              </div>
+              <ChevronRight
+                className={`h-4 w-4 transition-transform ${
+                  showRecommended ? "rotate-90" : ""
+                }`}
+              />
+            </button>
+            {showRecommended && (
+              <div className="px-3 pb-3 max-h-64 overflow-y-auto space-y-2">
+                {loadingRecommended ? (
+                  <p className="text-xs text-slate-500 text-center py-2">
+                    Loading deliveries...
+                  </p>
+                ) : recommendedDeliveries.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-2">
+                    No unassigned deliveries found
+                  </p>
+                ) : (
+                  recommendedDeliveries.map((d: any) => {
+                    const isRecommended = d.priority_score >= 0.4;
+                    return (
+                      <div
+                        key={d.id}
+                        className={`p-2 rounded-lg text-xs cursor-pointer transition-colors ${
+                          isRecommended
+                            ? "bg-amber-50 border border-amber-200 hover:bg-amber-100"
+                            : "bg-slate-50 border border-slate-200 hover:bg-slate-100"
+                        }`}
+                        onClick={() => {
+                          setSelectedDelivery(d);
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-slate-900">
+                            {d.customer_name}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            {isRecommended && (
+                              <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-300">
+                                Recommended
+                              </Badge>
+                            )}
+                            <Badge
+                              variant="outline"
+                              className={`text-[10px] ${
+                                d.priority_score >= 0.7
+                                  ? "border-green-500 text-green-700"
+                                  : d.priority_score >= 0.4
+                                  ? "border-amber-500 text-amber-700"
+                                  : "border-slate-400 text-slate-600"
+                              }`}
+                            >
+                              {Math.round((d.priority_score || 0) * 100)}% match
+                            </Badge>
+                          </div>
+                        </div>
+                        <p className="text-slate-600 mt-0.5">{d.location}</p>
+                        <div className="flex items-center gap-2 mt-1 text-slate-500">
+                          <span>{d.distance_to_route_km} km from route</span>
+                          <span>+{d.estimated_detour_km} km detour</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Enhanced Bottom Actions */}
           <div className="p-1 lg:p-3 border-t border-slate-100 space-y-3 bg-slate-50 flex-shrink-0">
             <Button
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-sm btn-gradient focus-enhanced"
+              className="w-full bg-[#C8E298] hover:bg-[#C8E298]/90 text-[#162318] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#162318] rounded-md transition-colors duration-200"
               onClick={() => setIsOptimizeDialogOpen(true)}
             >
               <Zap className="h-4 w-4 mr-2" />
               Optimize Routes
             </Button>
+
             <Button
               variant="outline"
               className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 bg-white shadow-sm focus-enhanced"
@@ -693,6 +834,10 @@ export default function RouteMapScreen({
             deliveries={optimizedDeliveries}
             selectedDelivery={selectedDelivery}
             onDeliverySelect={setSelectedDelivery}
+            driverLocations={isLiveTrackingEnabled ? driverLocations : undefined}
+            showDrivers={isLiveTrackingEnabled}
+            routeId={route.id}
+            candidateDeliveries={showRecommended ? recommendedDeliveries : undefined}
           />
 
           {/* Floating Map Controls */}
@@ -717,7 +862,7 @@ export default function RouteMapScreen({
               <CardContent className="p-4">
                 <div className="flex items-center space-x-3">
                   <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
+                    <AvatarFallback className="bg-blue-100 text-[#C8E298] font-semibold">
                       {getDriverName(route.driver).charAt(0)}
                     </AvatarFallback>
                   </Avatar>
@@ -728,17 +873,33 @@ export default function RouteMapScreen({
                     <div className="text-sm text-slate-600 flex items-center">
                       <div
                         className={`h-2 w-2 rounded-full mr-2 ${
-                          isLiveTrackingEnabled
+                          isLiveTrackingEnabled && isConnected
                             ? "bg-green-500 animate-pulse"
                             : "bg-slate-400"
                         }`}
                       ></div>
                       <span className="text-xs">
-                        {isLiveTrackingEnabled
+                        {isLiveTrackingEnabled && isConnected
                           ? "Live tracking active"
+                          : isLiveTrackingEnabled
+                          ? "Connecting..."
                           : "Offline"}
                       </span>
                     </div>
+                    {/* Real-time driver stats */}
+                    {isLiveTrackingEnabled && driverId && driverLocations.get(driverId) && (
+                      <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                        {driverLocations.get(driverId)!.speed != null && (
+                          <span>{Math.round(driverLocations.get(driverId)!.speed!)} km/h</span>
+                        )}
+                        {driverLocations.get(driverId)!.recorded_at && (
+                          <span>
+                            Updated{" "}
+                            {new Date(driverLocations.get(driverId)!.recorded_at!).toLocaleTimeString()}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -831,15 +992,15 @@ export default function RouteMapScreen({
         open={isOptimizeDialogOpen}
         onOpenChange={setIsOptimizeDialogOpen}
       >
-        <DialogContent className="max-w-6xl w-[95vw] h-[85vh] bg-white border-gray-200 z-[100] overflow-hidden">
-          <DialogHeader className="pb-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50 -m-6 mb-0 p-6">
-            <DialogTitle className="text-gray-900 flex items-center text-2xl font-bold">
-              <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
-                <Zap className="h-6 w-6 text-blue-600" />
+        <DialogContent className="max-w-6xl w-[95vw] h-[85vh] bg-white border-[#162318]/10 z-[100] overflow-hidden">
+          <DialogHeader className="pb-6 border-b border-[#162318]/10 bg-[#EFF0EB] -m-6 mb-0 p-6">
+            <DialogTitle className="text-[#162318] flex items-center text-2xl font-bold">
+              <div className="h-10 w-10 bg-[#C8E298]/30 rounded-lg flex items-center justify-center mr-3">
+                <Zap className="h-6 w-6 text-[#162318]" />
               </div>
               Route Optimization
             </DialogTitle>
-            <p className="text-gray-600 mt-2">
+            <p className="text-[#162318]/60 mt-2">
               Optimize your delivery routes for maximum efficiency and cost
               savings
             </p>
@@ -849,80 +1010,80 @@ export default function RouteMapScreen({
             <div className="space-y-8">
               {/* Current Route Overview */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="bg-white border border-gray-200 shadow-sm">
+                <Card className="bg-white border border-[#162318]/10">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-500">
+                        <p className="text-sm font-medium text-[#162318]/50">
                           Total Stops
                         </p>
-                        <p className="text-2xl font-bold text-gray-900">
+                        <p className="text-2xl font-bold text-[#162318]">
                           {deliveries.length}
                         </p>
                       </div>
-                      <Package className="h-8 w-8 text-blue-600" />
+                      <Package className="h-8 w-8 text-[#C8E298]" />
                     </div>
                   </CardContent>
                 </Card>
-                <Card className="bg-white border border-gray-200 shadow-sm">
+                <Card className="bg-white border border-[#162318]/10">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-500">
+                        <p className="text-sm font-medium text-[#162318]/50">
                           Distance
                         </p>
-                        <p className="text-2xl font-bold text-gray-900">
+                        <p className="text-2xl font-bold text-[#162318]">
                           {route.distance || "0 km"}
                         </p>
                       </div>
-                      <MapPin className="h-8 w-8 text-green-600" />
+                      <MapPin className="h-8 w-8 text-[#C8E298]" />
                     </div>
                   </CardContent>
                 </Card>
-                <Card className="bg-white border border-gray-200 shadow-sm">
+                <Card className="bg-white border border-[#162318]/10">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-500">
+                        <p className="text-sm font-medium text-[#162318]/50">
                           Duration
                         </p>
-                        <p className="text-2xl font-bold text-gray-900">
+                        <p className="text-2xl font-bold text-[#162318]">
                           {route.duration || "0h"}
                         </p>
                       </div>
-                      <Clock className="h-8 w-8 text-yellow-600" />
+                      <Clock className="h-8 w-8 text-[#C97C5D]" />
                     </div>
                   </CardContent>
                 </Card>
-                <Card className="bg-white border border-gray-200 shadow-sm">
+                <Card className="bg-white border border-[#162318]/10">
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium text-gray-500">
+                        <p className="text-sm font-medium text-[#162318]/50">
                           Efficiency
                         </p>
-                        <p className="text-2xl font-bold text-gray-900">
+                        <p className="text-2xl font-bold text-[#162318]">
                           {route.efficiency ||
                             Math.round(60 + Math.random() * 25)}
                           %
                         </p>
                       </div>
-                      <TrendingUp className="h-8 w-8 text-purple-600" />
+                      <TrendingUp className="h-8 w-8 text-[#274690]" />
                     </div>
                   </CardContent>
                 </Card>
               </div>
 
               {/* Algorithm Selection */}
-              <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                  <Settings className="h-5 w-5 mr-2" />
+              <div className="bg-white border border-[#162318]/10 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-[#162318] mb-4 flex items-center">
+                  <Settings className="h-5 w-5 mr-2 text-[#274690]" />
                   Optimization Settings
                 </h3>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <div>
-                    <Label className="text-gray-700 font-medium text-base">
+                    <Label className="text-[#162318]/70 font-medium text-base">
                       Choose Optimization Algorithm
                     </Label>
                     <div className="grid grid-cols-1 gap-3 mt-3">
@@ -931,7 +1092,7 @@ export default function RouteMapScreen({
                           value: "nearest-neighbor",
                           name: "Nearest Neighbor",
                           badge: "Fast",
-                          badgeColor: "bg-green-100 text-green-800",
+                          badgeColor: "bg-[#C8E298]/30 text-[#162318]",
                           description:
                             "Quick optimization using nearest point selection. Best for simple routes.",
                           time: "~5 seconds",
@@ -941,7 +1102,7 @@ export default function RouteMapScreen({
                           value: "2-opt",
                           name: "2-Opt Improvement",
                           badge: "Balanced",
-                          badgeColor: "bg-blue-100 text-blue-800",
+                          badgeColor: "bg-[#274690]/15 text-[#274690]",
                           description:
                             "Improves routes by swapping segments. Good balance of speed and quality.",
                           time: "~15 seconds",
@@ -951,7 +1112,7 @@ export default function RouteMapScreen({
                           value: "genetic",
                           name: "Genetic Algorithm",
                           badge: "Best",
-                          badgeColor: "bg-purple-100 text-purple-800",
+                          badgeColor: "bg-[#C8E298] text-[#162318]",
                           description:
                             "Advanced evolutionary optimization for maximum efficiency.",
                           time: "~30 seconds",
@@ -961,7 +1122,7 @@ export default function RouteMapScreen({
                           value: "simulated-annealing",
                           name: "Simulated Annealing",
                           badge: "Advanced",
-                          badgeColor: "bg-orange-100 text-orange-800",
+                          badgeColor: "bg-[#C97C5D]/20 text-[#C97C5D]",
                           description:
                             "Probabilistic method that avoids local optima.",
                           time: "~45 seconds",
@@ -972,8 +1133,8 @@ export default function RouteMapScreen({
                           key={algorithm.value}
                           className={`relative p-4 border-2 rounded-lg cursor-pointer transition-all ${
                             selectedAlgorithm === algorithm.value
-                              ? "border-blue-500 bg-blue-50"
-                              : "border-gray-200 hover:border-gray-300 bg-white"
+                              ? "border-[#C8E298] bg-[#C8E298]/10"
+                              : "border-[#162318]/10 hover:border-[#162318]/20 bg-white"
                           }`}
                           onClick={() =>
                             setSelectedAlgorithm(
@@ -984,7 +1145,7 @@ export default function RouteMapScreen({
                           <div className="flex items-start justify-between">
                             <div className="flex-1">
                               <div className="flex items-center space-x-2 mb-1">
-                                <h4 className="font-medium text-gray-900">
+                                <h4 className="font-medium text-[#162318]">
                                   {algorithm.name}
                                 </h4>
                                 <Badge
@@ -993,10 +1154,10 @@ export default function RouteMapScreen({
                                   {algorithm.badge}
                                 </Badge>
                               </div>
-                              <p className="text-sm text-gray-600 mb-2">
+                              <p className="text-sm text-[#162318]/60 mb-2">
                                 {algorithm.description}
                               </p>
-                              <div className="flex items-center space-x-4 text-xs text-gray-500">
+                              <div className="flex items-center space-x-4 text-xs text-[#162318]/50">
                                 <span>⏱️ {algorithm.time}</span>
                                 <span>📈 {algorithm.improvement} savings</span>
                               </div>
@@ -1004,8 +1165,8 @@ export default function RouteMapScreen({
                             <div
                               className={`w-4 h-4 rounded-full border-2 ${
                                 selectedAlgorithm === algorithm.value
-                                  ? "border-blue-500 bg-blue-500"
-                                  : "border-gray-300"
+                                  ? "border-[#C8E298] bg-[#C8E298]"
+                                  : "border-[#162318]/20"
                               }`}
                             >
                               {selectedAlgorithm === algorithm.value && (
@@ -1020,19 +1181,19 @@ export default function RouteMapScreen({
 
                   <div className="space-y-4">
                     <div>
-                      <h4 className="font-medium text-gray-900 mb-3">
+                      <h4 className="font-medium text-[#162318] mb-3">
                         Optimization Constraints
                       </h4>
                       <div className="space-y-3">
                         <div>
-                          <Label className="text-sm text-gray-700">
+                          <Label className="text-sm text-[#162318]/70">
                             Maximum route duration
                           </Label>
                           <Select defaultValue="8">
-                            <SelectTrigger className="bg-white border-gray-300 mt-1">
+                            <SelectTrigger className="bg-white border-[#162318]/20 mt-1">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="bg-white border-gray-200 z-[110]">
+                            <SelectContent className="bg-white border-[#162318]/10 z-[110]">
                               <SelectItem value="4">4 hours</SelectItem>
                               <SelectItem value="6">6 hours</SelectItem>
                               <SelectItem value="8">8 hours</SelectItem>
@@ -1041,14 +1202,14 @@ export default function RouteMapScreen({
                           </Select>
                         </div>
                         <div>
-                          <Label className="text-sm text-gray-700">
+                          <Label className="text-sm text-[#162318]/70">
                             Maximum stops per route
                           </Label>
                           <Select defaultValue="15">
-                            <SelectTrigger className="bg-white border-gray-300 mt-1">
+                            <SelectTrigger className="bg-white border-[#162318]/20 mt-1">
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="bg-white border-gray-200 z-[110]">
+                            <SelectContent className="bg-white border-[#162318]/10 z-[110]">
                               <SelectItem value="10">10 stops</SelectItem>
                               <SelectItem value="15">15 stops</SelectItem>
                               <SelectItem value="20">20 stops</SelectItem>
@@ -1059,11 +1220,11 @@ export default function RouteMapScreen({
                       </div>
                     </div>
 
-                    <div className="bg-blue-50 p-4 rounded-lg">
-                      <h4 className="font-medium text-blue-900 mb-2">
-                        💡 Optimization Tips
+                    <div className="bg-[#EFF0EB] p-4 rounded-lg">
+                      <h4 className="font-medium text-[#162318] mb-2">
+                        Optimization Tips
                       </h4>
-                      <ul className="text-sm text-blue-800 space-y-1">
+                      <ul className="text-sm text-[#162318]/70 space-y-1">
                         <li>
                           • Use Genetic Algorithm for best results on complex
                           routes
@@ -1082,7 +1243,7 @@ export default function RouteMapScreen({
                   <Button
                     onClick={handleOptimizeRoute}
                     disabled={isOptimizing}
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-8 py-2.5 shadow-lg"
+                    className="bg-[#C8E298] hover:bg-[#274690] text-[#162318] hover:text-white px-8 py-2.5"
                     size="lg"
                   >
                     {isOptimizing ? (
@@ -1102,16 +1263,16 @@ export default function RouteMapScreen({
 
               {/* Optimization Progress */}
               {isOptimizing && (
-                <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
+                <div className="bg-[#EFF0EB] border border-[#162318]/10 rounded-lg p-6">
                   <div className="flex items-center space-x-4 mb-4">
-                    <div className="h-12 w-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                      <Settings className="h-6 w-6 text-blue-600 animate-spin" />
+                    <div className="h-12 w-12 bg-[#C8E298]/30 rounded-lg flex items-center justify-center">
+                      <Settings className="h-6 w-6 text-[#274690] animate-spin" />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900">
+                      <h3 className="font-semibold text-[#162318]">
                         Optimizing Your Route...
                       </h3>
-                      <p className="text-sm text-gray-600">
+                      <p className="text-sm text-[#162318]/60">
                         Analyzing delivery points and calculating optimal paths
                       </p>
                     </div>
@@ -1119,16 +1280,16 @@ export default function RouteMapScreen({
 
                   <div className="space-y-3">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Progress</span>
-                      <span className="text-gray-900 font-medium">65%</span>
+                      <span className="text-[#162318]/60">Progress</span>
+                      <span className="text-[#162318] font-medium">65%</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-[#162318]/10 rounded-full h-2">
                       <div
-                        className="bg-gradient-to-r from-blue-600 to-purple-600 h-2 rounded-full transition-all duration-500"
+                        className="bg-[#C8E298] h-2 rounded-full transition-all duration-500"
                         style={{ width: "65%" }}
                       ></div>
                     </div>
-                    <div className="flex justify-between text-xs text-gray-500">
+                    <div className="flex justify-between text-xs text-[#162318]/50">
                       <span>Analyzing routes...</span>
                       <span>ETA: 15 seconds</span>
                     </div>
@@ -1138,16 +1299,16 @@ export default function RouteMapScreen({
 
               {/* Optimization Results */}
               {optimizationResult && (
-                <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg p-6 shadow-sm">
+                <div className="bg-[#C8E298]/10 border border-[#C8E298]/30 rounded-lg p-6">
                   <div className="flex items-center mb-6">
-                    <div className="h-12 w-12 bg-green-100 rounded-lg flex items-center justify-center mr-4">
-                      <CheckCircle className="h-6 w-6 text-green-600" />
+                    <div className="h-12 w-12 bg-[#C8E298]/30 rounded-lg flex items-center justify-center mr-4">
+                      <CheckCircle className="h-6 w-6 text-[#162318]" />
                     </div>
                     <div>
-                      <h3 className="text-xl font-semibold text-green-900">
-                        Optimization Complete! 🎉
+                      <h3 className="text-xl font-semibold text-[#162318]">
+                        Optimization Complete!
                       </h3>
-                      <p className="text-sm text-green-700">
+                      <p className="text-sm text-[#162318]/70">
                         Your route has been successfully optimized with
                         significant improvements
                       </p>
@@ -1156,22 +1317,22 @@ export default function RouteMapScreen({
 
                   {/* Savings Summary */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div className="bg-white p-4 rounded-lg border border-green-200">
+                    <div className="bg-white p-4 rounded-lg border border-[#162318]/10">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-gray-500">
+                          <p className="text-sm font-medium text-[#162318]/50">
                             Distance Saved
                           </p>
-                          <p className="text-2xl font-bold text-green-600">
+                          <p className="text-2xl font-bold text-[#C8E298]">
                             {formatDistance(
                               optimizationResult.originalDistance -
                                 optimizationResult.optimizedDistance
                             )}
                           </p>
                         </div>
-                        <MapPin className="h-8 w-8 text-green-600" />
+                        <MapPin className="h-8 w-8 text-[#C8E298]" />
                       </div>
-                      <p className="text-xs text-green-700 mt-1">
+                      <p className="text-xs text-[#162318]/50 mt-1">
                         {Math.round(
                           ((optimizationResult.originalDistance -
                             optimizationResult.optimizedDistance) /
@@ -1181,22 +1342,22 @@ export default function RouteMapScreen({
                         % reduction
                       </p>
                     </div>
-                    <div className="bg-white p-4 rounded-lg border border-green-200">
+                    <div className="bg-white p-4 rounded-lg border border-[#162318]/10">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-gray-500">
+                          <p className="text-sm font-medium text-[#162318]/50">
                             Time Saved
                           </p>
-                          <p className="text-2xl font-bold text-green-600">
+                          <p className="text-2xl font-bold text-[#274690]">
                             {formatDuration(
                               optimizationResult.originalDuration -
                                 optimizationResult.optimizedDuration
                             )}
                           </p>
                         </div>
-                        <Clock className="h-8 w-8 text-green-600" />
+                        <Clock className="h-8 w-8 text-[#274690]" />
                       </div>
-                      <p className="text-xs text-green-700 mt-1">
+                      <p className="text-xs text-[#162318]/50 mt-1">
                         {Math.round(
                           ((optimizationResult.originalDuration -
                             optimizationResult.optimizedDuration) /
@@ -1206,13 +1367,13 @@ export default function RouteMapScreen({
                         % faster
                       </p>
                     </div>
-                    <div className="bg-white p-4 rounded-lg border border-green-200">
+                    <div className="bg-white p-4 rounded-lg border border-[#162318]/10">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-gray-500">
+                          <p className="text-sm font-medium text-[#162318]/50">
                             Cost Savings
                           </p>
-                          <p className="text-2xl font-bold text-green-600">
+                          <p className="text-2xl font-bold text-[#C97C5D]">
                             KSh{" "}
                             {Math.round(
                               (optimizationResult.originalDistance -
@@ -1224,9 +1385,9 @@ export default function RouteMapScreen({
                             ).toLocaleString()}
                           </p>
                         </div>
-                        <TrendingUp className="h-8 w-8 text-green-600" />
+                        <TrendingUp className="h-8 w-8 text-[#C97C5D]" />
                       </div>
-                      <p className="text-xs text-green-700 mt-1">
+                      <p className="text-xs text-[#162318]/50 mt-1">
                         Per day savings
                       </p>
                     </div>
@@ -1234,39 +1395,39 @@ export default function RouteMapScreen({
 
                   {/* Before/After Comparison */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <div className="bg-white p-6 rounded-lg border border-gray-200">
-                      <h4 className="font-semibold text-gray-900 mb-4 flex items-center">
-                        <div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+                    <div className="bg-white p-6 rounded-lg border border-[#162318]/10">
+                      <h4 className="font-semibold text-[#162318] mb-4 flex items-center">
+                        <div className="w-3 h-3 bg-[#C97C5D] rounded-full mr-2"></div>
                         Original Route
                       </h4>
                       <div className="space-y-3">
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Distance:</span>
-                          <span className="font-medium text-gray-900">
+                          <span className="text-[#162318]/60">Distance:</span>
+                          <span className="font-medium text-[#162318]">
                             {formatDistance(
                               optimizationResult.originalDistance
                             )}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Duration:</span>
-                          <span className="font-medium text-gray-900">
+                          <span className="text-[#162318]/60">Duration:</span>
+                          <span className="font-medium text-[#162318]">
                             {formatDuration(
                               optimizationResult.originalDuration
                             )}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Fuel Cost:</span>
-                          <span className="font-medium text-gray-900">
+                          <span className="text-[#162318]/60">Fuel Cost:</span>
+                          <span className="font-medium text-[#162318]">
                             {formatCost(
                               optimizationResult.originalDistance * 50
                             )}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Driver Cost:</span>
-                          <span className="font-medium text-gray-900">
+                          <span className="text-[#162318]/60">Driver Cost:</span>
+                          <span className="font-medium text-[#162318]">
                             {formatCost(
                               optimizationResult.originalDuration * 10
                             )}
@@ -1274,39 +1435,39 @@ export default function RouteMapScreen({
                         </div>
                       </div>
                     </div>
-                    <div className="bg-green-50 p-6 rounded-lg border border-green-200">
-                      <h4 className="font-semibold text-green-900 mb-4 flex items-center">
-                        <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
+                    <div className="bg-[#C8E298]/15 p-6 rounded-lg border border-[#C8E298]/30">
+                      <h4 className="font-semibold text-[#162318] mb-4 flex items-center">
+                        <div className="w-3 h-3 bg-[#C8E298] rounded-full mr-2"></div>
                         Optimized Route
                       </h4>
                       <div className="space-y-3">
                         <div className="flex justify-between">
-                          <span className="text-green-700">Distance:</span>
-                          <span className="font-medium text-green-900">
+                          <span className="text-[#162318]/60">Distance:</span>
+                          <span className="font-medium text-[#162318]">
                             {formatDistance(
                               optimizationResult.optimizedDistance
                             )}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-green-700">Duration:</span>
-                          <span className="font-medium text-green-900">
+                          <span className="text-[#162318]/60">Duration:</span>
+                          <span className="font-medium text-[#162318]">
                             {formatDuration(
                               optimizationResult.optimizedDuration
                             )}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-green-700">Fuel Cost:</span>
-                          <span className="font-medium text-green-900">
+                          <span className="text-[#162318]/60">Fuel Cost:</span>
+                          <span className="font-medium text-[#162318]">
                             {formatCost(
                               optimizationResult.optimizedDistance * 50
                             )}
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span className="text-green-700">Driver Cost:</span>
-                          <span className="font-medium text-green-900">
+                          <span className="text-[#162318]/60">Driver Cost:</span>
+                          <span className="font-medium text-[#162318]">
                             {formatCost(
                               optimizationResult.optimizedDuration * 10
                             )}
@@ -1320,14 +1481,14 @@ export default function RouteMapScreen({
                     <Button
                       variant="outline"
                       onClick={resetOptimization}
-                      className="border-gray-300 text-gray-700 hover:bg-gray-50 bg-white"
+                      className="border-[#162318]/20 text-[#162318]/70 hover:bg-[#EFF0EB] bg-white"
                     >
                       <Settings className="h-4 w-4 mr-2" />
                       Try Different Algorithm
                     </Button>
                     <Button
                       onClick={applyOptimization}
-                      className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white shadow-lg"
+                      className="bg-[#C8E298] hover:bg-[#274690] text-[#162318] hover:text-white"
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
                       Apply Optimization

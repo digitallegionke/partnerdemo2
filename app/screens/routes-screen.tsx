@@ -44,6 +44,7 @@ import { useToast } from "@/hooks/use-toast";
 import AddressSearch from "@/components/address-search";
 import { supabase } from "@/lib/supabase";
 import { useRoute } from "@/hooks/use-route";
+import { useDriverLocations } from "@/hooks/use-driver-locations";
 
 // Transform Supabase route data to UI format
 const transformRouteForUI = async (route: RouteWithDriver) => {
@@ -148,6 +149,9 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
   const { toast } = useToast();
   const { data, loading, error: routeError, fetchRoute } = useRoute();
 
+  // Track online drivers for indicator dots on route cards
+  const { locations: driverLocations } = useDriverLocations({ enabled: true });
+
   // Load routes from Supabase
   const loadRoutes = async () => {
     try {
@@ -210,15 +214,21 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
     }
   };
 
-  // Load unassigned deliveries
-  const loadUnassignedDeliveries = async () => {
+  // Load unassigned deliveries, optionally scored for a specific route
+  const loadUnassignedDeliveries = async (routeId?: number) => {
     try {
-      const allDeliveries = await DeliveryService.getAllDeliveries();
-      // Filter deliveries that are not assigned to any route
-      const unassigned = allDeliveries.filter(
-        (delivery) => !delivery.route_id && delivery.status === "pending"
-      );
-      setExistingDeliveries(unassigned);
+      if (routeId) {
+        // Use scored/prioritized API when we have a route context
+        const scored = await DeliveryService.getUnassignedDeliveries(routeId, 5);
+        setExistingDeliveries(scored);
+      } else {
+        const allDeliveries = await DeliveryService.getAllDeliveries();
+        // Filter deliveries that are not assigned to any route
+        const unassigned = allDeliveries.filter(
+          (delivery: any) => !delivery.route_id && delivery.status === "pending"
+        );
+        setExistingDeliveries(unassigned);
+      }
     } catch (error) {
       console.error("Error loading unassigned deliveries:", error);
     }
@@ -274,6 +284,9 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         item: "",
         phone: "",
         delivery_notes: "",
+        weight: "",
+        estimated_value: "",
+        drop_time: "",
       },
     ]);
     setDeliveryMode("new");
@@ -294,6 +307,9 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
         item: "",
         phone: "",
         delivery_notes: "",
+        weight: "",
+        estimated_value: "",
+        drop_time: "",
       },
     ]);
   };
@@ -304,7 +320,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
     }
   };
 
-  const updateDelivery = (id: string, field: string, value: string) => {
+  const updateDelivery = (id: number, field: string, value: string) => {
     console.log("delivery id updating", id, field, value);
     setDeliveries(
       deliveries.map((delivery) =>
@@ -402,6 +418,8 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
             ? parseInt(formData.driver_id)
             : null,
         status: "pending" as const,
+        lat: formData.start_latitude,
+        lng: formData.start_longitude,
       };
 
       const createdRoute = await RouteService.createRoute(routeData);
@@ -543,6 +561,8 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
 
     // Load deliveries for this route
     await loadRouteDeliveries(routeData.id);
+    // Load scored unassigned deliveries for this route
+    loadUnassignedDeliveries(routeData.id);
 
     setIsEditDialogOpen(true);
   };
@@ -649,7 +669,7 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 lg:p-6">
+    <div className="min-h-screen bg-[#EFF0EB] p-3 sm:p-4 lg:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6 sm:mb-8">
@@ -911,7 +931,6 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                           e.target.value
                                         )
                                       }
-                                      required
                                     />
                                   </div>
                                   <div>
@@ -934,20 +953,22 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                     <AddressSearch
                                       value={delivery.location}
                                       onSelect={(result) => {
-                                        setDeliveries((prev) =>
-                                          prev.map((d) =>
-                                            d.id === delivery.id
-                                              ? {
-                                                  ...d,
-                                                  location: result.display_name,
-                                                  latitude:
-                                                    result.coordinates[0].toString(),
-                                                  longitude:
-                                                    result.coordinates[1].toString(),
-                                                }
-                                              : d
-                                          )
-                                        );
+                                        if (result.coordinates) {
+                                          setDeliveries((prev) =>
+                                            prev.map((d) =>
+                                              d.id === delivery.id
+                                                ? {
+                                                    ...d,
+                                                    location: result.display_name,
+                                                    latitude:
+                                                      result.coordinates![0].toString(),
+                                                    longitude:
+                                                      result.coordinates![1].toString(),
+                                                  }
+                                                : d
+                                            )
+                                          );
+                                        }
                                       }}
                                       placeholder="Search for delivery location"
                                       className="mt-1"
@@ -1179,14 +1200,16 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                 "start_location",
                                 result.display_name
                               );
-                              handleInputChange(
-                                "start_latitude",
-                                result.coordinates[0].toString()
-                              );
-                              handleInputChange(
-                                "start_longitude",
-                                result.coordinates[1].toString()
-                              );
+                              if (result.coordinates) {
+                                handleInputChange(
+                                  "start_latitude",
+                                  result.coordinates[0].toString()
+                                );
+                                handleInputChange(
+                                  "start_longitude",
+                                  result.coordinates[1].toString()
+                                );
+                              }
                             }}
                             placeholder="Search for starting point"
                             className="mt-1"
@@ -1213,14 +1236,16 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                 "end_location",
                                 result.display_name
                               );
-                              handleInputChange(
-                                "end_latitude",
-                                result.coordinates[0].toString()
-                              );
-                              handleInputChange(
-                                "end_longitude",
-                                result.coordinates[1].toString()
-                              );
+                              if (result.coordinates) {
+                                handleInputChange(
+                                  "end_latitude",
+                                  result.coordinates[0].toString()
+                                );
+                                handleInputChange(
+                                  "end_longitude",
+                                  result.coordinates[1].toString()
+                                );
+                              }
                             }}
                             placeholder="Search for ending point"
                             className="mt-1"
@@ -1347,35 +1372,61 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                         </div>
                       </div>
 
-                      {/* Available Deliveries to Add */}
+                      {/* Available Deliveries to Add - Scored by Route Compatibility */}
                       <div className="border rounded-lg p-4">
                         <h4 className="font-medium mb-3">
-                          Available Deliveries ({existingDeliveries.length})
+                          Recommended Deliveries ({existingDeliveries.length})
                         </h4>
                         <div className="space-y-2 max-h-60 overflow-y-auto">
                           {existingDeliveries.length === 0 ? (
                             <p className="text-gray-500 text-sm text-center py-4">
-                              No unassigned deliveries available
+                              No compatible unassigned deliveries found
                             </p>
                           ) : (
-                            existingDeliveries.map((delivery) => (
+                            existingDeliveries.map((delivery: any) => (
                               <div
                                 key={delivery.id}
-                                className="flex items-center justify-between p-3 bg-blue-50 rounded-lg"
+                                className={`flex items-center justify-between p-3 rounded-lg ${
+                                  delivery.priority_score >= 0.7
+                                    ? "bg-green-50 border border-green-200"
+                                    : delivery.priority_score >= 0.4
+                                    ? "bg-amber-50 border border-amber-200"
+                                    : "bg-blue-50"
+                                }`}
                               >
                                 <div className="flex-1">
-                                  <p className="font-medium text-sm">
-                                    {delivery.customer_name}
-                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-medium text-sm">
+                                      {delivery.customer_name}
+                                    </p>
+                                    {delivery.priority_score != null && (
+                                      <Badge
+                                        variant="outline"
+                                        className={`text-[10px] ${
+                                          delivery.priority_score >= 0.7
+                                            ? "border-green-500 text-green-700"
+                                            : delivery.priority_score >= 0.4
+                                            ? "border-amber-500 text-amber-700"
+                                            : "border-gray-400 text-gray-600"
+                                        }`}
+                                      >
+                                        {Math.round(delivery.priority_score * 100)}%
+                                      </Badge>
+                                    )}
+                                  </div>
                                   <p className="text-xs text-gray-600">
                                     {delivery.location}
                                   </p>
                                   <p className="text-xs text-gray-500">
                                     {delivery.item} • {delivery.phone}
                                   </p>
-                                  <Badge variant="outline" className="text-xs">
-                                    {delivery.status}
-                                  </Badge>
+                                  {delivery.distance_to_route_km != null && (
+                                    <p className="text-xs text-gray-400 mt-0.5">
+                                      {delivery.distance_to_route_km} km from route
+                                      {delivery.estimated_detour_km != null &&
+                                        ` • +${delivery.estimated_detour_km} km detour`}
+                                    </p>
+                                  )}
                                 </div>
                                 <Button
                                   type="button"
@@ -1504,7 +1555,12 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                     <div className="pt-2 border-t border-gray-100">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-500">Driver:</span>
-                        <span className="text-gray-900 font-medium">
+                        <span className="text-gray-900 font-medium flex items-center gap-1.5">
+                          {route.raw?.driver_id &&
+                            driverLocations.has(route.raw.driver_id) &&
+                            driverLocations.get(route.raw.driver_id)?.is_online && (
+                              <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse inline-block" />
+                            )}
                           {route.driver}
                         </span>
                       </div>

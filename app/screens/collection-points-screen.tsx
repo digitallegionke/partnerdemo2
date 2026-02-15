@@ -380,7 +380,7 @@ export default function CollectionPointsScreen() {
               
               <Button 
                 onClick={handleCreate}
-                className="bg-[#C8E298] hover:bg-blue-700 text-black text-xs sm:text-sm"
+                className="bg-[#C8E298] hover:bg-[#274690] text-black text-xs sm:text-sm"
               >
                 <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
                 <span className="hidden sm:inline">Add Collection Point</span>
@@ -508,7 +508,7 @@ export default function CollectionPointsScreen() {
               <p className="text-xs sm:text-sm text-gray-500 mb-3 sm:mb-4">{error}</p>
               <Button 
                 onClick={loadCollectionPoints}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm"
+                className="bg-[#C8E298] hover:bg-[#274690] text-white text-xs sm:text-sm"
               >
                 Try Again
               </Button>
@@ -526,7 +526,7 @@ export default function CollectionPointsScreen() {
                 }
               </p>
               {!searchTerm && selectedType === "all" && selectedStatus === "all" && (
-                <Button onClick={handleCreate} className="bg-[#C8E298] hover:bg-blue-700 text-black">
+                <Button onClick={handleCreate} className="bg-[#C8E298] hover:bg-[#274690] text-black">
                   <Plus className="h-4 w-4 mr-2" />
                   Add Collection Point
                 </Button>
@@ -937,7 +937,7 @@ export default function CollectionPointsScreen() {
               <Button 
                 type="submit"
                 disabled={submitting || (Object.keys(formik.errors).length > 0 && formik.submitCount > 0)}
-                className="bg-[#C8E298] hover:bg-blue-700 text-black"
+                className="bg-[#C8E298] hover:bg-[#274690] text-black"
               >
                 {submitting ? (
                   <div className="flex items-center space-x-2">

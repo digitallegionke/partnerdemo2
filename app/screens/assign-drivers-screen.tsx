@@ -158,7 +158,7 @@ export default function AssignDriversScreen() {
       case "delivered":
         return <CheckCircle className="h-4 w-4 text-green-600" />;
       case "in-transit":
-        return <Activity className="h-4 w-4 text-blue-600" />;
+        return <Activity className="h-4 w-4 text-[#C8E298]" />;
       case "pending":
         return <Clock className="h-4 w-4 text-orange-600" />;
       case "failed":

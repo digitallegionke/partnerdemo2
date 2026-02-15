@@ -580,7 +580,7 @@ export default function AnalyticsScreen() {
                       <p className="text-sm text-gray-500 mb-1">Total Deliveries</p>
                       <p className="text-2xl font-bold text-gray-900">{stats.totalDeliveries || 0}</p>
                     </div>
-                    <Package className="h-6 w-6 text-blue-600" />
+                    <Package className="h-6 w-6 text-[#C8E298]" />
                   </div>
                   {stats.totalDeliveries > 0 ? (
                     <div className="flex gap-2 text-xs">
@@ -659,7 +659,7 @@ export default function AnalyticsScreen() {
                       <p className="text-sm text-gray-500 mb-1">Total Routes</p>
                       <p className="text-2xl font-bold text-gray-900">{stats.totalRoutes || 0}</p>
                     </div>
-                    <MapPin className="h-6 w-6 text-blue-600" />
+                    <MapPin className="h-6 w-6 text-[#C8E298]" />
                   </div>
                   {stats.totalRoutes > 0 ? (
                     <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
@@ -714,7 +714,7 @@ export default function AnalyticsScreen() {
                       <p className="text-sm text-gray-500 mb-1">Total Drivers</p>
                       <p className="text-2xl font-bold text-gray-900">{stats.totalDrivers || 0}</p>
                     </div>
-                    <Truck className="h-6 w-6 text-blue-600" />
+                    <Truck className="h-6 w-6 text-[#C8E298]" />
                   </div>
                   {stats.totalDrivers > 0 ? (
                     <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
@@ -769,7 +769,7 @@ export default function AnalyticsScreen() {
                       <p className="text-xs text-gray-500 uppercase tracking-wide mb-1">Total Points</p>
                       <p className="text-2xl font-bold text-gray-900">{stats.totalCollectionPoints || 0}</p>
                     </div>
-                    <Warehouse className="h-6 w-6 text-blue-600" />
+                    <Warehouse className="h-6 w-6 text-[#C8E298]" />
                   </div>
                   {stats.totalCollectionPoints > 0 ? (
                     <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">

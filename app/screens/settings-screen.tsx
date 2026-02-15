@@ -110,38 +110,89 @@ export default function SettingsScreen() {
     "https://roundi.com/onboarding/driver?token=abc123xyz";
 
   const updateUserProfile = async () => {
-    const user = (await supabase.auth.getUser()).data.user;
-    const { data: updateData, error: updateError } =
-      await supabase.auth.updateUser({
-        email: profileForm.email,
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const authHeader = session?.access_token ? `Bearer ${session.access_token}` : '';
+
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          name: profileForm.name,
+          phone: profileForm.phone,
+          email: profileForm.email,
+        }),
       });
 
-    if (updateError) {
-      console.error("Auth update error:", updateError);
-      return;
-    }
+      const result = await res.json();
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .update({
-        full_name: profileForm.name,
-        avatar:
-          "https://unsplash.com/photos/woman-with-white-hair-and-wearing-white-head-band-1I3_xTAXTxo",
-        phone: profileForm.phone,
-        email: profileForm.email,
-      })
-      .eq("user_id", user!.id);
+      if (!res.ok) {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to update profile",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been saved.",
+      });
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update profile. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const updateUserOrganization = async () => {
-    const { data, error } = await supabase
-      .from("organization")
-      .update({
-        company_name: companyForm.name,
-        headquarters: companyForm.address,
-        industry: companyForm.industry,
-      })
-      .eq("id", organization!.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const authHeader = session?.access_token ? `Bearer ${session.access_token}` : '';
+
+      const res = await fetch("/api/profile/organization", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({
+          company_name: companyForm.name,
+          headquarters: companyForm.address,
+          industry: companyForm.industry,
+        }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to update organization",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Company info updated",
+        description: "Organization details have been saved.",
+      });
+    } catch (error) {
+      console.error("Error updating organization:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update organization. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCopyLink = () => {
@@ -182,9 +233,26 @@ export default function SettingsScreen() {
     if (newPassword !== confirmNewPassword) {
       toast({
         title: "Error",
-        description: "Password do not match!",
+        description: "Passwords do not match!",
         variant: "destructive",
       });
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      toast({ title: "Error", description: "Password must be at least 8 characters long", variant: "destructive" });
+      return;
+    }
+    if (!/[A-Z]/.test(newPassword)) {
+      toast({ title: "Error", description: "Password must contain at least one uppercase letter", variant: "destructive" });
+      return;
+    }
+    if (!/[a-z]/.test(newPassword)) {
+      toast({ title: "Error", description: "Password must contain at least one lowercase letter", variant: "destructive" });
+      return;
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      toast({ title: "Error", description: "Password must contain at least one number", variant: "destructive" });
       return;
     }
 
@@ -309,11 +377,13 @@ export default function SettingsScreen() {
               </div>
             </div>
             <Button
-              className="bg-blue-600 hover:bg-blue-700 text-white"
+              className="bg-[#C8E298] hover:bg-[#C8E298]/90 text-[#162318] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#162318] transition-colors duration-200"
               onClick={updateUserProfile}
             >
               Save Profile
             </Button>
+
+
           </CardContent>
         </Card>
 
@@ -389,11 +459,12 @@ export default function SettingsScreen() {
             </div>
             {profile?.role === "owner" && (
               <Button
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-[#C8E298] hover:bg-[#C8E298] text-[#162318]"
                 onClick={updateUserOrganization}
               >
                 Save Company Info
               </Button>
+
             )}
           </CardContent>
         </Card>
@@ -409,12 +480,13 @@ export default function SettingsScreen() {
               {profile?.role === "owner" && (
                 <Button
                   size="sm"
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  className="bg-[#C8E298] hover:bg-[#C8E298] text-[#162318]"
                   onClick={() => setInviteDialogOpen(true)}
                 >
                   <UserPlus className="h-4 w-4 mr-2" />
                   Invite User
                 </Button>
+
               )}
               {inviteDialogOpen && (
                 <InviteModal
@@ -518,7 +590,7 @@ export default function SettingsScreen() {
                 <Switch id="pushNotifications" defaultChecked />
               </div>
             </div>
-            <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button className="bg-[#C8E298] hover:bg-[#274690] text-white">
               Save Preferences
             </Button>
           </CardContent>

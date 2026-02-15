@@ -25,6 +25,8 @@ import {
   Star,
   Upload,
   FileText,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,6 +72,7 @@ import AddressSearch from "@/components/address-search";
 import { toast } from "@/hooks/use-toast";
 import { DriverService } from "@/lib/services/drivers";
 import { RouteService } from "@/lib/services/routes";
+import { formatTrackingNumber, getAbsoluteTrackingUrl } from "@/lib/tracking";
 
 interface RouteOption {
   id: number;
@@ -185,6 +188,8 @@ export default function DeliveriesScreen() {
 
     return {
       id: `DEL-${(delivery.id || 0).toString().padStart(3, "0")}`,
+      rawId: delivery.id || 0,
+      trackingNumber: formatTrackingNumber(delivery.id || 0),
       recipient: delivery.customer_name.trim(),
       address: delivery.location || "Address not provided",
       phone: delivery.phone || "Not provided",
@@ -718,7 +723,7 @@ export default function DeliveriesScreen() {
       case "delivered":
         return <CheckCircle className="h-4 w-4 text-green-600" />;
       case "in-transit":
-        return <Activity className="h-4 w-4 text-blue-600" />;
+        return <Activity className="h-4 w-4 text-[#C8E298]" />;
       case "pending":
         return <Clock className="h-4 w-4 text-orange-600" />;
       case "failed":
@@ -1127,7 +1132,7 @@ export default function DeliveriesScreen() {
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
                           <div
-                            className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                            className="bg-[#C8E298] h-2 rounded-full transition-all duration-300"
                             style={{
                               width: `${
                                 importProgress.total > 0
@@ -1216,6 +1221,43 @@ export default function DeliveriesScreen() {
                   </DialogHeader>
                   {selectedDelivery && (
                     <div className="space-y-6">
+                      {/* Tracking Number Section */}
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-500">Tracking Number</p>
+                            <p className="text-lg font-mono font-semibold text-gray-900">
+                              {selectedDelivery.trackingNumber}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                navigator.clipboard.writeText(selectedDelivery.trackingNumber);
+                                toast({ title: "Tracking number copied!" });
+                              }}
+                            >
+                              <Copy className="h-4 w-4 mr-1" />
+                              Copy
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const trackingUrl = getAbsoluteTrackingUrl(selectedDelivery.rawId);
+                                navigator.clipboard.writeText(trackingUrl);
+                                toast({ title: "Tracking link copied!" });
+                              }}
+                            >
+                              <ExternalLink className="h-4 w-4 mr-1" />
+                              Copy Link
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Status and Priority */}
                       <div className="flex items-center gap-3">
                         <Badge
@@ -1624,7 +1666,7 @@ export default function DeliveriesScreen() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs sm:text-sm text-gray-600 mb-2">In Transit</p>
-                  <p className="text-xl sm:text-2xl font-semibold text-blue-600">{stats.inTransit}</p>
+                  <p className="text-xl sm:text-2xl font-semibold text-[#C8E298]">{stats.inTransit}</p>
                 </div>
                 <Activity className="h-6 w-6 sm:h-8 sm:w-8 text-blue-400" />
               </div>
