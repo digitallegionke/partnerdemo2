@@ -9,15 +9,13 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
-import { Mail, Send, UserPlus } from "lucide-react";
-import { useUserProfile } from "@/hooks/use-profile";
+import { Mail, Send } from "lucide-react";
 
 export interface InviteModalProps {
   isOpen: boolean;
@@ -27,13 +25,8 @@ export interface InviteModalProps {
 export function InviteModal({ isOpen, setIsOpen }: InviteModalProps) {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
- 
-  const { toast } = useToast();
-  const { organization } = useUserProfile();
 
-  const generateInviteToken = () => {
-    return Math.random().toString(36).substring(2) + Date.now().toString(36);
-  };
+  const { toast } = useToast();
 
   const handleSendInvite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,53 +43,33 @@ export function InviteModal({ isOpen, setIsOpen }: InviteModalProps) {
     setIsLoading(true);
 
     try {
-      const inviteToken = generateInviteToken();
-      const inviteLink = `${window.location.origin}/accept-invite?token=${inviteToken}`;
-      const user = (await supabase.auth.getUser()).data.user;
-      
-      const { error } = await supabase!.from("invites").insert([
-        {
-          email,
-          invite_token: inviteToken,
-          used: false,
-          invited_by: user!.id,
-          organization_id: organization!.id,
-        },
-      ]);
+      const { data: { session } } = await supabase.auth.getSession();
+      const authHeader = session?.access_token ? `Bearer ${session.access_token}` : '';
 
-      if (error) {
+      const res = await fetch("/api/invites", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({ email }),
+      });
+
+      const result = await res.json();
+
+      if (!res.ok) {
         toast({
           title: "Error",
-          description: "Failed to send invite. Please try again.",
+          description: result.error || "Failed to send invite. Please try again.",
           variant: "destructive",
         });
         return;
       }
 
-      const res = await fetch("/api/send-team-invite", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          inviteLink,
-        }),
+      toast({
+        title: "Invite sent!",
+        description: `Invitation sent to ${email}`,
       });
-
-      if (!res.ok) {
-        toast({
-          title: "Error",
-          description: "Failed to send invite. Please try again.",
-          variant: "destructive",
-        });
-        console.error("Failed to send invite:", await res.text());
-      } else {
-        toast({
-          title: "Invite sent!",
-          description: `Invite link: ${inviteLink}`,
-        });
-      }
 
       setEmail("");
       setIsOpen(false);
