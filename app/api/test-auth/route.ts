@@ -4,8 +4,8 @@ import { getSupabaseServer } from '@/lib/supabase-server'
 export async function GET() {
   try {
     // Test if service role key works
-    const supabase = getSupabaseServer()
-    
+    const supabase = await getSupabaseServer()
+
     // Try to query the database
     const { data, error } = await supabase
       .from('deliveries')
