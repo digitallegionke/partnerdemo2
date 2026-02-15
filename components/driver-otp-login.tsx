@@ -292,7 +292,7 @@ function PhoneInputForm({
       <button
         type="submit"
         disabled={isLoading || !phone}
-        className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+        className="w-full bg-[#C8E298] hover:bg-[#274690] disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
       >
         {isLoading ? (
           <span className="flex items-center justify-center">
@@ -387,7 +387,7 @@ function OtpInputForm({
         <button
           type="submit"
           disabled={isLoading || otp.length < 6}
-          className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+          className="w-full bg-[#C8E298] hover:bg-[#274690] disabled:bg-slate-600 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
         >
           {isLoading ? (
             <span className="flex items-center justify-center">

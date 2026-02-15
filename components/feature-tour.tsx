@@ -194,7 +194,7 @@ export default function FeatureTour({ isOpen, onClose, onComplete }: FeatureTour
 
         <CardHeader className="text-center pb-4">
           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <step.icon className="w-8 h-8 text-blue-600" />
+            <step.icon className="w-8 h-8 text-[#C8E298]" />
           </div>
           <CardTitle className="text-xl">{step.content.heading}</CardTitle>
           <CardDescription className="text-base">{step.description}</CardDescription>
@@ -205,7 +205,7 @@ export default function FeatureTour({ isOpen, onClose, onComplete }: FeatureTour
           <div className="space-y-3">
             {step.content.details.map((detail, index) => (
               <div key={index} className="flex items-start space-x-3">
-                <div className="w-2 h-2 bg-blue-600 rounded-full mt-2 flex-shrink-0" />
+                <div className="w-2 h-2 bg-[#C8E298] rounded-full mt-2 flex-shrink-0" />
                 <p className="text-gray-700">{detail}</p>
               </div>
             ))}
@@ -227,7 +227,7 @@ export default function FeatureTour({ isOpen, onClose, onComplete }: FeatureTour
                 <div
                   key={index}
                   className={`w-2 h-2 rounded-full ${
-                    index === currentStep ? 'bg-blue-600' : 
+                    index === currentStep ? 'bg-[#C8E298]' : 
                     index < currentStep ? 'bg-blue-300' : 'bg-gray-300'
                   }`}
                 />
@@ -256,7 +256,7 @@ export default function FeatureTour({ isOpen, onClose, onComplete }: FeatureTour
               </Button>
               <Button
                 onClick={handleNext}
-                className="bg-blue-600 hover:bg-blue-700 flex items-center space-x-2"
+                className="bg-[#C8E298] hover:bg-[#274690] flex items-center space-x-2"
               >
                 <span>{isLastStep ? "Get Started" : "Next"}</span>
                 <ArrowRight className="w-4 h-4" />

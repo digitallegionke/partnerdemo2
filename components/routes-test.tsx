@@ -111,7 +111,7 @@ export default function RoutesTest() {
         <div className="pt-2 border-t border-gray-200">
           <button
             onClick={testRoutes}
-            className="text-sm text-blue-600 hover:text-blue-800"
+            className="text-sm text-[#C8E298] hover:text-blue-800"
           >
             🔄 Test Again
           </button>

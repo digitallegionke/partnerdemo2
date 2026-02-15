@@ -88,10 +88,7 @@ export default function SupabaseTest() {
       const testDelivery = {
         customer_name: 'Test Customer',
         location: 'Test Location',
-        coordinates: {
-          type: 'Point',
-          coordinates: [36.8219, -1.2921] // GeoJSON format: [longitude, latitude]
-        },
+        coordinates: [-1.2921, 36.8219] as [number, number], // [latitude, longitude]
         item: 'Test Item',
         estimated_value: 'KSh 1,000',
         weight: '2kg',
