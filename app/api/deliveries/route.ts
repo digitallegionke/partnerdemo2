@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthenticatedClient } from '@/lib/supabase'
+import { normalizeDeliveryStatuses } from '@/lib/deliveryStatusMapper'
 
 /**
  * GET /api/deliveries
@@ -71,8 +72,8 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json(data)
-    
+    return NextResponse.json(normalizeDeliveryStatuses(data ?? []))
+
   } catch (error: any) {
     console.error('Unexpected error in GET /api/deliveries:', error)
     return NextResponse.json(
@@ -193,7 +194,7 @@ export async function POST(request: NextRequest) {
       weight: body.weight || null,
       phone: body.phone,
       drop_time: body.drop_time,
-      status: 'pending', 
+      status: 'available', // driver-app compatible initial status
       delivery_notes: body.delivery_notes || null,
       organization_id: membership.organization_id,
       created_by: profile.id,
