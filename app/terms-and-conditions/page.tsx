@@ -189,7 +189,7 @@ export default function TermsAndConditions() {
               </Button>
               <Button
                 onClick={handleBack}
-                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700"
+                className="w-full sm:w-auto bg-[#C8E298] hover:bg-[#274690]"
               >
                 I Understand
               </Button>
