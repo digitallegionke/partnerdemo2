@@ -459,17 +459,31 @@ import {
   Marker,
   Polyline,
 } from "@react-google-maps/api";
+import type { DriverLocation } from "@/lib/services/driver-locations";
+
+interface MapComponentExtraProps {
+  driverLocations?: Map<number, DriverLocation>;
+  showDrivers?: boolean;
+  routeId?: number;
+  candidateDeliveries?: Array<DeliveryData & { priority_score?: number }>;
+}
 
 export default function MapComponent({
   deliveries,
   selectedDelivery,
   onDeliverySelect,
-}: MapComponentProps) {
+  driverLocations,
+  showDrivers = false,
+  routeId,
+  candidateDeliveries,
+}: MapComponentProps & MapComponentExtraProps) {
   const [routePath, setRoutePath] = useState<{ lat: number; lng: number }[]>(
     []
   );
   const [showInfoWindow, setShowInfoWindow] = useState<number | null>(null);
   const [markers, setMarkers] = useState<Map<number, any>>(new Map());
+  const [driverMarkers, setDriverMarkers] = useState<Map<number, any>>(new Map());
+  const [candidateMarkers, setCandidateMarkers] = useState<Map<number, any>>(new Map());
   const [map, setMap] = useState<any>(null);
   const [response, setResponse] = useState(null);
 
@@ -494,17 +508,36 @@ export default function MapComponent({
 
     if (data.routes?.length) {
       const path: { lat: number; lng: number }[] = [];
+      let encodedPoly = "";
 
       data.routes[0].legs.forEach((leg: any) => {
         leg.steps.forEach((step: any) => {
-          step.polyline?.points &&
+          if (step.polyline?.points) {
+            if (!encodedPoly) encodedPoly = step.polyline.points;
             path.push(...decodePolyline(step.polyline.points));
+          }
         });
       });
 
       setRoutePath(path);
+
+      // Save polyline for delivery prioritization if we have a routeId
+      if (routeId && path.length > 0) {
+        try {
+          const { RouteService } = await import("@/lib/services/routes");
+          // Sample waypoints (every 5th point to keep it manageable)
+          const sampledWaypoints = path.filter((_, i) => i % 5 === 0 || i === path.length - 1);
+          await RouteService.saveRoutePolyline(
+            routeId,
+            encodedPoly,
+            sampledWaypoints
+          );
+        } catch (e) {
+          console.error("Failed to save route polyline:", e);
+        }
+      }
     }
-  }, [deliveries]);
+  }, [deliveries, routeId]);
 
   useEffect(() => {
     fetchRoute();
@@ -750,6 +783,47 @@ export default function MapComponent({
           }}
         />
       )}
+
+      {/* Driver location markers */}
+      {showDrivers &&
+        driverLocations &&
+        Array.from(driverLocations.values()).map((driver) => (
+          <Marker
+            key={`driver-${driver.driver_id}`}
+            position={{ lat: driver.lat, lng: driver.lng }}
+            icon={{
+              path: window?.google?.maps?.SymbolPath?.FORWARD_CLOSED_ARROW || 0,
+              scale: 6,
+              fillColor: driver.is_online ? "#10b981" : "#6b7280",
+              fillOpacity: 1,
+              strokeColor: "#ffffff",
+              strokeWeight: 2,
+              rotation: driver.heading || 0,
+            }}
+            title={driver.name}
+            zIndex={1000}
+          />
+        ))}
+
+      {/* Candidate (unassigned) delivery markers */}
+      {candidateDeliveries &&
+        candidateDeliveries.map((d) => (
+          <Marker
+            key={`candidate-${d.id}`}
+            position={{ lat: d.coordinates[0], lng: d.coordinates[1] }}
+            icon={{
+              path: window?.google?.maps?.SymbolPath?.CIRCLE || 0,
+              scale: 8,
+              fillColor: "#f59e0b",
+              fillOpacity: 0.6,
+              strokeColor: "#f59e0b",
+              strokeWeight: 2,
+              strokeOpacity: 1,
+            }}
+            title={`${d.customer_name} (Recommended)`}
+            onClick={() => onDeliverySelect(d)}
+          />
+        ))}
     </GoogleMap>
   );
 }

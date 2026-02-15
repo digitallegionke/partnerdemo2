@@ -236,7 +236,7 @@ export default function HomePage() {
           <div className="space-y-6 lg:space-y-8 order-2 lg:order-1">
             <div className="text-center lg:text-left">
               <div className="flex items-center justify-center lg:justify-start space-x-3 mb-6">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-600 rounded-xl flex items-center justify-center">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 bg-[#C8E298] rounded-xl flex items-center justify-center">
                   <Truck className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div>
@@ -263,8 +263,8 @@ export default function HomePage() {
                   key={index}
                   className="flex items-start space-x-3 sm:space-x-4 text-center sm:text-left"
                 >
-                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <feature.icon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                  <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[#C8E298]/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <feature.icon className="w-4 h-4 sm:w-5 sm:h-5 text-[#C8E298]" />
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900 mb-1 text-sm sm:text-base">
@@ -345,7 +345,7 @@ export default function HomePage() {
                         <p>
                           <Link
                             href="/forgot-password"
-                            className="hover:underline hover:text-blue-600 text-sm"
+                            className="hover:underline hover:text-[#C8E298] text-sm"
                           >
                             {" "}
                             Forgot Password
@@ -385,7 +385,7 @@ export default function HomePage() {
                     )}
                     <Button
                       type="submit"
-                      className="w-full bg-blue-600 hover:bg-blue-700"
+                      className="w-full bg-[#C8E298] hover:bg-[#274690]"
                       disabled={isLoading}
                     >
                       {isLoading ? "Signing in..." : "Sign In"}
@@ -518,7 +518,7 @@ export default function HomePage() {
                     )}
                     <Button
                       type="submit"
-                      className="w-full bg-blue-600 hover:bg-blue-700"
+                      className="w-full bg-[#C8E298] hover:bg-[#274690]"
                       disabled={isLoading}
                     >
                       {isLoading ? "Creating account..." : "Create Account"}
@@ -529,11 +529,11 @@ export default function HomePage() {
 
               <div className="text-center text-sm text-gray-500">
                 By continuing, you agree to our{" "}
-                <a href="#" className="text-blue-600 hover:underline">
+                <a href="#" className="text-[#C8E298] hover:underline">
                   Terms of Service
                 </a>{" "}
                 and{" "}
-                <a href="#" className="text-blue-600 hover:underline">
+                <a href="#" className="text-[#C8E298] hover:underline">
                   Privacy Policy
                 </a>
               </div>
@@ -549,7 +549,7 @@ export default function HomePage() {
   //     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50 flex items-center justify-center p-4">
   //       <Card className="w-full max-w-2xl bg-white shadow-xl border-0">
   //         <CardHeader className="text-center">
-  //           <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+  //           <div className="w-16 h-16 bg-[#C8E298] rounded-full flex items-center justify-center mx-auto mb-4">
   //             <Building2 className="w-8 h-8 text-white" />
   //           </div>
   //           <CardTitle className="text-3xl">Set up your organization</CardTitle>
@@ -667,7 +667,7 @@ export default function HomePage() {
   //             )}
   //             <Button
   //               type="submit"
-  //               className="w-full bg-blue-600 hover:bg-blue-700 text-lg py-6"
+  //               className="w-full bg-[#C8E298] hover:bg-[#274690] text-lg py-6"
   //               disabled={isLoading}
   //             >
   //               {isLoading ? "Setting up your account..." : "Complete Setup"}
@@ -723,7 +723,7 @@ export default function HomePage() {
   //           <div className="flex flex-col sm:flex-row gap-4 justify-center">
   //             <Button
   //               onClick={handleComplete}
-  //               className="bg-blue-600 hover:bg-blue-700 text-lg px-8 py-6"
+  //               className="bg-[#C8E298] hover:bg-[#274690] text-lg px-8 py-6"
   //             >
   //               Enter Dashboard
   //             </Button>

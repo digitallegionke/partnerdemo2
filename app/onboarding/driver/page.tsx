@@ -108,7 +108,7 @@ export default function DriverOnboardingPage() {
 
             <div className="grid md:grid-cols-3 gap-6 mb-8">
               <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <User className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                <User className="w-8 h-8 text-[#C8E298] mx-auto mb-2" />
                 <h3 className="font-semibold text-blue-900 mb-1">Personal Info</h3>
                 <p className="text-sm text-blue-700">Share your basic details</p>
               </div>
@@ -214,7 +214,7 @@ export default function DriverOnboardingPage() {
           <Progress value={getProgress()} className="h-2" />
           <div className="flex justify-between mt-2">
             {steps.map((step, index) => (
-              <div key={step.id} className={`text-xs ${index <= getCurrentStepIndex() ? 'text-blue-600' : 'text-gray-400'}`}>
+              <div key={step.id} className={`text-xs ${index <= getCurrentStepIndex() ? 'text-[#C8E298]' : 'text-gray-400'}`}>
                 {step.title}
               </div>
             ))}
@@ -533,7 +533,7 @@ export default function DriverOnboardingPage() {
               ) : (
                 <Button 
                   onClick={handleNext}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-[#C8E298] hover:bg-[#274690]"
                 >
                   Next
                 </Button>

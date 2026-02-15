@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthenticatedClient } from '@/lib/supabase'
+import { normalizeDeliveryStatus, toDriverStatus } from '@/lib/deliveryStatusMapper'
 
-type Params = { params: { id: string } }
+type Params = { params: Promise<{ id: string }> }
 
 async function getAuthAndMembership(authorization: string | null) {
   const supabase = createAuthenticatedClient(authorization)
@@ -34,7 +35,8 @@ export async function GET(request: NextRequest, { params }: Params) {
     const { supabase, membership, errorResponse } = await getAuthAndMembership(request.headers.get('authorization')) as any
     if (errorResponse) return errorResponse
 
-    const id = Number(params.id)
+    const { id: rawId } = await params
+    const id = Number(rawId)
     if (Number.isNaN(id)) {
       return NextResponse.json({ error: 'Invalid delivery id' }, { status: 400 })
     }
@@ -63,7 +65,7 @@ export async function GET(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Delivery not found' }, { status: 404 })
     }
 
-    return NextResponse.json(data)
+    return NextResponse.json(normalizeDeliveryStatus(data))
   } catch (error: any) {
     console.error('Unexpected error in GET /api/deliveries/[id]:', error)
     return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 })
@@ -75,7 +77,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     const { supabase, membership, errorResponse } = await getAuthAndMembership(request.headers.get('authorization')) as any
     if (errorResponse) return errorResponse
 
-    const id = Number(params.id)
+    const { id: rawId } = await params
+    const id = Number(rawId)
     if (Number.isNaN(id)) {
       return NextResponse.json({ error: 'Invalid delivery id' }, { status: 400 })
     }
@@ -107,6 +110,11 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       if (allowedFields.has(key)) {
         updates[key] = body[key]
       }
+    }
+
+    // Translate web-format status values to driver-compatible values before writing
+    if ('status' in updates && updates.status) {
+      updates.status = toDriverStatus(updates.status)
     }
 
     if ('coordinates' in updates) {
@@ -153,7 +161,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
       return NextResponse.json({ error: 'Failed to update delivery', details: error.message }, { status: 500 })
     }
 
-    return NextResponse.json(data, { status: 200 })
+    return NextResponse.json(normalizeDeliveryStatus(data), { status: 200 })
   } catch (error: any) {
     console.error('Unexpected error in PATCH /api/deliveries/[id]:', error)
     return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 })
@@ -165,7 +173,8 @@ export async function DELETE(request: NextRequest, { params }: Params) {
     const { supabase, membership, errorResponse } = await getAuthAndMembership(request.headers.get('authorization')) as any
     if (errorResponse) return errorResponse
 
-    const id = Number(params.id)
+    const { id: rawId } = await params
+    const id = Number(rawId)
     if (Number.isNaN(id)) {
       return NextResponse.json({ error: 'Invalid delivery id' }, { status: 400 })
     }

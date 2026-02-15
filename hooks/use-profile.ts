@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 
 type Profile = {
@@ -22,13 +22,13 @@ type Organization = {
 
 type Team = {
   id: string;
-  type: "member" | "invite"; 
-  role: string | null; 
-  joined_at: string | null; 
+  type: "member" | "invite";
+  role: string | null;
+  joined_at: string | null;
   name: string | null;
-  email: string 
+  email: string
   invite_token: string | null;
-  invite_created_at: string | null; 
+  invite_created_at: string | null;
 }
 
 export function useUserProfile() {
@@ -37,86 +37,43 @@ export function useUserProfile() {
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [team, setTeam] = useState<Team[] | null>(null);
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+  const fetchProfile = useCallback(async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
 
-      if (userError || !user) {
-        console.error("No user", userError);
+      if (!session?.access_token) {
         setLoading(false);
         return;
       }
 
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
+      const res = await fetch("/api/profile", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
-      if (profileError) {
-        console.error("Error loading profile", profileError);
-      } else {
-        setProfile(profileData);
+      if (!res.ok) {
+        console.error("Error loading profile:", res.statusText);
+        setLoading(false);
+        return;
       }
 
-      if (profileData.role === "owner") {
-        const { data: orgData, error: orgError } = await supabase
-          .from("organization")
-          .select("*")
-          .eq("user", user.id)
-          .single();
-
-        if (orgError || !orgData) {
-          console.error("Error loading organization", orgError);
-        }
-
-        setOrganization(orgData);
-        const { data: allPeople, error } = await supabase.rpc(
-          "get_org_people",
-          {
-            p_org_id: orgData?.id,
-          }
-        );
-        setTeam(allPeople);
-        
-      } else {
-        const { data: memberRecord, error: memberError } = await supabase
-          .from("organization_members")
-          .select("organization:organization_id(*)")
-          .eq("user_id", user.id)
-          .single();
-
-        if (memberError || !memberRecord) {
-          console.error("Error loading organization", memberError);
-        }
-
-        if (
-          memberRecord &&
-          memberRecord.organization &&
-          !Array.isArray(memberRecord.organization)
-        ) {
-          setOrganization(memberRecord.organization);
-          const { data: allPeople, error } = await supabase.rpc(
-            "get_org_people",
-            {
-              p_org_id: memberRecord.organization?.id,
-            }
-          );
-          setTeam(allPeople);
-          
-        } else {
-          setOrganization(null);
-        }
-      }
-
+      const data = await res.json();
+      setProfile(data.profile || null);
+      setOrganization(data.organization || null);
+      setTeam(data.team || null);
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+    } finally {
       setLoading(false);
-    };
+    }
+  }, []);
 
+  useEffect(() => {
     fetchProfile();
-    
+
     const { data: authListener } = supabase.auth.onAuthStateChange(() => {
       fetchProfile();
     });
@@ -140,7 +97,7 @@ export function useUserProfile() {
       authListener.subscription.unsubscribe();
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [fetchProfile]);
 
   return { profile, organization, loading, team };
 }

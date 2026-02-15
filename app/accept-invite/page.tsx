@@ -132,7 +132,7 @@ export default function AcceptInvite() {
                     Proceed to{" "}
                     <Link
                       href="/"
-                      className="text-blue-600 hover:underline font-medium"
+                      className="text-[#C8E298] hover:underline font-medium"
                     >
                       login
                     </Link>

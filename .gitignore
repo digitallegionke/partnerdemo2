@@ -25,3 +25,19 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+#db
+# Add to your .gitignore file
+echo "*.sql" >> .gitignore
+echo "backup*.sql" >> .gitignore
+echo "data_backup*.sql" >> .gitignore
+*.sql
+backup*.sql
+data_backup*.sql
+supabase/.temp/
+
+*.DS_Store
+.DS_Store
+.env
+.env.local
+.env*.local

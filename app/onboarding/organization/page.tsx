@@ -25,7 +25,6 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import OperatingHoursSelector from "@/app/components/operating-picker";
-import { Router } from "express";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
@@ -245,7 +244,7 @@ function OrganizationSetup() {
         <Card className="w-full max-w-2xl bg-white shadow-xl border-0">
           <CardContent className="text-center py-12">
             <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Building className="w-10 h-10 text-blue-600" />
+              <Building className="w-10 h-10 text-[#C8E298]" />
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-4">
               Welcome to Roundi! 🚀
@@ -273,7 +272,7 @@ function OrganizationSetup() {
                 <p className="text-sm text-purple-700">Delivery preferences</p>
               </div>
               <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <CheckCircle className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                <CheckCircle className="w-8 h-8 text-[#C8E298] mx-auto mb-2" />
                 <h3 className="font-semibold text-blue-900 mb-1">Review</h3>
                 <p className="text-sm text-blue-700">Verify & submit</p>
               </div>
@@ -281,7 +280,7 @@ function OrganizationSetup() {
 
             <Button
               onClick={handleNext}
-              className="bg-blue-600 hover:bg-blue-700 text-lg px-8 py-6"
+              className="bg-[#C8E298] hover:bg-[#274690] text-lg px-8 py-6"
             >
               Start Setup
             </Button>
@@ -333,7 +332,7 @@ function OrganizationSetup() {
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
-                className="bg-blue-600 hover:bg-blue-700 text-lg px-8 py-6"
+                className="bg-[#C8E298] hover:bg-[#274690] text-lg px-8 py-6"
                 onClick={() => router.push("/dashboard")}
               >
                 Continue to Dashboard
@@ -372,7 +371,7 @@ function OrganizationSetup() {
                 key={step.id}
                 className={`text-xs ${
                   index <= getCurrentStepIndex()
-                    ? "text-blue-600"
+                    ? "text-[#C8E298]"
                     : "text-gray-400"
                 }`}
               >
@@ -971,7 +970,7 @@ function OrganizationSetup() {
               ) : (
                 <Button
                   onClick={handleNext}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-[#C8E298] hover:bg-[#274690]"
                 >
                   Next
                 </Button>

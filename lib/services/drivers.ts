@@ -5,6 +5,14 @@ type Driver = Database["public"]["Tables"]["drivers"]["Row"];
 type DriverInsert = Database["public"]["Tables"]["drivers"]["Insert"];
 type DriverUpdate = Database["public"]["Tables"]["drivers"]["Update"];
 
+// Client-side driver creation type - org_id is added by the API
+type DriverCreateInput = Omit<DriverInsert, 'org_id'>;
+
+// Extended response type for driver creation that includes the setup OTP
+export interface DriverCreateResponse extends Driver {
+  setupOtp?: string;
+}
+
 export class DriverService {
   private static baseUrl = '/api/drivers'
   
@@ -62,7 +70,12 @@ export class DriverService {
     return (all || []).filter((d) => d.status === 'active')
   }
 
-  static async createDriver(driver: DriverInsert): Promise<Driver> {
+  /**
+   * Create a new driver
+   * Returns driver data along with a one-time setup OTP for initial login
+   * Note: org_id is automatically added by the API based on the authenticated user
+   */
+  static async createDriver(driver: DriverCreateInput): Promise<DriverCreateResponse> {
     try {
       const data = await this.fetchWithAuth(this.baseUrl, {
         method: 'POST',
@@ -119,5 +132,24 @@ export class DriverService {
       on_break: drivers.filter((d) => d.status === 'on_break').length,
     }
     return stats
+  }
+
+  /**
+   * Regenerate setup OTP for an existing driver
+   * Use when the original OTP expired or was lost
+   */
+  static async regenerateSetupOtp(id: number): Promise<{ setupOtp: string; expiresAt: string }> {
+    try {
+      const data = await this.fetchWithAuth(`${this.baseUrl}/${id}/regenerate-otp`, {
+        method: 'POST',
+      })
+      return {
+        setupOtp: data.setupOtp,
+        expiresAt: data.expiresAt,
+      }
+    } catch (error) {
+      console.error('Error regenerating setup OTP:', error)
+      throw error
+    }
   }
 }

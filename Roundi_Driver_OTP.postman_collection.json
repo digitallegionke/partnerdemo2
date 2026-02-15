@@ -1,0 +1,510 @@
+{
+  "info": {
+    "name": "Driver OTP Authentication",
+    "description": "Collection for testing driver OTP authentication endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "OTP Request",
+      "item": [
+        {
+          "name": "Request OTP - Valid Phone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/auth/request-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers",
+                "auth",
+                "request-otp"
+              ]
+            },
+            "description": "Request OTP for a registered driver phone number"
+          },
+          "response": []
+        },
+        {
+          "name": "Request OTP - Different Format",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"1 (234) 567-8900\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/auth/request-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers",
+                "auth",
+                "request-otp"
+              ]
+            },
+            "description": "Test phone format normalization (formats will be normalized to +12345678900)"
+          },
+          "response": []
+        },
+        {
+          "name": "Request OTP - Invalid Phone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"abc123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/auth/request-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers",
+                "auth",
+                "request-otp"
+              ]
+            },
+            "description": "Test invalid phone format - should return INVALID_PHONE error"
+          },
+          "response": []
+        },
+        {
+          "name": "Request OTP - Not Registered",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+9999999999\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/auth/request-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers",
+                "auth",
+                "request-otp"
+              ]
+            },
+            "description": "Test phone not in database - should return PHONE_NOT_REGISTERED error"
+          },
+          "response": []
+        },
+        {
+          "name": "Request OTP - Rate Limit (3rd attempt)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/auth/request-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers",
+                "auth",
+                "request-otp"
+              ]
+            },
+            "description": "Make 3 requests in a row with the same phone. This request (3rd) should trigger rate limit. Returns 429."
+          },
+          "response": []
+        },
+        {
+          "name": "Request OTP - Empty Body",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/auth/request-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers",
+                "auth",
+                "request-otp"
+              ]
+            },
+            "description": "Test with missing phone field"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "OTP Verification",
+      "item": [
+        {
+          "name": "Verify OTP - Correct Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+1234567890\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/auth/verify-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers",
+                "auth",
+                "verify-otp"
+              ]
+            },
+            "description": "Verify OTP with correct code. Use the code from SMS/Supabase logs. Should return session and driver info."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify OTP - Incorrect Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+1234567890\",\n  \"otp\": \"000000\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/auth/verify-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers",
+                "auth",
+                "verify-otp"
+              ]
+            },
+            "description": "Verify OTP with wrong code - should return INVALID_OTP error"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify OTP - Expired Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+1234567890\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/auth/verify-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers",
+                "auth",
+                "verify-otp"
+              ]
+            },
+            "description": "Wait 10+ minutes after requesting OTP, then try to verify. Should return EXPIRED_OTP error."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify OTP - Not Registered",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+9999999999\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/auth/verify-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers",
+                "auth",
+                "verify-otp"
+              ]
+            },
+            "description": "Verify OTP for unregistered phone - should return PHONE_NOT_REGISTERED error"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify OTP - Invalid Phone Format",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"invalid\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/auth/verify-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers",
+                "auth",
+                "verify-otp"
+              ]
+            },
+            "description": "Verify OTP with invalid phone format - should return INVALID_OTP error"
+          },
+          "response": []
+        },
+        {
+          "name": "Verify OTP - Empty OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+1234567890\",\n  \"otp\": \"\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/auth/verify-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers",
+                "auth",
+                "verify-otp"
+              ]
+            },
+            "description": "Verify OTP with empty code"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "End-to-End Workflow",
+      "item": [
+        {
+          "name": "1. Setup - Create Test Driver in DB",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "-- Run this SQL in Supabase to create a test driver\nINSERT INTO drivers (name, phone, email, vehicle_type, license_number, org_id, status)\nVALUES ('Test Driver', '+1234567890', 'test@example.com', 'van', 'DL123456', 1, 'pending_activation')\nON CONFLICT (phone) DO UPDATE SET status = 'pending_activation';"
+            },
+            "url": {
+              "raw": "https://supabase.com/",
+              "protocol": "https",
+              "host": [
+                "supabase.com"
+              ]
+            },
+            "description": "First, create a test driver in your Supabase database. Go to Supabase SQL Editor and run this query."
+          },
+          "response": []
+        },
+        {
+          "name": "2. Request OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+1234567890\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/auth/request-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers",
+                "auth",
+                "request-otp"
+              ]
+            },
+            "description": "Step 1: Request OTP. You should get a 200 response with 'OTP sent' message."
+          },
+          "response": []
+        },
+        {
+          "name": "3. Get OTP Code",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://supabase.com/",
+              "protocol": "https",
+              "host": [
+                "supabase.com"
+              ]
+            },
+            "description": "Step 2: Get the OTP code\n\nOptions:\nA) Check Supabase logs:\n   - Go to Supabase Dashboard > Logs\n   - Search for your phone number\n   - Find the OTP code being sent\n\nB) Check SMS inbox (if real SMS provider configured)\n   - Check your phone SMS messages\n   - Find the OTP code\n\nC) Check Inbucket (if using Supabase local dev with docker)\n   - Go to http://localhost:54324/\n   - Look for OTP in email preview\n\nCopy the 6-digit OTP code for the next step."
+          },
+          "response": []
+        },
+        {
+          "name": "4. Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+1234567890\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/drivers/auth/verify-otp",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "drivers",
+                "auth",
+                "verify-otp"
+              ]
+            },
+            "description": "Step 3: Verify OTP with the code from step 2. Replace '123456' with the actual OTP code."
+          },
+          "response": []
+        },
+        {
+          "name": "5. Verify Results in Database",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://supabase.com/",
+              "protocol": "https",
+              "host": [
+                "supabase.com"
+              ]
+            },
+            "description": "Step 4: Verify the login worked by checking the database:\n\nRun this SQL query:\n\n```sql\nSELECT id, name, phone, phone_verified_at, user_id, status \nFROM drivers \nWHERE phone = '+1234567890';\n```\n\nExpected:\n- phone_verified_at: Should be set to current timestamp\n- user_id: Should be populated with a UUID\n- status: Should be 'active' (auto-activated on first login)"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string",
+      "description": "Base URL for your API. Change to your deployment URL for production."
+    }
+  ]
+}

@@ -10,8 +10,8 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 87 68% 64%;
-    --primary-foreground: 0 0% 20%;
+    --primary: 81 56% 74%;
+    --primary-foreground: 137 37% 9%;
     --secondary: 210 40% 96%;
     --secondary-foreground: 222.2 84% 4.9%;
     --muted: 210 40% 96%;
@@ -38,8 +38,8 @@
     --card-foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-    --primary: 87 68% 64%;
-    --primary-foreground: 0 0% 20%;
+    --primary: 81 56% 74%;
+    --primary-foreground: 137 37% 9%;
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;
@@ -137,7 +137,7 @@
 
 .rbc-toolbar button:active,
 .rbc-toolbar button.rbc-active {
-  @apply bg-blue-600 text-white border-blue-600;
+  @apply bg-[#C8E298] text-white border-blue-600;
 }
 
 .rbc-toolbar-label {

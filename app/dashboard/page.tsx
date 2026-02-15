@@ -149,9 +149,7 @@ export default function DashboardPage() {
       case "drivers":
         return <DriversScreen />;
       case "collection-points":
-        return (
-          <CollectionPointsScreen onBack={() => setActiveScreen("routes")} />
-        );
+        return <CollectionPointsScreen />;
 
       // case "optimize":
       //   return <OptimizeScreen />;
@@ -214,7 +212,7 @@ export default function DashboardPage() {
                   variant="outline"
                   size="sm"
                   onClick={startTour}
-                  className="bg-white text-blue-600 border-white hover:bg-blue-50"
+                  className="bg-white text-[#C8E298] border-white hover:bg-blue-50"
                 >
                   Start Tour
                 </Button>
@@ -298,8 +296,8 @@ export default function DashboardPage() {
                     sidebarCollapsed ? "px-2" : "px-4"
                   } ${
                     activeScreen === item.id
-                      ? "bg-blue-50 text-blue-700 border border-blue-200"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                      ? "bg-[#C8E298] text-[#162318] font-medium"
+                      : "text-[#162318]/60 hover:text-[#162318] hover:bg-[#EFF0EB]"
                   }`}
                   id={`${item.id}-section`}
                 >
@@ -327,7 +325,7 @@ export default function DashboardPage() {
           {/* Quick Stats */}
           {!sidebarCollapsed && (
             <div className="p-4 border-t border-gray-100 bg-gray-50">
-              <div className="grid grid-cols-2 gap-3 mb-4">
+              {/* <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="text-center">
                   <p className="text-lg font-bold text-gray-900">24</p>
                   <p className="text-xs text-gray-500">Active</p>
@@ -336,11 +334,11 @@ export default function DashboardPage() {
                   <p className="text-lg font-bold text-green-600">18</p>
                   <p className="text-xs text-gray-500">Completed</p>
                 </div>
-              </div>
+              </div> */}
               <div className="space-y-2">
-                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm">
+                {/* <Button className="w-full bg-[#C8E298] hover:bg-[#274690] text-white text-sm">
                   Quick Actions
-                </Button>
+                </Button> */}
                 {hasCompletedTour && (
                   <Button
                     variant="outline"

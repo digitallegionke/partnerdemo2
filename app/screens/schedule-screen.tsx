@@ -333,7 +333,7 @@ export default function ScheduleScreen() {
           </Button>
           <Button 
             onClick={() => setIsCreateDialogOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-[#C8E298] hover:bg-[#274690] text-white"
           >
             <Plus className="h-4 w-4 mr-2" />
             Schedule Delivery
@@ -376,7 +376,7 @@ export default function ScheduleScreen() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Completed</p>
-                <p className="text-2xl font-semibold text-blue-600">
+                <p className="text-2xl font-semibold text-[#C8E298]">
                   {events.filter(e => e.status === 'completed').length}
                 </p>
               </div>
@@ -416,7 +416,7 @@ export default function ScheduleScreen() {
           <p className="text-gray-500 mb-4">{error}</p>
           <Button 
             onClick={loadData}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-[#C8E298] hover:bg-[#274690] text-white"
           >
             Try Again
           </Button>
@@ -620,7 +620,7 @@ export default function ScheduleScreen() {
               </Button>
               <Button
                 type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
+                className="bg-[#C8E298] hover:bg-[#274690] text-white"
                 disabled={isSubmitting}
               >
                 {isSubmitting ? "Scheduling..." : "Schedule Delivery"}

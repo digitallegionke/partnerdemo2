@@ -43,6 +43,17 @@ export interface Database {
           created_at: string;
           updated_at: string;
           org_id: number;
+          user_id: string | null;
+          phone_verified_at: string | null;
+          // Setup OTP fields for initial driver login
+          setup_otp_hash: string | null;
+          setup_otp_expires_at: string | null;
+          setup_otp_used: boolean | null;
+          // Live location fields
+          last_known_lat: number | null;
+          last_known_lng: number | null;
+          last_location_at: string | null;
+          is_online: boolean;
         };
         Insert: {
           name: string;
@@ -52,6 +63,18 @@ export interface Database {
           status?: "active" | "inactive" | "on_break";
           vehicle_type: string;
           license_number: string;
+          org_id: number;
+          user_id?: string | null;
+          phone_verified_at?: string | null;
+          // Setup OTP fields
+          setup_otp_hash?: string | null;
+          setup_otp_expires_at?: string | null;
+          setup_otp_used?: boolean | null;
+          // Live location fields
+          last_known_lat?: number | null;
+          last_known_lng?: number | null;
+          last_location_at?: string | null;
+          is_online?: boolean;
         };
         Update: {
           name?: string;
@@ -61,6 +84,17 @@ export interface Database {
           status?: "active" | "inactive" | "on_break";
           vehicle_type?: string;
           license_number?: string;
+          user_id?: string | null;
+          phone_verified_at?: string | null;
+          // Setup OTP fields
+          setup_otp_hash?: string | null;
+          setup_otp_expires_at?: string | null;
+          setup_otp_used?: boolean | null;
+          // Live location fields
+          last_known_lat?: number | null;
+          last_known_lng?: number | null;
+          last_location_at?: string | null;
+          is_online?: boolean;
         };
       };
       routes: {
@@ -92,7 +126,7 @@ export interface Database {
           lng: string;
         };
         Update: {
-          name: string;
+          name?: string;
           driver_id?: number | null;
           status?: "active" | "completed" | "pending" | "cancelled";
           total_distance?: number | null;
@@ -100,8 +134,8 @@ export interface Database {
           start_location?: string | null;
           end_location?: string | null;
           efficiency_score?: number | null;
-          lat: string;
-          lng: string;
+          lat?: string;
+          lng?: string;
         };
       };
       deliveries: {
@@ -125,6 +159,9 @@ export interface Database {
           delivery_notes?: string | null;
           proof_of_delivery?: string | null;
           attempt_count?: number;
+          time_window_start?: string | null;
+          time_window_end?: string | null;
+          demand?: number;
         };
         Insert: {
           route_id?: number | null;
@@ -278,6 +315,65 @@ export interface Database {
           desired_features?: string | null;
           business_status?: "pending" | "active" | "inactive" | "suspended";
           profile_completed?: boolean;
+        };
+      };
+      driver_locations: {
+        Row: {
+          id: number;
+          driver_id: number;
+          route_id: number | null;
+          latitude: number;
+          longitude: number;
+          heading: number | null;
+          speed: number | null;
+          accuracy: number | null;
+          battery_level: number | null;
+          recorded_at: string;
+          created_at: string;
+        };
+        Insert: {
+          driver_id: number;
+          route_id?: number | null;
+          latitude: number;
+          longitude: number;
+          heading?: number | null;
+          speed?: number | null;
+          accuracy?: number | null;
+          battery_level?: number | null;
+          recorded_at?: string;
+        };
+        Update: {
+          route_id?: number | null;
+          latitude?: number;
+          longitude?: number;
+          heading?: number | null;
+          speed?: number | null;
+          accuracy?: number | null;
+          battery_level?: number | null;
+        };
+      };
+      route_polylines: {
+        Row: {
+          id: number;
+          route_id: number;
+          encoded_polyline: string;
+          waypoints: Array<{ lat: number; lng: number }>;
+          total_distance_m: number | null;
+          total_duration_s: number | null;
+          computed_at: string;
+        };
+        Insert: {
+          route_id: number;
+          encoded_polyline: string;
+          waypoints: Array<{ lat: number; lng: number }>;
+          total_distance_m?: number | null;
+          total_duration_s?: number | null;
+        };
+        Update: {
+          encoded_polyline?: string;
+          waypoints?: Array<{ lat: number; lng: number }>;
+          total_distance_m?: number | null;
+          total_duration_s?: number | null;
         };
       };
       collection_points: {

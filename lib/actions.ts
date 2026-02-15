@@ -86,6 +86,21 @@ export async function acceptInviteWithSignup(
     return { error: "Missing required fields" };
   }
 
+  // Validate password strength
+  const pwd = password.toString();
+  if (pwd.length < 8) {
+    return { error: "Password must be at least 8 characters long" };
+  }
+  if (!/[A-Z]/.test(pwd)) {
+    return { error: "Password must contain at least one uppercase letter" };
+  }
+  if (!/[a-z]/.test(pwd)) {
+    return { error: "Password must contain at least one lowercase letter" };
+  }
+  if (!/[0-9]/.test(pwd)) {
+    return { error: "Password must contain at least one number" };
+  }
+
   try {
     // First, verify the invite token
     const { data: invite, error: inviteError } = await supabase.rpc(
@@ -216,9 +231,19 @@ export async function updatePassword(prevState: any, formData: FormData) {
     return { error: "Passwords do not match" };
   }
 
-  // Check password length
-  if (password.toString().length < 6) {
-    return { error: "Password must be at least 6 characters long" };
+  // Check password strength
+  const pwd = password.toString();
+  if (pwd.length < 8) {
+    return { error: "Password must be at least 8 characters long" };
+  }
+  if (!/[A-Z]/.test(pwd)) {
+    return { error: "Password must contain at least one uppercase letter" };
+  }
+  if (!/[a-z]/.test(pwd)) {
+    return { error: "Password must contain at least one lowercase letter" };
+  }
+  if (!/[0-9]/.test(pwd)) {
+    return { error: "Password must contain at least one number" };
   }
 
   try {
