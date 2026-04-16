@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthenticatedClient } from '@/lib/supabase'
-import { getSupabaseServer } from '@/lib/supabase-server'
+import type { Database } from '@/lib/supabase'
+import type { SupabaseClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import bcrypt from 'bcryptjs'
 
@@ -10,14 +11,15 @@ function validatePhoneFormat(phone: string): boolean {
   return e164Regex.test(phone)
 }
 
-// Check if phone already exists in auth.users or drivers table
+type OrgScopedClient = SupabaseClient<Database>
+
+/** Org-scoped check via RLS — same as dashboard visibility for this organization */
 async function checkPhoneUniqueness(
-  adminClient: Awaited<ReturnType<typeof getSupabaseServer>>,
+  supabase: OrgScopedClient,
   phone: string,
   orgId: number
 ): Promise<{ isUnique: boolean; error?: string }> {
-  // Check drivers table for this org
-  const { data: existingDriver, error: driverError } = await adminClient
+  const { data: existingDriver, error: driverError } = await supabase
     .from('drivers')
     .select('id')
     .match({ phone, org_id: orgId })
@@ -29,20 +31,10 @@ async function checkPhoneUniqueness(
   }
 
   if (existingDriver) {
-    return { isUnique: false, error: `Phone number ${phone} already exists for a driver in this organization` }
-  }
-
-  // Check auth.users table
-  const { data: authUsers, error: authError } = await adminClient.auth.admin.listUsers()
-
-  if (authError) {
-    console.error('Error checking auth users:', authError)
-    return { isUnique: false, error: 'Failed to validate phone uniqueness in authentication system' }
-  }
-
-  const phoneExists = authUsers?.users?.some((u) => u.phone === phone)
-  if (phoneExists) {
-    return { isUnique: false, error: `Phone number ${phone} is already registered in the authentication system` }
+    return {
+      isUnique: false,
+      error: `Phone number ${phone} already exists for a driver in this organization`,
+    }
   }
 
   return { isUnique: true }
@@ -57,131 +49,6 @@ function generateSetupOtp(): { otp: string; hash: string; expiresAt: string } {
   // Setup OTP expires in 7 days
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
   return { otp, hash, expiresAt }
-}
-
-// Create auth user and driver record with proper transaction handling
-async function createDriverWithAuth(
-  adminClient: Awaited<ReturnType<typeof getSupabaseServer>>,
-  driverData: {
-    name: string
-    phone: string
-    email: string | null
-    avatar_url: string | null
-    status: 'active' | 'inactive' | 'on_break'
-    vehicle_type: string
-    license_number: string
-    org_id: number
-  }
-): Promise<{ success: boolean; data?: any; error?: string; authUserId?: string; setupOtp?: string }> {
-  // Step 1: Create auth user with email
-  let authUser: any = null;
-  try {
-    // Create consistent email format for phone-based auth
-    const driverEmail = `${driverData.phone.replace('+', '')}@driver.internal`;
-
-    const { data, error } = await adminClient.auth.admin.createUser({
-      phone: driverData.phone,
-      email: driverEmail, // ← ADDED: Consistent email format
-      email_confirm: true, // ← ADDED: Pre-confirmed, no verification email
-      phone_confirm: false, // Driver will verify via OTP
-      user_metadata: {
-        role: 'driver',
-        full_name: driverData.name,
-      },
-    })
-
-    if (error) {
-      console.error('Error creating auth user:', error)
-      const errorMessage =
-        error.message.includes('already exists') || error.message.includes('in use')
-          ? `Phone number ${driverData.phone} is already registered`
-          : `Failed to create authentication user: ${error.message}`
-      return { success: false, error: errorMessage }
-    }
-
-    if (!data?.user?.id) {
-      return { success: false, error: 'Failed to create auth user - no user ID returned' }
-    }
-
-    authUser = data.user
-    console.log('Auth user created with email:', driverEmail)
-  } catch (err: any) {
-    console.error('Unexpected error creating auth user:', err)
-    return { success: false, error: `Unexpected error during authentication user creation: ${err.message}` }
-  }
-
-  // Step 2: Generate setup OTP for initial driver login
-  const setupOtpData = generateSetupOtp()
-  console.log('Generated setup OTP for driver (expires in 7 days)')
-
-  // Step 3: Create driver record with user_id and setup OTP
-  try {
-    const insertPayload: any = {
-      name: driverData.name,
-      phone: driverData.phone,
-      email: driverData.email,
-      avatar_url: driverData.avatar_url,
-      status: driverData.status,
-      vehicle_type: driverData.vehicle_type,
-      license_number: driverData.license_number,
-      org_id: driverData.org_id,
-      user_id: authUser.id,
-      setup_otp_hash: setupOtpData.hash,
-      setup_otp_expires_at: setupOtpData.expiresAt,
-      setup_otp_used: false,
-    }
-
-    const { data: driver, error: driverError } = await adminClient
-      .from('drivers')
-      .insert([insertPayload] as any)
-      .select()
-      .maybeSingle()
-
-    if (driverError) {
-      console.error('Error creating driver record:', driverError)
-
-      // Step 4: Rollback - delete auth user if driver creation fails
-      try {
-        await adminClient.auth.admin.deleteUser(authUser.id)
-        console.log(`Rolled back auth user ${authUser.id} due to driver creation failure`)
-      } catch (rollbackErr: any) {
-        console.error(`Failed to rollback auth user ${authUser.id}:`, rollbackErr)
-      }
-
-      const errorMessage = driverError.message.includes('duplicate')
-        ? `Phone number ${driverData.phone} or license number ${driverData.license_number} already exists`
-        : `Failed to create driver record: ${driverError.message}`
-
-      return { success: false, error: errorMessage, authUserId: authUser.id }
-    }
-
-    if (!driver) {
-      // Rollback auth user
-      try {
-        await adminClient.auth.admin.deleteUser(authUser.id)
-        console.log(`Rolled back auth user ${authUser.id} due to empty driver response`)
-      } catch (rollbackErr: any) {
-        console.error(`Failed to rollback auth user ${authUser.id}:`, rollbackErr)
-      }
-
-      return { success: false, error: 'Failed to create driver - no data returned', authUserId: authUser.id }
-    }
-
-    // Return the plain-text OTP along with driver data (for admin to share with driver)
-    return { success: true, data: driver, authUserId: authUser.id, setupOtp: setupOtpData.otp }
-  } catch (err: any) {
-    console.error('Unexpected error creating driver record:', err)
-
-    // Rollback auth user
-    try {
-      await adminClient.auth.admin.deleteUser(authUser.id)
-      console.log(`Rolled back auth user ${authUser.id} due to unexpected error`)
-    } catch (rollbackErr: any) {
-      console.error(`Failed to rollback auth user ${authUser.id}:`, rollbackErr)
-    }
-
-    return { success: false, error: `Unexpected error during driver creation: ${err.message}`, authUserId: authUser.id }
-  }
 }
 
 export async function GET(request: NextRequest) {
@@ -283,45 +150,58 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Get service role client for admin operations
-    const adminClient = await getSupabaseServer()
-
-    // Check phone uniqueness before creating auth user
-    const uniquenessCheck = await checkPhoneUniqueness(adminClient, body.phone, membership.organization_id)
+    const uniquenessCheck = await checkPhoneUniqueness(
+      supabase,
+      body.phone,
+      membership.organization_id
+    )
     if (!uniquenessCheck.isUnique) {
       return NextResponse.json({ error: uniquenessCheck.error }, { status: 409 })
     }
 
-    // Prepare driver data
-    const driverData = {
+    const setupOtpData = generateSetupOtp()
+
+    const insertPayload = {
       name: body.name,
       phone: body.phone,
       email: body.email ?? null,
       avatar_url: body.avatar_url ?? null,
-      status: body.status ?? 'active',
+      status: (body.status ?? 'active') as 'active' | 'inactive' | 'on_break',
       vehicle_type: body.vehicle_type,
       license_number: body.license_number,
       org_id: membership.organization_id,
+      user_id: null as string | null,
+      setup_otp_hash: setupOtpData.hash,
+      setup_otp_expires_at: setupOtpData.expiresAt,
+      setup_otp_used: false,
     }
 
-    // Create auth user and driver record with transaction handling
-    const result = await createDriverWithAuth(adminClient, driverData)
+    const { data: driver, error: insertError } = await supabase
+      .from('drivers')
+      .insert(insertPayload)
+      .select()
+      .maybeSingle()
 
-    if (!result.success) {
-      const statusCode = result.error?.includes('already')
-        ? 409
-        : result.error?.includes('Invalid')
-          ? 400
-          : 500
-      return NextResponse.json({ error: result.error }, { status: statusCode })
+    if (insertError) {
+      console.error('Error creating driver:', insertError)
+      const dup = insertError.message.includes('duplicate')
+      const msg = dup
+        ? `Phone number ${body.phone} or license number ${body.license_number} already exists`
+        : insertError.message
+      return NextResponse.json({ error: msg }, { status: dup ? 409 : 500 })
     }
 
-    // Include setupOtp in response for admin to share with driver
-    // This OTP is one-time use and expires in 7 days
-    return NextResponse.json({
-      ...result.data,
-      setupOtp: result.setupOtp,
-    }, { status: 201 })
+    if (!driver) {
+      return NextResponse.json({ error: 'Failed to create driver' }, { status: 500 })
+    }
+
+    return NextResponse.json(
+      {
+        ...driver,
+        setupOtp: setupOtpData.otp,
+      },
+      { status: 201 }
+    )
   } catch (error: any) {
     console.error('Unexpected error in POST /api/drivers:', error)
     return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 })

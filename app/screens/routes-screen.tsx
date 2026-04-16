@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { PhoneInput } from 'react-international-phone';
+import 'react-international-phone/style.css';
 import {
   Plus,
   Edit,
@@ -104,6 +106,7 @@ interface RoutesScreenProps {
 }
 
 export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
+
   const [routes, setRoutes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -933,19 +936,16 @@ export default function RoutesScreen({ onViewRouteMap }: RoutesScreenProps) {
                                       }
                                     />
                                   </div>
-                                  <div>
+                                  <div className="w-full" >
                                     <Label>Phone Number *</Label>
-                                    <Input
+                                    <PhoneInput
                                       placeholder="+254 712 345 678"
+                                      defaultCountry="us"
                                       value={delivery.phone}
+                                      onChange={(value) => handleInputChange("phone", value)}
                                       required
-                                      onChange={(e) =>
-                                        updateDelivery(
-                                          delivery.id,
-                                          "phone",
-                                          e.target.value
-                                        )
-                                      }
+                                                      
+                                      disabled={false}                                       
                                     />
                                   </div>
                                   <div className="md:col-span-2">

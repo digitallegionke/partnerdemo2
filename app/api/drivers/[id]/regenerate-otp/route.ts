@@ -12,7 +12,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAuthenticatedClient } from '@/lib/supabase';
-import { getSupabaseServer } from '@/lib/supabase-server';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
@@ -59,11 +58,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({ error: 'No organization found for this user' }, { status: 403 });
     }
 
-    // Get service role client for admin operations
-    const adminClient = await getSupabaseServer();
-
-    // Get the driver and verify they belong to this org
-    const { data: driver, error: driverError } = await adminClient
+    const { data: driver, error: driverError } = await supabase
       .from('drivers')
       .select('*')
       .eq('id', driverId)
@@ -93,7 +88,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     console.log(`[regenerate-otp] Generated new setup OTP for driver ${driverId}`);
 
     // Update driver with new OTP
-    const { data: updatedDriver, error: updateError } = await (adminClient as any)
+    const { data: updatedDriver, error: updateError } = await supabase
       .from('drivers')
       .update({
         setup_otp_hash: setupOtpData.hash,
@@ -101,6 +96,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         setup_otp_used: false,
       })
       .eq('id', driverId)
+      .eq('org_id', membership.organization_id)
       .select()
       .single();
 

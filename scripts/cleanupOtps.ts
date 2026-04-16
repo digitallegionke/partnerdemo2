@@ -1,26 +1,22 @@
-import { getSupabaseServer } from '@/lib/supabase-server';
+import { createAnonClient } from '@/lib/supabase'
 
 async function cleanup() {
   try {
-    const adminSupabase = await getSupabaseServer();
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-
-    const { error } = await adminSupabase
-      .from('otp_verifications')
-      .delete()
-      .lt('created_at', oneHourAgo);
+    const anon = createAnonClient()
+    const { data, error } = await anon.rpc('driver_otp_sweep_expired')
 
     if (error) {
-      console.error('OTP cleanup error:', error);
-      process.exit(1);
+      console.error('OTP cleanup error:', error)
+      process.exit(1)
     }
 
-    console.log('OTP cleanup completed');
-    process.exit(0);
-  } catch (err: any) {
-    console.error('Unexpected cleanup error:', err.message || err);
-    process.exit(1);
+    console.log('OTP cleanup completed, rows deleted:', data ?? 0)
+    process.exit(0)
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error('Unexpected cleanup error:', message)
+    process.exit(1)
   }
 }
 
-cleanup();
+cleanup()

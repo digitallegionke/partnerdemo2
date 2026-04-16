@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createAuthenticatedClient } from '@/lib/supabase'
 
-type Params = { params: { id: string } }
+type RouteContext = { params: Promise<{ id: string }> }
 
 async function getAuthAndMembership(authorization: string | null) {
   const supabase = createAuthenticatedClient(authorization)
@@ -28,12 +28,13 @@ async function getAuthAndMembership(authorization: string | null) {
   return { supabase, membership }
 }
 
-export async function GET(request: NextRequest, { params }: Params) {
+export async function GET(request: NextRequest, { params }: RouteContext) {
   try {
     const { supabase, membership, errorResponse } = await getAuthAndMembership(request.headers.get('authorization')) as any
     if (errorResponse) return errorResponse
 
-    const id = Number(params.id)
+    const { id: rawId } = await params
+    const id = Number(rawId)
     if (Number.isNaN(id)) {
       return NextResponse.json({ error: 'Invalid driver id' }, { status: 400 })
     }
@@ -61,12 +62,13 @@ export async function GET(request: NextRequest, { params }: Params) {
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: Params) {
+export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
     const { supabase, membership, errorResponse } = await getAuthAndMembership(request.headers.get('authorization')) as any
     if (errorResponse) return errorResponse
 
-    const id = Number(params.id)
+    const { id: rawId } = await params
+    const id = Number(rawId)
     if (Number.isNaN(id)) {
       return NextResponse.json({ error: 'Invalid driver id' }, { status: 400 })
     }
@@ -128,12 +130,13 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: Params) {
+export async function DELETE(request: NextRequest, { params }: RouteContext) {
   try {
     const { supabase, membership, errorResponse } = await getAuthAndMembership(request.headers.get('authorization')) as any
     if (errorResponse) return errorResponse
 
-    const id = Number(params.id)
+    const { id: rawId } = await params
+    const id = Number(rawId)
     if (Number.isNaN(id)) {
       return NextResponse.json({ error: 'Invalid driver id' }, { status: 400 })
     }

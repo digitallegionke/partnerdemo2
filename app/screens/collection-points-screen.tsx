@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import { PhoneInput } from 'react-international-phone';
+import 'react-international-phone/style.css';
 import { ArrowLeft, Plus, MapPin, Edit3, Trash2, Search, Clock, Users, Navigation, Phone, Mail, AlertCircle, CheckCircle, Building2, Car, Bike, CircleX, RefreshCw } from "lucide-react"
 import { toast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
@@ -50,7 +52,7 @@ const collectionPointSchema = Yup.object({
     .required('Contact person is required'),
   phone: Yup.string()
     .min(1, 'Phone is required')
-    .max(20, 'Phone too long')
+    .max(32, 'Phone too long')
     .required('Phone is required'),
   email: Yup.string()
     .email('Invalid email')
@@ -865,12 +867,11 @@ export default function CollectionPointsScreen() {
 
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number *</Label>
-                <Input
-                  id="phone"
-                  name="phone"
+                <PhoneInput
+                  defaultCountry="ke"
                   value={formik.values.phone}
-                  onChange={formik.handleChange}
-                  onBlur={formik.handleBlur}
+                  onChange={(phone) => formik.setFieldValue('phone', phone)}
+                  onBlur={() => formik.setFieldTouched('phone', true)}
                   placeholder="+254 xxx xxx xxx"
                   className={`border-slate-200 focus:border-blue-500 ${
                     formik.touched.phone && formik.errors.phone ? 'border-red-500' : ''

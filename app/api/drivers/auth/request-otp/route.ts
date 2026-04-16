@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServer } from '@/lib/supabase-server';
+import { createAnonClient } from '@/lib/supabase';
 import {
   validateAndNormalizePhone,
   isValidPhoneNumber,
@@ -90,64 +90,33 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
-    // Use service-role Supabase client for server-side queries (avoids RLS issues)
-    const adminSupabase = await getSupabaseServer();
+    const anon = createAnonClient();
 
-    // Check if driver exists with this phone
-    const { data: driver, error: driverError } = await adminSupabase
-      .from('drivers')
-      .select('id, name, status, phone_verified_at')
-      .eq('phone', phone)
-      .maybeSingle();
-
-    if (driverError && driverError.code !== 'PGRST116') {
-      console.error('[request-otp] Database error checking driver:', driverError);
-      return NextResponse.json(
-        {
-          error: getOtpErrorMessage(OtpErrorCode.DATABASE_ERROR),
-          code: OtpErrorCode.DATABASE_ERROR,
-        } as OtpErrorResponse,
-        { status: 500 }
-      );
-    }
-
-    if (!driver) {
-      // Return generic message to prevent phone enumeration
-      console.warn(
-        `[request-otp] Phone number not registered in drivers table: ${phone}`
-      );
-      return NextResponse.json(
-        {
-          error: getOtpErrorMessage(OtpErrorCode.PHONE_NOT_REGISTERED),
-          code: OtpErrorCode.PHONE_NOT_REGISTERED,
-        } as OtpErrorResponse,
-        { status: 404 }
-      );
-    }
-
-    // Generate secure 6-digit OTP
     const otp = crypto.randomInt(100000, 999999).toString();
-
-    // Hash OTP
     const otpHash = await bcrypt.hash(otp, 10);
-    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString(); // 5 minutes
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
     const createdAt = new Date().toISOString();
 
-    // Store verification record using adminSupabase (initialized earlier)
-    const { error: insertErr } = await adminSupabase
-      .from('otp_verifications')
-      .insert([
-        {
-          phone,
-          otp_hash: otpHash,
-          expires_at: expiresAt,
-          attempts: 0,
-          created_at: createdAt,
-        },
-      ] as any);
+    const { error: insertErr } = await anon.rpc('driver_otp_request_insert', {
+      p_phone: phone,
+      p_otp_hash: otpHash,
+      p_expires_at: expiresAt,
+      p_created_at: createdAt,
+    });
 
     if (insertErr) {
-      console.error('[request-otp] Failed to insert otp_verifications:', insertErr);
+      const msg = insertErr.message || '';
+      if (msg.includes('DRIVER_NOT_FOUND') || insertErr.code === 'P0001') {
+        console.warn(`[request-otp] Phone not registered: ${phone}`);
+        return NextResponse.json(
+          {
+            error: getOtpErrorMessage(OtpErrorCode.PHONE_NOT_REGISTERED),
+            code: OtpErrorCode.PHONE_NOT_REGISTERED,
+          } as OtpErrorResponse,
+          { status: 404 }
+        );
+      }
+      console.error('[request-otp] driver_otp_request_insert:', insertErr);
       return NextResponse.json(
         {
           error: getOtpErrorMessage(OtpErrorCode.DATABASE_ERROR),

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { PhoneInput } from 'react-international-phone';
+import 'react-international-phone/style.css';
 import {
   Package,
   MapPin,
@@ -908,7 +910,7 @@ export default function DeliveriesScreen() {
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
+                      <div className="w-full">
                         <Label htmlFor="customer_name">Customer Name *</Label>
                         <Input
                           id="customer_name"
@@ -920,17 +922,17 @@ export default function DeliveriesScreen() {
                           }
                         />
                       </div>
-                      <div>
+                      <div className="w-full">
                         <Label htmlFor="phone">Phone Number *</Label>
-                        <Input
-                          id="phone"
-                          type="tel"
-                          required
-                          value={formData.phone}
-                          onChange={(e) =>
-                            handleInputChange("phone", e.target.value)
-                          }
+                        <PhoneInput
                           placeholder="+254 712 345 678"
+                          defaultCountry="ke"
+                          value={formData.phone}
+                          onChange={(value) =>
+                            handleInputChange("phone", value)
+                          }
+                          required
+                          disabled={false}
                         />
                       </div>
                     </div>
@@ -1406,15 +1408,15 @@ export default function DeliveriesScreen() {
                       </div>
                       <div>
                         <Label htmlFor="edit_phone">Phone Number *</Label>
-                        <Input
-                          id="edit_phone"
-                          type="tel"
-                          required
-                          value={formData.phone}
-                          onChange={(e) =>
-                            handleInputChange("phone", e.target.value)
-                          }
+                        <PhoneInput
                           placeholder="+254 712 345 678"
+                          defaultCountry="us"
+                          value={formData.phone}  
+                          required
+                          onChange={(value) =>
+                            handleInputChange("phone", value)
+                          }
+                          disabled={false}
                         />
                       </div>
                     </div>

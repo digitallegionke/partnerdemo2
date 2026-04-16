@@ -23,6 +23,8 @@ export const createAuthenticatedClient = (authorization: string | null) => {
   })
 }
 
+/** Public (anon) key — use for unauthenticated driver-auth routes; pair with RPCs / RLS, not service role. */
+export const createAnonClient = () => createClient(supabaseUrl, supabaseAnonKey)
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
