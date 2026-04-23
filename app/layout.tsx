@@ -3,7 +3,6 @@ import localFont from 'next/font/local'
 import { Toaster } from "@/components/ui/toaster"
 import './globals.css'
 import AuthProvider from "./context/auth-context";
-
 import GoogleMapsProvider from "./context/maps-provider";
 
 const outfit = localFont({
