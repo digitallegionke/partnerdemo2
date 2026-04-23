@@ -445,6 +445,378 @@ export interface Database {
           updated_by?: string;
         };
       };
+      partner_providers: {
+        Row: {
+          id: number;
+          organization_id: number;
+          provider_name: string;
+          legal_name: string | null;
+          contact_email: string | null;
+          contact_phone: string | null;
+          country: string | null;
+          city: string | null;
+          address: string | null;
+          logo_url: string | null;
+          status: "pending" | "active" | "suspended";
+          onboarding_completed: boolean;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: number;
+          provider_name: string;
+          legal_name?: string | null;
+          contact_email?: string | null;
+          contact_phone?: string | null;
+          country?: string | null;
+          city?: string | null;
+          address?: string | null;
+          logo_url?: string | null;
+          status?: "pending" | "active" | "suspended";
+          onboarding_completed?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          organization_id?: number;
+          provider_name?: string;
+          legal_name?: string | null;
+          contact_email?: string | null;
+          contact_phone?: string | null;
+          country?: string | null;
+          city?: string | null;
+          address?: string | null;
+          logo_url?: string | null;
+          status?: "pending" | "active" | "suspended";
+          onboarding_completed?: boolean;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      partner_provider_users: {
+        Row: {
+          id: number;
+          provider_id: number;
+          user_id: string;
+          role: string;
+          is_primary: boolean;
+          is_active: boolean;
+          invited_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          provider_id: number;
+          user_id: string;
+          role?: string;
+          is_primary?: boolean;
+          is_active?: boolean;
+          invited_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          provider_id?: number;
+          user_id?: string;
+          role?: string;
+          is_primary?: boolean;
+          is_active?: boolean;
+          invited_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      partner_drivers: {
+        Row: {
+          id: number;
+          provider_id: number;
+          full_name: string;
+          phone_number: string;
+          email: string | null;
+          license_number: string;
+          vehicle_type: string;
+          vehicle_plate: string | null;
+          status: "active" | "inactive" | "on_trip" | "off_duty";
+          is_online: boolean;
+          last_known_lat: number | null;
+          last_known_lng: number | null;
+          last_location_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          provider_id: number;
+          full_name: string;
+          phone_number: string;
+          email?: string | null;
+          license_number: string;
+          vehicle_type: string;
+          vehicle_plate?: string | null;
+          status?: "active" | "inactive" | "on_trip" | "off_duty";
+          is_online?: boolean;
+          last_known_lat?: number | null;
+          last_known_lng?: number | null;
+          last_location_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          provider_id?: number;
+          full_name?: string;
+          phone_number?: string;
+          email?: string | null;
+          license_number?: string;
+          vehicle_type?: string;
+          vehicle_plate?: string | null;
+          status?: "active" | "inactive" | "on_trip" | "off_duty";
+          is_online?: boolean;
+          last_known_lat?: number | null;
+          last_known_lng?: number | null;
+          last_location_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      partner_allocation_requests: {
+        Row: {
+          id: number;
+          business_id: number;
+          service_provider_id: number;
+          drivers_requested: number;
+          start_date: string;
+          end_date: string | null;
+          status:
+            | "pending"
+            | "accepted"
+            | "partially_allocated"
+            | "fully_allocated"
+            | "rejected"
+            | "cancelled"
+            | "completed";
+          notes: string | null;
+          business_notes: string | null;
+          provider_notes: string | null;
+          reviewed_at: string | null;
+          requested_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          business_id: number;
+          service_provider_id: number;
+          drivers_requested: number;
+          start_date: string;
+          end_date?: string | null;
+          status?:
+            | "pending"
+            | "accepted"
+            | "partially_allocated"
+            | "fully_allocated"
+            | "rejected"
+            | "cancelled"
+            | "completed";
+          notes?: string | null;
+          business_notes?: string | null;
+          provider_notes?: string | null;
+          reviewed_at?: string | null;
+          requested_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          business_id?: number;
+          service_provider_id?: number;
+          drivers_requested?: number;
+          start_date?: string;
+          end_date?: string | null;
+          status?:
+            | "pending"
+            | "accepted"
+            | "partially_allocated"
+            | "fully_allocated"
+            | "rejected"
+            | "cancelled"
+            | "completed";
+          notes?: string | null;
+          business_notes?: string | null;
+          provider_notes?: string | null;
+          reviewed_at?: string | null;
+          requested_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      partner_driver_allocations: {
+        Row: {
+          id: number;
+          request_id: number;
+          driver_id: number;
+          vehicle_id: number | null;
+          status: "assigned" | "accepted" | "in_progress" | "released" | "cancelled";
+          allocated_from: string;
+          allocated_until: string | null;
+          allocation_notes: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          request_id: number;
+          driver_id: number;
+          vehicle_id?: number | null;
+          status?: "assigned" | "accepted" | "in_progress" | "released" | "cancelled";
+          allocated_from?: string;
+          allocated_until?: string | null;
+          allocation_notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          request_id?: number;
+          driver_id?: number;
+          vehicle_id?: number | null;
+          status?: "assigned" | "accepted" | "in_progress" | "released" | "cancelled";
+          allocated_from?: string;
+          allocated_until?: string | null;
+          allocation_notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      partner_provider_service_capabilities: {
+        Row: {
+          id: number;
+          provider_id: number;
+          service_area: string | null;
+          vehicle_type: string;
+          max_concurrent_drivers: number;
+          available_from: string | null;
+          available_to: string | null;
+          supports_weekends: boolean;
+          notes: string | null;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          provider_id: number;
+          service_area?: string | null;
+          vehicle_type: string;
+          max_concurrent_drivers?: number;
+          available_from?: string | null;
+          available_to?: string | null;
+          supports_weekends?: boolean;
+          notes?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          provider_id?: number;
+          service_area?: string | null;
+          vehicle_type?: string;
+          max_concurrent_drivers?: number;
+          available_from?: string | null;
+          available_to?: string | null;
+          supports_weekends?: boolean;
+          notes?: string | null;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      partner_vehicles: {
+        Row: {
+          id: number;
+          provider_id: number;
+          vehicle_type: "motorbike" | "car" | "van" | "truck" | "bicycle" | "other";
+          make: string | null;
+          model: string | null;
+          year: number | null;
+          plate_number: string;
+          color: string | null;
+          capacity_kg: number | null;
+          status: string;
+          insurance_expiry: string | null;
+          inspection_expiry: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          provider_id: number;
+          vehicle_type: "motorbike" | "car" | "van" | "truck" | "bicycle" | "other";
+          make?: string | null;
+          model?: string | null;
+          year?: number | null;
+          plate_number: string;
+          color?: string | null;
+          capacity_kg?: number | null;
+          status?: string;
+          insurance_expiry?: string | null;
+          inspection_expiry?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          provider_id?: number;
+          vehicle_type?: "motorbike" | "car" | "van" | "truck" | "bicycle" | "other";
+          make?: string | null;
+          model?: string | null;
+          year?: number | null;
+          plate_number?: string;
+          color?: string | null;
+          capacity_kg?: number | null;
+          status?: string;
+          insurance_expiry?: string | null;
+          inspection_expiry?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      partner_driver_vehicle_assignments: {
+        Row: {
+          id: number;
+          driver_id: number;
+          vehicle_id: number;
+          assigned_from: string;
+          assigned_to: string | null;
+          is_active: boolean;
+          assigned_by: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          driver_id: number;
+          vehicle_id: number;
+          assigned_from?: string;
+          assigned_to?: string | null;
+          is_active?: boolean;
+          assigned_by?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          driver_id?: number;
+          vehicle_id?: number;
+          assigned_from?: string;
+          assigned_to?: string | null;
+          is_active?: boolean;
+          assigned_by?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
     };
     Views: {
       [_ in never]: never;
@@ -453,7 +825,18 @@ export interface Database {
       [_ in never]: never;
     };
     Enums: {
-      [_ in never]: never;
+      partner_allocation_status: "assigned" | "accepted" | "in_progress" | "released" | "cancelled";
+      partner_driver_status: "active" | "inactive" | "on_trip" | "off_duty";
+      partner_provider_status: "pending" | "active" | "suspended";
+      partner_request_status:
+        | "pending"
+        | "accepted"
+        | "partially_allocated"
+        | "fully_allocated"
+        | "rejected"
+        | "cancelled"
+        | "completed";
+      partner_vehicle_type: "motorbike" | "car" | "van" | "truck" | "bicycle" | "other";
     };
   };
 }
