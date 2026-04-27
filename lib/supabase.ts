@@ -448,7 +448,7 @@ export interface Database {
       partner_providers: {
         Row: {
           id: number;
-          organization_id: number;
+          organization_id: number | null;
           provider_name: string;
           legal_name: string | null;
           contact_email: string | null;
@@ -457,6 +457,7 @@ export interface Database {
           city: string | null;
           address: string | null;
           logo_url: string | null;
+          service_mode: "allocation" | "managed_delivery" | "both" | null;
           status: "pending" | "active" | "suspended";
           onboarding_completed: boolean;
           created_by: string | null;
@@ -464,7 +465,7 @@ export interface Database {
           updated_at: string;
         };
         Insert: {
-          organization_id: number;
+          organization_id?: number | null;
           provider_name: string;
           legal_name?: string | null;
           contact_email?: string | null;
@@ -473,6 +474,7 @@ export interface Database {
           city?: string | null;
           address?: string | null;
           logo_url?: string | null;
+          service_mode?: "allocation" | "managed_delivery" | "both" | null;
           status?: "pending" | "active" | "suspended";
           onboarding_completed?: boolean;
           created_by?: string | null;
@@ -480,7 +482,7 @@ export interface Database {
           updated_at?: string;
         };
         Update: {
-          organization_id?: number;
+          organization_id?: number | null;
           provider_name?: string;
           legal_name?: string | null;
           contact_email?: string | null;
@@ -489,6 +491,7 @@ export interface Database {
           city?: string | null;
           address?: string | null;
           logo_url?: string | null;
+          service_mode?: "allocation" | "managed_delivery" | "both" | null;
           status?: "pending" | "active" | "suspended";
           onboarding_completed?: boolean;
           created_by?: string | null;

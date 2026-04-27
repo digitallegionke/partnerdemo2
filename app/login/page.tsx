@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AuthService } from "@/lib/services/auth";
+import { PartnerProviderService } from "@/lib/services/partner-providers";
 import { getProviderAccessProfile } from "@/lib/services/provider-portal-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +21,7 @@ export default function ProviderLoginPage() {
 
   const nextPath = useMemo(() => {
     const next = searchParams.get("next");
-    return next && next.startsWith("/dashboard/") ? next : "/dashboard/drivers";
+    return next && next.startsWith("/dashboard") ? next : "/dashboard";
   }, [searchParams]);
 
   useEffect(() => {
@@ -40,16 +40,10 @@ export default function ProviderLoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const result = await AuthService.signIn(email, password);
+
+    const result = await PartnerProviderService.signIn(email, password);
     if (!result.success) {
       setError(result.error || "Failed to sign in");
-      setLoading(false);
-      return;
-    }
-
-    const providerProfile = await getProviderAccessProfile();
-    if (!providerProfile) {
-      setError("Access denied. This portal is for service provider users only.");
       setLoading(false);
       return;
     }
