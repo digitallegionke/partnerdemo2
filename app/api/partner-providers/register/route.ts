@@ -36,15 +36,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Use service role client for all admin operations
-    const adminClient = createClient(
+    const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Check if a provider with this email already exists
-    const { data: existingProvider } = await adminClient
+    // Check for duplicate email before creating auth user
+    const { data: existingProvider } = await supabase
       .from('partner_providers')
       .select('id')
       .eq('contact_email', email)
@@ -57,14 +56,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 1: Create auth user
-    const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
+    // Step 1: Create the auth user
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
-      email_confirm: true,
-      user_metadata: {
-        full_name: contactPerson,
-        phone: phoneNumber,
+      options: {
+        data: { full_name: contactPerson, phone: phoneNumber },
       },
     })
 
@@ -77,8 +74,24 @@ export async function POST(request: NextRequest) {
 
     const userId = authData.user.id
 
-    // Step 2: Create partner_providers record
-    const { data: provider, error: providerError } = await adminClient
+    // Build an authenticated client using the session returned by signUp.
+    // If email confirmation is enabled in Supabase, session will be null and
+    // the inserts will run under the anon role — your RLS policies must allow this.
+    const authedClient = authData.session
+      ? createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          {
+            auth: { autoRefreshToken: false, persistSession: false },
+            global: {
+              headers: { Authorization: `Bearer ${authData.session.access_token}` },
+            },
+          }
+        )
+      : supabase
+
+    // Step 2: Create the partner_providers record
+    const { data: provider, error: providerError } = await authedClient
       .from('partner_providers')
       .insert({
         provider_name: businessName,
@@ -93,8 +106,6 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (providerError || !provider) {
-      // Clean up auth user to avoid orphans
-      await adminClient.auth.admin.deleteUser(userId)
       console.error('Error creating partner provider:', providerError)
       return NextResponse.json(
         { error: providerError?.message || 'Failed to create service provider' },
@@ -102,8 +113,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 3: Create partner_provider_users record
-    const { error: memberError } = await adminClient
+    // Step 3: Link the user to the provider as owner
+    const { error: memberError } = await authedClient
       .from('partner_provider_users')
       .insert({
         provider_id: provider.id,
@@ -114,9 +125,6 @@ export async function POST(request: NextRequest) {
       })
 
     if (memberError) {
-      // Clean up provider and auth user
-      await adminClient.from('partner_providers').delete().eq('id', provider.id)
-      await adminClient.auth.admin.deleteUser(userId)
       console.error('Error creating provider user membership:', memberError)
       return NextResponse.json(
         { error: 'Failed to link user to service provider' },
