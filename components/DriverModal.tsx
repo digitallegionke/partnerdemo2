@@ -4,25 +4,24 @@ import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 
 type DriverLike = {
-  full_name?: string;
-  name?: string;
-  phone_number?: string;
-  phone?: string;
-  vehicle_type?: string;
-  vehicleType?: string;
-  vehicle_plate?: string;
-  vehiclePlate?: string;
-  license_number?: string;
-  nationalId?: string;
-  status?: string;
+  full_name?: string | null;
+  name?: string | null;
+  phone_number?: string | null;
+  phone?: string | null;
+  license_type?: string | null;
+  vehicleType?: string | null;
+  license_number?: string | null;
+  nationalId?: string | null;
+  status?: string | null;
+  primary_zone?: string | null;
 };
 
 type DriverFormData = {
   name: string;
   phone: string;
-  vehicleType: string;
-  vehiclePlate: string;
+  licenseType: string;
   nationalId: string;
+  primaryZone: string;
   status: string;
   suspendReason?: string;
 };
@@ -34,12 +33,31 @@ type DriverModalProps = {
   driver?: DriverLike | null;
 };
 
+const LICENSE_CLASSES = [
+  { value: "A1", label: "A1 – Small motorbike (up to 50cc)" },
+  { value: "A2", label: "A2 – Medium motorbike" },
+  { value: "A3", label: "A3 – Motorbike taxi / courier / Tuk-tuk" },
+  { value: "B1", label: "B1 – Private car or small van, manual or automatic" },
+  { value: "B2", label: "B2 – Private car or small van, automatic only" },
+  { value: "B3", label: "B3 – Private car or small van, professional drivers" },
+  { value: "C1", label: "C1 – Light truck: small lorry / pickup" },
+  { value: "C",  label: "C – Medium truck with a small trailer" },
+  { value: "CE", label: "CE – Heavy truck with a large trailer or semi-trailer" },
+  { value: "CD", label: "CD – Heavy truck carrying dangerous / hazardous goods" },
+  { value: "D1", label: "D1 – Matatu / minibus" },
+  { value: "D2", label: "D2 – Larger minibus" },
+  { value: "D3", label: "D3 – Full-size bus" },
+  { value: "E",  label: "E – Special professional endorsement" },
+  { value: "F",  label: "F – Adapted for persons with disabilities" },
+  { value: "G",  label: "G – Tractors, forklifts & heavy machinery" },
+];
+
 const defaults: DriverFormData = {
   name: "",
   phone: "",
-  vehicleType: "motorcycle",
-  vehiclePlate: "",
+  licenseType: "",
   nationalId: "",
+  primaryZone: "",
   status: "active",
 };
 
@@ -51,27 +69,38 @@ export default function DriverModal({
 }: DriverModalProps) {
   const isEditMode = !!driver;
   const [formData, setFormData] = useState<DriverFormData>(defaults);
+  const [selectedClasses, setSelectedClasses] = useState<string[]>([]);
   const [showSuspend, setShowSuspend] = useState(false);
   const [suspendReason, setSuspendReason] = useState("");
 
   useEffect(() => {
     if (driver && isOpen) {
+      const rawType = driver.license_type || driver.vehicleType || "";
+      const classes = rawType ? rawType.split(",").map((s) => s.trim()).filter(Boolean) : [];
+      setSelectedClasses(classes);
       setFormData({
         name: driver.full_name || driver.name || "",
         phone: driver.phone_number || driver.phone || "",
-        vehicleType: driver.vehicle_type || driver.vehicleType || "motorcycle",
-        vehiclePlate: driver.vehicle_plate || driver.vehiclePlate || "",
+        licenseType: rawType,
         nationalId: driver.license_number || driver.nationalId || "",
+        primaryZone: driver.primary_zone || "",
         status: driver.status || "active",
       });
       setShowSuspend(false);
       setSuspendReason("");
     } else if (!driver) {
+      setSelectedClasses([]);
       setFormData(defaults);
       setShowSuspend(false);
       setSuspendReason("");
     }
   }, [driver, isOpen]);
+
+  const toggleClass = (value: string) => {
+    setSelectedClasses((prev) =>
+      prev.includes(value) ? prev.filter((c) => c !== value) : [...prev, value]
+    );
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -82,9 +111,11 @@ export default function DriverModal({
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    onSave(formData);
+    if (selectedClasses.length === 0) return;
+    onSave({ ...formData, licenseType: selectedClasses.join(",") });
     onClose();
     setFormData(defaults);
+    setSelectedClasses([]);
   };
 
   const handleSuspend = () => {
@@ -168,38 +199,36 @@ export default function DriverModal({
               </div>
             </div>
 
-            <div className="mb-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-700">
-                  Vehicle Type <span className="text-red-600">*</span>
-                </label>
-                <select
-                  name="vehicleType"
-                  value={formData.vehicleType}
-                  onChange={handleChange}
-                  required
-                  className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-800 outline-none focus:border-emerald-700"
-                >
-                  <option value="motorcycle">Motorcycle</option>
-                  <option value="car">Car</option>
-                  <option value="van">Van</option>
-                  <option value="truck">Truck</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-700">
-                  Vehicle Plate <span className="text-red-600">*</span>
-                </label>
-                <input
-                  type="text"
-                  name="vehiclePlate"
-                  value={formData.vehiclePlate}
-                  onChange={handleChange}
-                  placeholder="KCA 123A"
-                  required
-                  className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-800 outline-none focus:border-emerald-700"
-                />
+            <div className="mb-6">
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                License Class <span className="text-red-600">*</span>
+                <span className="ml-2 text-xs font-normal text-gray-400">Select all that apply</span>
+              </label>
+              {selectedClasses.length === 0 && (
+                <p className="mb-2 text-xs text-red-500">Please select at least one license class.</p>
+              )}
+              <div className="rounded-lg border border-gray-200 p-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2 max-h-48 overflow-y-auto">
+                {LICENSE_CLASSES.map((lc) => {
+                  const checked = selectedClasses.includes(lc.value);
+                  return (
+                    <label
+                      key={lc.value}
+                      className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 cursor-pointer transition-colors text-sm ${
+                        checked
+                          ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
+                          : "hover:bg-gray-50 text-gray-700"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleClass(lc.value)}
+                        className="accent-emerald-700 h-3.5 w-3.5 shrink-0"
+                      />
+                      <span className="leading-tight">{lc.label}</span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
@@ -250,6 +279,21 @@ export default function DriverModal({
                   ) : null}
                 </div>
               ) : null}
+            </div>
+
+            <div className="mb-6">
+              <label className="mb-2 block text-sm font-semibold text-gray-700">
+                Primary Zone <span className="text-red-600">*</span>
+              </label>
+              <input
+                type="text"
+                name="primaryZone"
+                value={formData.primaryZone}
+                onChange={handleChange}
+                placeholder="e.g., Westlands, Kilimani"
+                required
+                className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-800 outline-none focus:border-emerald-700"
+              />
             </div>
 
             {isEditMode && formData.status !== "suspended" ? (

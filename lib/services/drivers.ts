@@ -1,12 +1,12 @@
 import type { Database } from "@/lib/supabase";
 import { supabase } from "@/lib/supabase";
 
-type Driver = Database["public"]["Tables"]["drivers"]["Row"];
-type DriverInsert = Database["public"]["Tables"]["drivers"]["Insert"];
-type DriverUpdate = Database["public"]["Tables"]["drivers"]["Update"];
+type Driver = Database["public"]["Tables"]["partner_drivers"]["Row"];
+type DriverInsert = Database["public"]["Tables"]["partner_drivers"]["Insert"];
+type DriverUpdate = Database["public"]["Tables"]["partner_drivers"]["Update"];
 
-// Client-side driver creation type - org_id is added by the API
-type DriverCreateInput = Omit<DriverInsert, 'org_id'>;
+// Client-side driver creation type - provider_id is added by the API
+type DriverCreateInput = Omit<DriverInsert, 'provider_id'>;
 
 // Extended response type for driver creation that includes the setup OTP
 export interface DriverCreateResponse extends Driver {
@@ -106,7 +106,7 @@ export class DriverService {
 
   static async updateDriverStatus(
     id: number,
-    status: "active" | "inactive" | "on_break"
+    status: "active" | "inactive" | "on_trip" | "off_duty"
   ): Promise<Driver> {
     return this.updateDriver(id, { status });
   }
@@ -129,7 +129,8 @@ export class DriverService {
       total: drivers.length,
       active: drivers.filter((d) => d.status === 'active').length,
       inactive: drivers.filter((d) => d.status === 'inactive').length,
-      on_break: drivers.filter((d) => d.status === 'on_break').length,
+      on_trip: drivers.filter((d) => d.status === 'on_trip').length,
+      off_duty: drivers.filter((d) => d.status === 'off_duty').length,
     }
     return stats
   }
