@@ -2,7 +2,7 @@
 
 import {
   X, FileText, Fuel, Gauge, Package, User,
-  CalendarDays, ShieldCheck, Truck, Bike, AlertCircle, Trash2,
+  CalendarDays, ShieldCheck, Truck, Bike, AlertCircle, Trash2, Palette, BadgeCheck, ClipboardCheck,
 } from "lucide-react";
 
 type FleetVehicle = {
@@ -16,6 +16,8 @@ type FleetVehicle = {
   odometer_km?: number | null;
   allowed_license?: string | null;
   last_service_date?: string | null;
+  insurance_expiry?: string | null;
+  inspection_expiry?: string | null;
   notes?: string | null;
   assigned_driver_name?: string | null;
   make?: string | null;
@@ -148,6 +150,13 @@ export default function FleetViewModal({ vehicle, isOpen, onClose, onEdit, onDel
             }
           </DetailRow>
 
+          <DetailRow icon={<Palette className="h-4 w-4" />} label="Color">
+            {vehicle.color
+              ? vehicle.color
+              : <span className="text-gray-400 font-normal">—</span>
+            }
+          </DetailRow>
+
           <DetailRow icon={<Package className="h-4 w-4" />} label="Capacity">
             {vehicle.capacity_kg != null
               ? `${vehicle.capacity_kg} kg`
@@ -172,6 +181,20 @@ export default function FleetViewModal({ vehicle, isOpen, onClose, onEdit, onDel
           <DetailRow icon={<CalendarDays className="h-4 w-4" />} label="Last Service">
             {vehicle.last_service_date
               ? formatDate(vehicle.last_service_date)
+              : <span className="text-gray-400 font-normal">—</span>
+            }
+          </DetailRow>
+
+          <DetailRow icon={<BadgeCheck className="h-4 w-4" />} label="Insurance Expiry">
+            {vehicle.insurance_expiry
+              ? formatDate(vehicle.insurance_expiry)
+              : <span className="text-gray-400 font-normal">—</span>
+            }
+          </DetailRow>
+
+          <DetailRow icon={<ClipboardCheck className="h-4 w-4" />} label="Inspection Expiry">
+            {vehicle.inspection_expiry
+              ? formatDate(vehicle.inspection_expiry)
               : <span className="text-gray-400 font-normal">—</span>
             }
           </DetailRow>
@@ -205,7 +228,7 @@ export default function FleetViewModal({ vehicle, isOpen, onClose, onEdit, onDel
         <div className="border-t flex gap-3 px-6 py-4">
           <button
             onClick={onDelete}
-            className="flex items-center justify-center gap-2 rounded-lg border border-red-200 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+            className="flex-1 flex items-center justify-center gap-2 rounded-lg border border-red-200 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
           >
             <Trash2 className="h-4 w-4" />
             Remove
