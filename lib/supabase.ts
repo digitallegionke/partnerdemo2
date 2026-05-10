@@ -140,13 +140,56 @@ export interface Database {
           lng?: string;
         };
       };
+      partner_routes: {
+        Row: {
+          id: number;
+          provider_id: number;
+          name: string;
+          driver_id: number | null;
+          status: "active" | "completed" | "pending" | "cancelled";
+          total_distance: number | null;
+          estimated_duration: number | null;
+          start_location: string | null;
+          end_location: string | null;
+          efficiency_score: number | null;
+          lat: string;
+          lng: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          provider_id: number;
+          name: string;
+          driver_id?: number | null;
+          status?: "active" | "completed" | "pending" | "cancelled";
+          total_distance?: number | null;
+          estimated_duration?: number | null;
+          start_location?: string | null;
+          end_location?: string | null;
+          efficiency_score?: number | null;
+          lat?: string;
+          lng?: string;
+        };
+        Update: {
+          name?: string;
+          driver_id?: number | null;
+          status?: "active" | "completed" | "pending" | "cancelled";
+          total_distance?: number | null;
+          estimated_duration?: number | null;
+          start_location?: string | null;
+          end_location?: string | null;
+          efficiency_score?: number | null;
+          lat?: string;
+          lng?: string;
+        };
+      };
       deliveries: {
         Row: {
           id: number;
           route_id: number | null;
           customer_name: string;
           location: string;
-          coordinates: string | number[] | object; // PostGIS geometry as string, array, or GeoJSON object
+          coordinates: string | number[] | object;
           item: string;
           estimated_value: string | null;
           weight: string | null;
@@ -169,7 +212,7 @@ export interface Database {
           route_id?: number | null;
           customer_name: string;
           location: string;
-          coordinates: string | object; // PostGIS geometry format
+          coordinates: string | object;
           item: string;
           estimated_value?: string | null;
           weight?: string | null;
@@ -185,7 +228,7 @@ export interface Database {
           route_id?: number | null;
           customer_name?: string;
           location?: string;
-          coordinates?: string | object; // PostGIS geometry format
+          coordinates?: string | object;
           item?: string;
           estimated_value?: string | null;
           weight?: string | null;
@@ -196,6 +239,55 @@ export interface Database {
           delivery_notes?: string | null;
           proof_of_delivery?: string | null;
           attempt_count?: number;
+        };
+      };
+      partner_deliveries: {
+        Row: {
+          id: number;
+          provider_id: number;
+          route_id: number | null;
+          customer_name: string;
+          location: string;
+          coordinates: string | null;
+          item: string;
+          estimated_value: string | null;
+          weight: string | null;
+          phone: string;
+          drop_time: string;
+          status: "pending" | "in-progress" | "completed" | "failed";
+          order_index: number | null;
+          delivery_notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          provider_id: number;
+          route_id?: number | null;
+          customer_name: string;
+          location: string;
+          coordinates?: string | null;
+          item: string;
+          estimated_value?: string | null;
+          weight?: string | null;
+          phone: string;
+          drop_time: string;
+          status?: "pending" | "in-progress" | "completed" | "failed";
+          order_index?: number | null;
+          delivery_notes?: string | null;
+        };
+        Update: {
+          route_id?: number | null;
+          customer_name?: string;
+          location?: string;
+          coordinates?: string | null;
+          item?: string;
+          estimated_value?: string | null;
+          weight?: string | null;
+          phone?: string;
+          drop_time?: string;
+          status?: "pending" | "in-progress" | "completed" | "failed";
+          order_index?: number | null;
+          delivery_notes?: string | null;
         };
       };
       route_optimizations: {

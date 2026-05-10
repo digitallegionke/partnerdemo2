@@ -101,24 +101,38 @@ function formatDate(iso: string) {
 type FormState = {
   plate_number: string;
   vehicle_type: VehicleType;
+  make: string;
+  model: string;
+  year: string;
+  color: string;
   vin: string;
   fuel_type: string;
   capacity_kg: string;
   odometer_km: string;
-  allowed_license: string[];
+  status: string;
   last_service_date: string;
+  insurance_expiry: string;
+  inspection_expiry: string;
+  allowed_license: string[];
   notes: string;
 };
 
 const EMPTY_FORM: FormState = {
   plate_number: "",
   vehicle_type: "motorbike",
+  make: "",
+  model: "",
+  year: "",
+  color: "",
   vin: "",
   fuel_type: "",
   capacity_kg: "",
   odometer_km: "",
-  allowed_license: [],
+  status: "available",
   last_service_date: "",
+  insurance_expiry: "",
+  inspection_expiry: "",
+  allowed_license: [],
   notes: "",
 };
 
@@ -160,17 +174,24 @@ export default function FleetRegistryPage() {
   const openEdit = (v: FleetVehicleEnriched) => {
     setEditing(v);
     setForm({
-      plate_number:     v.plate_number,
-      vehicle_type:     v.vehicle_type,
-      vin:              v.vin ?? "",
-      fuel_type:        v.fuel_type ?? "",
-      capacity_kg:      v.capacity_kg != null ? String(v.capacity_kg) : "",
-      odometer_km:      v.odometer_km != null ? String(v.odometer_km) : "",
-      allowed_license:  v.allowed_license
+      plate_number:      v.plate_number,
+      vehicle_type:      v.vehicle_type,
+      make:              v.make ?? "",
+      model:             v.model ?? "",
+      year:              v.year != null ? String(v.year) : "",
+      color:             v.color ?? "",
+      vin:               v.vin ?? "",
+      fuel_type:         v.fuel_type ?? "",
+      capacity_kg:       v.capacity_kg != null ? String(v.capacity_kg) : "",
+      odometer_km:       v.odometer_km != null ? String(v.odometer_km) : "",
+      status:            v.status ?? "available",
+      last_service_date: v.last_service_date ?? "",
+      insurance_expiry:  v.insurance_expiry ?? "",
+      inspection_expiry: v.inspection_expiry ?? "",
+      allowed_license:   v.allowed_license
         ? v.allowed_license.split(",").map((s) => s.trim()).filter(Boolean)
         : [],
-      last_service_date: v.last_service_date ?? "",
-      notes:            v.notes ?? "",
+      notes:             v.notes ?? "",
     });
     setFormError(null);
     setModalOpen(true);
@@ -192,12 +213,19 @@ export default function FleetRegistryPage() {
     const payload = {
       plate_number:      form.plate_number.toUpperCase().trim(),
       vehicle_type:      form.vehicle_type,
+      make:              form.make.trim() || null,
+      model:             form.model.trim() || null,
+      year:              form.year ? Number(form.year) : null,
+      color:             form.color.trim() || null,
       vin:               form.vin.trim() || null,
       fuel_type:         form.fuel_type || null,
       capacity_kg:       form.capacity_kg ? Number(form.capacity_kg) : null,
       odometer_km:       form.odometer_km ? Number(form.odometer_km) : null,
-      allowed_license:   form.allowed_license.length > 0 ? form.allowed_license.join(",") : null,
+      status:            form.status || "available",
       last_service_date: form.last_service_date || null,
+      insurance_expiry:  form.insurance_expiry || null,
+      inspection_expiry: form.inspection_expiry || null,
+      allowed_license:   form.allowed_license.length > 0 ? form.allowed_license.join(",") : null,
       notes:             form.notes || null,
     };
     try {
@@ -484,7 +512,57 @@ export default function FleetRegistryPage() {
                 </div>
               </div>
 
-              {/* Row 2: VIN + Fuel Type */}
+              {/* Row 2: Make + Model */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Make</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Toyota"
+                    value={form.make}
+                    onChange={(e) => setForm((f) => ({ ...f, make: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Model</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Hilux"
+                    value={form.model}
+                    onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Row 3: Year + Color */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Year</label>
+                  <input
+                    type="number"
+                    placeholder="e.g., 2020"
+                    min={1900}
+                    max={new Date().getFullYear() + 1}
+                    value={form.year}
+                    onChange={(e) => setForm((f) => ({ ...f, year: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Color</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., White"
+                    value={form.color}
+                    onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Row 4: VIN + Fuel Type */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1.5 block">VIN</label>
@@ -511,7 +589,7 @@ export default function FleetRegistryPage() {
                 </div>
               </div>
 
-              {/* Row 3: Capacity + Odometer */}
+              {/* Row 5: Capacity + Odometer */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1.5 block">Capacity (kg)</label>
@@ -535,14 +613,48 @@ export default function FleetRegistryPage() {
                 </div>
               </div>
 
-              {/* Row 4: Last Service Date */}
+              {/* Row 6: Status + Last Service Date */}
               <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Status</label>
+                  <select
+                    value={form.status}
+                    onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 bg-white"
+                  >
+                    <option value="available">Available</option>
+                    <option value="assigned">Assigned</option>
+                    <option value="in_maintenance">In Maintenance</option>
+                  </select>
+                </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1.5 block">Last Service Date</label>
                   <input
                     type="date"
                     value={form.last_service_date}
                     onChange={(e) => setForm((f) => ({ ...f, last_service_date: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* Row 7: Insurance Expiry + Inspection Expiry */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Insurance Expiry</label>
+                  <input
+                    type="date"
+                    value={form.insurance_expiry}
+                    onChange={(e) => setForm((f) => ({ ...f, insurance_expiry: e.target.value }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Inspection Expiry</label>
+                  <input
+                    type="date"
+                    value={form.inspection_expiry}
+                    onChange={(e) => setForm((f) => ({ ...f, inspection_expiry: e.target.value }))}
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                   />
                 </div>
@@ -593,7 +705,7 @@ export default function FleetRegistryPage() {
 
               <div className="flex items-start gap-2.5 rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2.5 text-xs text-emerald-800">
                 <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
-                Assign vehicles to drivers from the Drivers page. Assigned Driver is managed automatically.
+                Driver assignment is managed from the Drivers page and updates status automatically.
               </div>
 
               {formError && <p className="text-xs text-red-600">{formError}</p>}
