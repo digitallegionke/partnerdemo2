@@ -91,7 +91,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => null);
     if (!body?.name) return NextResponse.json({ error: "name is required" }, { status: 400 });
 
-    const { name, start_location, end_location, driver_id, status, lat, lng } = body;
+    const {
+      name, start_location, end_location, driver_id, status, lat, lng,
+      route_type, service_area, active_days, start_time, end_time,
+      min_deliveries, max_deliveries, driver_capacity, max_orders, cutoff_time,
+    } = body;
 
     const supabase = makeClient(token!);
 
@@ -117,6 +121,16 @@ export async function POST(req: NextRequest) {
         status: status ?? "pending",
         lat: lat ?? "0",
         lng: lng ?? "0",
+        route_type: route_type ?? "allocation",
+        service_area: service_area ?? null,
+        active_days: active_days ?? ["Mon","Tue","Wed","Thu","Fri"],
+        start_time: start_time ?? "08:00",
+        end_time: end_time ?? "18:00",
+        min_deliveries: min_deliveries ?? 0,
+        max_deliveries: max_deliveries ?? null,
+        driver_capacity: driver_capacity ?? null,
+        max_orders: max_orders ?? null,
+        cutoff_time: cutoff_time ?? null,
       })
       .select()
       .single();

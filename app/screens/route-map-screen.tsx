@@ -21,6 +21,7 @@ import {
   ChevronRight,
   Activity,
   Signal,
+  Home,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -364,546 +365,169 @@ export default function RouteMapScreen({
 
   
 
-  return (
-    <div className="h-full bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col">
-      {/* Enhanced Header */}
-      <div className="bg-white border-b border-slate-200 p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-6 header-mobile">
-          <div className="flex items-center space-x-4">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onBack}
-              className="text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-lg focus-enhanced"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 bg-blue-100 rounded-lg flex items-center justify-center animate-fade-in">
-                <Navigation className="h-5 w-5 text-[#C8E298]" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">
-                  {route.name}
-                </h1>
-                <div className="flex items-center space-x-4 text-sm text-slate-600 mt-1 flex-wrap">
-                  <span className="flex items-center">
-                    <MapPinIcon className="h-4 w-4 mr-1" />
-                    {route.distance}
-                  </span>
-                  <span className="flex items-center">
-                    <Timer className="h-4 w-4 mr-1" />
-                    {route.duration}
-                  </span>
-                  <span className="flex items-center">
-                    <Truck className="h-4 w-4 mr-1" />
-                    {getDriverName(route.driver)}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
+  // Determine "up next" — first pending delivery index
+  const upNextIndex = filteredDeliveries.findIndex((d) => d.status === "pending");
 
-          <div className="flex items-center space-x-3 flex-wrap">
-            <Button
-              variant={isLiveTrackingEnabled ? "default" : "outline"}
-              className={`${
-                isLiveTrackingEnabled
-                  ? "bg-green-600 hover:bg-green-700 text-white"
-                  : "border-slate-300 text-slate-700 hover:bg-slate-50 bg-white"
-              } focus-enhanced`}
-              onClick={() => setIsLiveTrackingEnabled(!isLiveTrackingEnabled)}
-            >
-              <Signal
-                className={`h-4 w-4 mr-2 ${
-                  isLiveTrackingEnabled ? "animate-pulse" : ""
-                }`}
-              />
-              <span className="hidden sm:inline">Live Tracking</span>
-              <span className="sm:hidden">Live</span>
-            </Button>
-            <Button
-              variant="outline"
-              className="border-slate-300 text-slate-700 hover:bg-slate-50 bg-white focus-enhanced"
-            >
-              <Clock className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Schedule</span>
-            </Button>
-            {optimizationResult && optimizedDeliveries !== deliveries && (
-              <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 px-3 py-1 animate-fade-in">
-                <Zap className="h-3 w-3 mr-1" />
-                <span className="hidden sm:inline">Route Optimized</span>
-                <span className="sm:hidden">Optimized</span>
-              </Badge>
-            )}
-            <Badge className="bg-blue-100 text-blue-800 border-blue-200 px-3 py-1">
-              <span className="hidden sm:inline">1 Active Routes</span>
-              <span className="sm:hidden">1 Routes</span>
-            </Badge>
+  return (
+    <div className="h-full relative overflow-hidden">
+      {/* Full-screen map background */}
+      <div className="absolute inset-0">
+        <MapComponent
+          deliveries={optimizedDeliveries}
+          selectedDelivery={selectedDelivery}
+          onDeliverySelect={setSelectedDelivery}
+          driverLocations={isLiveTrackingEnabled ? driverLocations : undefined}
+          showDrivers={isLiveTrackingEnabled}
+          routeId={route.id}
+          candidateDeliveries={showRecommended ? recommendedDeliveries : undefined}
+        />
+      </div>
+
+      {/* Floating card overlay */}
+      <div className="absolute top-4 left-4 bottom-4 w-[380px] bg-white rounded-2xl shadow-xl border border-gray-200 flex flex-col z-10 overflow-hidden">
+
+        {/* Card header: BACK + route name + stats */}
+        <div className="px-5 pt-5 pb-4 border-b border-gray-100 shrink-0">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-gray-800 mb-3 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            BACK
+          </button>
+          <h1 className="text-xl font-bold text-gray-900 mb-2">{route.name}</h1>
+          <div className="flex items-center gap-4 text-sm text-gray-500">
+            <span className="flex items-center gap-1.5">
+              <MapPinIcon className="h-3.5 w-3.5" />
+              {route.distance}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Timer className="h-3.5 w-3.5" />
+              {route.duration}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <Package className="h-3.5 w-3.5" />
+              {totalDeliveries} stops
+            </span>
           </div>
         </div>
 
-        {/* Enhanced Stats with Progress */}
-        {/* <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 grid-responsive">
-          <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow card-hover stats-card">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <div className="h-8 w-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <Package className="h-4 w-4 text-[#C8E298]" />
-                  </div>
-                  <span className="text-sm font-medium text-slate-600 hidden md:inline">
-                    Total
-                  </span>
-                </div>
-                <div className="text-2xl md:text-2xl font-bold text-slate-900 stat-number">
-                  {totalDeliveries}
-                </div>
-              </div>
-              <div className="text-xs text-slate-500">Total Deliveries</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow card-hover stats-card">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <div className="h-8 w-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                    <CheckCircle className="h-4 w-4 text-emerald-600" />
-                  </div>
-                  <span className="text-sm font-medium text-slate-600 hidden md:inline">
-                    Completed
-                  </span>
-                </div>
-                <div className="text-2xl md:text-2xl font-bold text-emerald-600 stat-number">
-                  {completedDeliveries}
-                </div>
-              </div>
-              <Progress
-                value={completionRate}
-                className="h-1 bg-emerald-100 progress-enhanced"
-              />
-              <div className="text-xs text-emerald-600 mt-1">
-                {completionRate}% complete
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow card-hover stats-card">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <div className="h-8 w-8 bg-amber-100 rounded-lg flex items-center justify-center">
-                    <Activity className="h-4 w-4 text-amber-600" />
-                  </div>
-                  <span className="text-sm font-medium text-slate-600 hidden md:inline">
-                    In Progress
-                  </span>
-                </div>
-                <div className="text-2xl md:text-2xl font-bold text-amber-600 stat-number">
-                  {inProgressDeliveries}
-                </div>
-              </div>
-              <div className="text-xs text-slate-500">Currently delivering</div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white border border-slate-200 shadow-sm hover:shadow-md transition-shadow card-hover stats-card">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center space-x-2">
-                  <div className="h-8 w-8 bg-slate-100 rounded-lg flex items-center justify-center">
-                    <Clock className="h-4 w-4 text-slate-600" />
-                  </div>
-                  <span className="text-sm font-medium text-slate-600 hidden md:inline">
-                    Pending
-                  </span>
-                </div>
-                <div className="text-2xl md:text-2xl font-bold text-slate-600 stat-number">
-                  {pendingDeliveries}
-                </div>
-              </div>
-              <div className="text-xs text-slate-500">Awaiting delivery</div>
-            </CardContent>
-          </Card>
-        </div> */}
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-        {/* Enhanced Left Sidebar - Deliveries List */}
-        <div className="w-full lg:w-96 bg-white border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col shadow-sm h-full lg:h-auto max-h-96 lg:max-h-none">
-          {/* Deliveries Header */}
-          <div className="p-2 lg:p-4 border-b border-slate-100 flex-shrink-0">
-            <div className="flex items-center justify-between mb-2">
-              <h3 className="text-lg font-semibold text-slate-900">
-                Today's Deliveries
-              </h3>
-              {/* <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-slate-400 hover:text-slate-600"
-              >
-                <Filter className="h-4 w-4" />
-              </Button> */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-slate-400 hover:text-slate-600"
-                onClick={handleShare}
-              >
-                <Share2 className="h-4 w-4" />
-              </Button>
-            </div>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 h-4 w-4" />
-              <Input
-                placeholder="Search deliveries..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 w-full bg-white border-slate-200 focus:border-blue-500 focus:ring-blue-500 focus-enhanced"
-              />
-            </div>
+        {/* Deliveries header + search */}
+        <div className="px-5 pt-4 pb-3 border-b border-gray-100 shrink-0">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-base font-semibold text-gray-900">Todays Deliveries</h3>
+            <button
+              onClick={handleShare}
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
           </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
+            <Input
+              placeholder="Search deliveries..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 w-full bg-gray-50 border-gray-200"
+            />
+          </div>
+        </div>
 
-          {/* Enhanced Deliveries List - Improved Scrollable */}
-          <div className="flex-1 scrollable-container mobile-scroll smooth-scroll min-h-0 relative">
-            <div className="p-3 space-y-3 min-h-full">
-              {filteredDeliveries.length > 0 ? (
-                filteredDeliveries.map((delivery, index) => (
-                  <Card
+        {/* Deliveries list */}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="px-5 py-2">
+            {filteredDeliveries.length > 0 ? (
+              filteredDeliveries.map((delivery, index) => {
+                const isCompleted  = delivery.status === "completed";
+                const isInProgress = delivery.status === "in-progress";
+                const isUpNext     = !isCompleted && !isInProgress && index === upNextIndex;
+                const stopNum      = String(index + 1).padStart(2, "0");
+
+                return (
+                  <div
                     key={delivery.id}
-                    className={`cursor-pointer border-2 transition-all duration-200 hover:shadow-md card-hover delivery-card ${
-                      selectedDelivery?.id === delivery.id
-                        ? "border-blue-200 bg-blue-50 shadow-md"
-                        : "border-slate-200 hover:border-slate-300 bg-white"
-                    }`}
                     onClick={() => setSelectedDelivery(delivery)}
+                    className={`py-4 cursor-pointer border-b border-gray-100 last:border-b-0 transition-colors ${
+                      selectedDelivery?.id === delivery.id ? "bg-emerald-50/20" : "hover:bg-gray-50/50"
+                    }`}
                   >
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex items-center space-x-3">
-                          <div
-                            className={`relative status-indicator status-${delivery.status}`}
-                          >
-                            {getStatusIcon(delivery.status)}
-                            {delivery.status === "in-progress" && (
-                              <div className="absolute -top-1 -right-1 h-2 w-2 bg-amber-500 rounded-full animate-pulse"></div>
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <span className="font-semibold text-slate-900 text-sm block truncate">
-                              {getCustomerDisplayName(delivery)}
+                    {/* Stop header row */}
+                    <div className="flex items-start gap-3">
+                      {isCompleted ? (
+                        <Home className="h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
+                      ) : (
+                        <div className="h-7 w-7 rounded-full border-2 border-gray-900 bg-white flex items-center justify-center shrink-0">
+                          <span className="text-gray-900 text-[10px] font-bold">{stopNum}</span>
+                        </div>
+                      )}
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className={`text-sm font-semibold leading-snug ${isCompleted ? "text-gray-400" : "text-gray-900"}`}>
+                            {delivery.location || "No location"}
+                          </p>
+                          {isCompleted && (
+                            <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                              Completed
                             </span>
-                            <div className="text-xs text-slate-500 mt-0.5">
-                              Delivery #{delivery.id} • Stop {index + 1} of{" "}
-                              {filteredDeliveries.length}
-                            </div>
-                          </div>
-                        </div>
-                        <Badge
-                          className={`${getStatusColor(
-                            delivery.status
-                          )} text-xs px-2 py-1 flex-shrink-0`}
-                        >
-                          {delivery.status}
-                        </Badge>
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex items-start space-x-2">
-                          <MapPinIcon className="h-3 w-3 text-slate-400 mt-0.5 flex-shrink-0" />
-                          <span className="text-xs text-slate-600 line-clamp-2 min-w-0">
-                            {delivery.location || "Address not provided"}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center space-x-2">
-                          <Package className="h-3 w-3 text-slate-400 flex-shrink-0" />
-                          <span className="text-xs text-slate-600 truncate min-w-0">
-                            {delivery.item || "No item specified"}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between pt-2">
-                          <div className="flex items-center space-x-2 min-w-0">
-                            <Clock className="h-3 w-3 text-slate-400 flex-shrink-0" />
-                            <span className="text-xs text-slate-600 truncate">
-                              {delivery.drop_time || "Not scheduled"}
+                          )}
+                          {isInProgress && (
+                            <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-600 text-white">
+                              In Progress
                             </span>
-                          </div>
-                          {delivery.estimated_value && (
-                            <div className="flex items-center space-x-1 flex-shrink-0">
-                              <DollarSign className="h-3 w-3 text-emerald-600" />
-                              <span className="text-xs font-medium text-emerald-600">
-                                {delivery.estimated_value}
-                              </span>
-                            </div>
+                          )}
+                          {isUpNext && (
+                            <span className="shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                              Up Next
+                            </span>
                           )}
                         </div>
 
-                        {delivery.phone && (
-                          <div className="flex items-center space-x-2 pt-1">
-                            <Phone className="h-3 w-3 text-slate-400 flex-shrink-0" />
-                            <span className="text-xs text-slate-600 truncate min-w-0">
-                              {delivery.phone}
-                            </span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 w-6 p-0 ml-auto flex-shrink-0"
-                            >
-                              <Phone className="h-3 w-3" />
-                            </Button>
-                          </div>
+                        {isCompleted ? (
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            Picked up at {delivery.drop_time || "—"}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-gray-500 mt-0.5">
+                            Expected: {delivery.drop_time || "—"}
+                          </p>
                         )}
-
-                        {/* Progress Indicator */}
-                        <div className="pt-2">
-                          <div className="flex items-center justify-between text-xs text-slate-500 mb-1">
-                            <span>Route Progress</span>
-                            <span>{getDeliveryProgress(index)}%</span>
-                          </div>
-                          <Progress
-                            value={getDeliveryProgress(index)}
-                            className="h-1 progress-enhanced"
-                          />
-                        </div>
                       </div>
+                    </div>
 
-                      {selectedDelivery?.id === delivery.id && (
-                        <div className="mt-3 pt-3 border-t border-slate-100 animate-fade-in">
-                          <div className="flex items-center space-x-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-xs h-7 flex-shrink-0"
-                            >
-                              <Eye className="h-3 w-3 mr-1" />
-                              View Details
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-xs h-7 flex-shrink-0"
-                              onClick={() => handleCall(selectedDelivery)}
-                            >
-                              <Phone className="h-3 w-3 mr-1" />
-                              Call
-                            </Button>
-                            <ChevronRight className="h-4 w-4 text-slate-400 ml-auto flex-shrink-0" />
+                    {isInProgress && (
+                      <div className="mt-3 ml-8 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-emerald-500 rounded-full" />
+                          <Truck className="h-4 w-4 text-gray-500 shrink-0" />
+                          <div className="flex-1 h-px border-t-2 border-dashed border-gray-300" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+                          <div>
+                            <p className="text-gray-400 text-[10px] font-semibold uppercase">Customer Name</p>
+                            <p className="text-gray-900 font-semibold mt-0.5">{getCustomerDisplayName(delivery)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-400 text-[10px] font-semibold uppercase">Order Number</p>
+                            <p className="text-gray-900 font-semibold mt-0.5">#{delivery.id}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-gray-400 text-[10px] font-semibold uppercase">Customer Phone</p>
+                            <p className="text-gray-900 font-semibold mt-0.5">{delivery.phone || "—"}</p>
                           </div>
                         </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))
-              ) : (
-                <div className="flex items-center justify-center h-32 text-slate-500">
-                  <div className="text-center">
-                    <Package className="h-8 w-8 mx-auto mb-2 text-slate-400" />
-                    <p className="text-sm">No deliveries found</p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Unassigned Deliveries */}
-          <div className="border-t border-slate-100 flex-shrink-0">
-            <button
-              className="w-full p-3 flex items-center justify-between text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
-              onClick={() => setShowRecommended(!showRecommended)}
-            >
-              <div className="flex items-center gap-2">
-                <Package className="h-4 w-4 text-amber-500" />
-                <span>Unassigned Deliveries</span>
-                {recommendedDeliveries.length > 0 && (
-                  <Badge variant="secondary" className="text-xs">
-                    {recommendedDeliveries.length}
-                  </Badge>
-                )}
-              </div>
-              <ChevronRight
-                className={`h-4 w-4 transition-transform ${
-                  showRecommended ? "rotate-90" : ""
-                }`}
-              />
-            </button>
-            {showRecommended && (
-              <div className="px-3 pb-3 max-h-64 overflow-y-auto space-y-2">
-                {loadingRecommended ? (
-                  <p className="text-xs text-slate-500 text-center py-2">
-                    Loading deliveries...
-                  </p>
-                ) : recommendedDeliveries.length === 0 ? (
-                  <p className="text-xs text-slate-500 text-center py-2">
-                    No unassigned deliveries found
-                  </p>
-                ) : (
-                  recommendedDeliveries.map((d: any) => {
-                    const isRecommended = d.priority_score >= 0.4;
-                    return (
-                      <div
-                        key={d.id}
-                        className={`p-2 rounded-lg text-xs cursor-pointer transition-colors ${
-                          isRecommended
-                            ? "bg-amber-50 border border-amber-200 hover:bg-amber-100"
-                            : "bg-slate-50 border border-slate-200 hover:bg-slate-100"
-                        }`}
-                        onClick={() => {
-                          setSelectedDelivery(d);
-                        }}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-slate-900">
-                            {d.customer_name}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            {isRecommended && (
-                              <Badge className="text-[10px] bg-amber-100 text-amber-700 border-amber-300">
-                                Recommended
-                              </Badge>
-                            )}
-                            <Badge
-                              variant="outline"
-                              className={`text-[10px] ${
-                                d.priority_score >= 0.7
-                                  ? "border-green-500 text-green-700"
-                                  : d.priority_score >= 0.4
-                                  ? "border-amber-500 text-amber-700"
-                                  : "border-slate-400 text-slate-600"
-                              }`}
-                            >
-                              {Math.round((d.priority_score || 0) * 100)}% match
-                            </Badge>
-                          </div>
-                        </div>
-                        <p className="text-slate-600 mt-0.5">{d.location}</p>
-                        <div className="flex items-center gap-2 mt-1 text-slate-500">
-                          <span>{d.distance_to_route_km} km from route</span>
-                          <span>+{d.estimated_detour_km} km detour</span>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Enhanced Bottom Actions */}
-          <div className="p-1 lg:p-3 border-t border-slate-100 space-y-3 bg-slate-50 flex-shrink-0">
-            <Button
-              className="w-full bg-[#C8E298] hover:bg-[#C8E298]/90 text-[#162318] shadow-sm focus:outline-none focus:ring-2 focus:ring-[#162318] rounded-md transition-colors duration-200"
-              onClick={() => setIsOptimizeDialogOpen(true)}
-            >
-              <Zap className="h-4 w-4 mr-2" />
-              Optimize Routes
-            </Button>
-
-            <Button
-              variant="outline"
-              className="w-full border-slate-300 text-slate-700 hover:bg-slate-50 bg-white shadow-sm focus-enhanced"
-            >
-              <Users className="h-4 w-4 mr-2" />
-              Assign Drivers
-            </Button>
-
-            {/* Quick Stats */}
-            <div className="grid grid-cols-2 gap-3 pt-2">
-              <div className="text-center">
-                <div className="text-sm font-semibold text-slate-900">
-                  {route.distance}
-                </div>
-                <div className="text-xs text-slate-500">Total Distance</div>
-              </div>
-              <div className="text-center">
-                <div className="text-sm font-semibold text-slate-900">
-                  {route.duration}
-                </div>
-                <div className="text-xs text-slate-500">Est. Duration</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right Side - Enhanced Map */}
-        <div className="flex-1 bg-slate-50 relative map-mobile lg:h-auto h-96">
-          <MapComponent
-            deliveries={optimizedDeliveries}
-            selectedDelivery={selectedDelivery}
-            onDeliverySelect={setSelectedDelivery}
-            driverLocations={isLiveTrackingEnabled ? driverLocations : undefined}
-            showDrivers={isLiveTrackingEnabled}
-            routeId={route.id}
-            candidateDeliveries={showRecommended ? recommendedDeliveries : undefined}
-          />
-
-          {/* Floating Map Controls */}
-          <div className="absolute top-2 right-16 space-y-2">
-            <Card className="bg-white/90 backdrop-blur-sm border border-white/20 shadow-2xl map-overlay rounded-none">
-              <CardContent className="p-3">
-                <div className="flex items-center space-x-2 text-sm flex-wrap">
-                  <div className="h-2 w-2 bg-emerald-500 rounded-full"></div>
-                  <span className="text-slate-600 text-xs">Completed</span>
-                  <div className="h-2 w-2 bg-amber-500 rounded-full ml-3"></div>
-                  <span className="text-slate-600 text-xs">In Progress</span>
-                  <div className="h-2 w-2 bg-slate-400 rounded-full ml-3"></div>
-                  <span className="text-slate-600 text-xs">Pending</span>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Driver Info Overlay */}
-          <div className="absolute bottom-4 left-4">
-            <Card className="bg-white/90 backdrop-blur-sm border border-white/20 shadow-2xl rounded-none map-overlay">
-              <CardContent className="p-4">
-                <div className="flex items-center space-x-3">
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-blue-100 text-[#C8E298] font-semibold">
-                      {getDriverName(route.driver).charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <div className="font-medium text-slate-900 text-sm">
-                      {getDriverName(route.driver)}
-                    </div>
-                    <div className="text-sm text-slate-600 flex items-center">
-                      <div
-                        className={`h-2 w-2 rounded-full mr-2 ${
-                          isLiveTrackingEnabled && isConnected
-                            ? "bg-green-500 animate-pulse"
-                            : "bg-slate-400"
-                        }`}
-                      ></div>
-                      <span className="text-xs">
-                        {isLiveTrackingEnabled && isConnected
-                          ? "Live tracking active"
-                          : isLiveTrackingEnabled
-                          ? "Connecting..."
-                          : "Offline"}
-                      </span>
-                    </div>
-                    {/* Real-time driver stats */}
-                    {isLiveTrackingEnabled && driverId && driverLocations.get(driverId) && (
-                      <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
-                        {driverLocations.get(driverId)!.speed != null && (
-                          <span>{Math.round(driverLocations.get(driverId)!.speed!)} km/h</span>
-                        )}
-                        {driverLocations.get(driverId)!.recorded_at && (
-                          <span>
-                            Updated{" "}
-                            {new Date(driverLocations.get(driverId)!.recorded_at!).toLocaleTimeString()}
-                          </span>
-                        )}
                       </div>
                     )}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                );
+              })
+            ) : (
+              <div className="flex flex-col items-center justify-center h-32 text-gray-400">
+                <Package className="h-8 w-8 mb-2 text-gray-300" />
+                <p className="text-sm">No deliveries found</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
