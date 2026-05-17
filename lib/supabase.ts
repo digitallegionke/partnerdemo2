@@ -147,6 +147,7 @@ export interface Database {
           name: string;
           driver_id: number | null;
           status: "active" | "completed" | "pending" | "cancelled";
+          route_type: "allocation" | "managed";
           total_distance: number | null;
           estimated_duration: number | null;
           start_location: string | null;
@@ -154,6 +155,15 @@ export interface Database {
           efficiency_score: number | null;
           lat: string;
           lng: string;
+          service_area: string | null;
+          active_days: string[];
+          start_time: string;
+          end_time: string;
+          min_deliveries: number;
+          max_deliveries: number | null;
+          driver_capacity: number | null;
+          max_orders: number | null;
+          cutoff_time: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -162,6 +172,7 @@ export interface Database {
           name: string;
           driver_id?: number | null;
           status?: "active" | "completed" | "pending" | "cancelled";
+          route_type?: "allocation" | "managed";
           total_distance?: number | null;
           estimated_duration?: number | null;
           start_location?: string | null;
@@ -169,11 +180,21 @@ export interface Database {
           efficiency_score?: number | null;
           lat?: string;
           lng?: string;
+          service_area?: string | null;
+          active_days?: string[];
+          start_time?: string;
+          end_time?: string;
+          min_deliveries?: number;
+          max_deliveries?: number | null;
+          driver_capacity?: number | null;
+          max_orders?: number | null;
+          cutoff_time?: string | null;
         };
         Update: {
           name?: string;
           driver_id?: number | null;
           status?: "active" | "completed" | "pending" | "cancelled";
+          route_type?: "allocation" | "managed";
           total_distance?: number | null;
           estimated_duration?: number | null;
           start_location?: string | null;
@@ -181,6 +202,15 @@ export interface Database {
           efficiency_score?: number | null;
           lat?: string;
           lng?: string;
+          service_area?: string | null;
+          active_days?: string[];
+          start_time?: string;
+          end_time?: string;
+          min_deliveries?: number;
+          max_deliveries?: number | null;
+          driver_capacity?: number | null;
+          max_orders?: number | null;
+          cutoff_time?: string | null;
         };
       };
       deliveries: {
