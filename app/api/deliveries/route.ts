@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { coordinatesToPoint } from "@/lib/supabase";
+import { normalizeDeliveryStatuses } from "@/lib/deliveryStatusMapper";
 
 function makeClient(authToken?: string) {
   return createClient(
@@ -62,7 +63,7 @@ export async function GET(req: NextRequest) {
         .order("order_index", { ascending: true });
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      return NextResponse.json(data ?? []);
+      return NextResponse.json(normalizeDeliveryStatuses(data ?? []));
     }
 
     // Return all deliveries for this provider
@@ -73,7 +74,7 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return NextResponse.json(data ?? []);
+    return NextResponse.json(normalizeDeliveryStatuses(data ?? []));
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Server error" }, { status: 500 });
   }

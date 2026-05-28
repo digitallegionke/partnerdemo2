@@ -58,7 +58,13 @@ export async function PATCH(
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
-    const { name, start_location, end_location, driver_id, status, total_distance, estimated_duration, efficiency_score } = body;
+    const {
+      name, start_location, end_location, driver_id, status,
+      total_distance, estimated_duration, efficiency_score,
+      route_type, service_area, active_days,
+      start_time, end_time, min_deliveries, max_deliveries,
+      driver_capacity, max_orders, cutoff_time,
+    } = body;
 
     const updates: any = {};
     if (name !== undefined) updates.name = name;
@@ -68,6 +74,16 @@ export async function PATCH(
     if (total_distance !== undefined) updates.total_distance = total_distance;
     if (estimated_duration !== undefined) updates.estimated_duration = estimated_duration;
     if (efficiency_score !== undefined) updates.efficiency_score = efficiency_score;
+    if (route_type !== undefined) updates.route_type = route_type;
+    if (service_area !== undefined) updates.service_area = service_area;
+    if (active_days !== undefined) updates.active_days = active_days;
+    if (start_time !== undefined) updates.start_time = start_time;
+    if (end_time !== undefined) updates.end_time = end_time;
+    if (min_deliveries !== undefined) updates.min_deliveries = min_deliveries;
+    if (max_deliveries !== undefined) updates.max_deliveries = max_deliveries;
+    if (driver_capacity !== undefined) updates.driver_capacity = driver_capacity;
+    if (max_orders !== undefined) updates.max_orders = max_orders;
+    if (cutoff_time !== undefined) updates.cutoff_time = cutoff_time;
 
     if (driver_id !== undefined) {
       if (driver_id !== null) {

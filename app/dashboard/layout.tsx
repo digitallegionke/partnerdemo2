@@ -10,6 +10,7 @@ import {
   Grid2X2,
   Users,
   UserSquare2,
+  Package,
   CalendarDays,
   Zap,
   Settings,
@@ -31,6 +32,7 @@ interface NavCounts {
   drivers: number;
   fleet: number;
   pendingRequests: number;
+  deliveries: number;
 }
 
 // href → which count key to use (null = no badge)
@@ -38,6 +40,7 @@ const BADGE_KEY: Record<string, keyof NavCounts | null> = {
   "/dashboard/drivers":     "drivers",
   "/dashboard/fleet":       "fleet",
   "/dashboard/requests":    "pendingRequests",
+  "/dashboard/deliveries":  "deliveries",
 };
 
 const NAV_SECTIONS = [
@@ -59,6 +62,12 @@ const NAV_SECTIONS = [
     label: "Driver Allocation",
     items: [
       { href: "/dashboard/requests", label: "Allocation Requests", icon: UserSquare2 },
+    ],
+  },
+  {
+    label: "Deliveries",
+    items: [
+      { href: "/dashboard/deliveries", label: "Deliveries", icon: Package },
     ],
   },
   {
