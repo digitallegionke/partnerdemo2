@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import {
   Plus, Pencil, Search, X, MapPin, Clock,
-  RefreshCw, AlertCircle, CheckCircle2, ChevronRight,
+  RefreshCw, AlertCircle, ChevronRight,
   ClipboardList, Eye, Package, CheckCircle, Archive,
   Route as RouteIcon,
 } from "lucide-react";
@@ -21,6 +21,7 @@ type PartnerRoute = {
   id: number;
   name: string;
   status: RouteStatus;
+  route_type: "allocation" | "managed";
   driver_id: number | null;
   start_location: string | null;
   end_location: string | null;
@@ -29,6 +30,15 @@ type PartnerRoute = {
   efficiency_score: number | null;
   lat: string;
   lng: string;
+  service_area: string | null;
+  active_days: string[];
+  start_time: string;
+  end_time: string;
+  min_deliveries: number;
+  max_deliveries: number | null;
+  driver_capacity: number | null;
+  max_orders: number | null;
+  cutoff_time: string | null;
   created_at: string;
   updated_at: string;
   provider_id: number;
@@ -76,6 +86,16 @@ type FormState = {
   end_lng: string;
   driver_id: string;
   status: string;
+  route_type: "allocation" | "managed";
+  service_area: string;
+  active_days: string[];
+  start_time: string;
+  end_time: string;
+  min_deliveries: string;
+  max_deliveries: string;
+  driver_capacity: string;
+  max_orders: string;
+  cutoff_time: string;
 };
 
 type AcceptedRequest = {
@@ -107,6 +127,11 @@ const MODE_TABS = [
 const EMPTY_FORM: FormState = {
   name: "", start_location: "", start_lat: "", start_lng: "",
   end_location: "", end_lat: "", end_lng: "", driver_id: "", status: "pending",
+  route_type: "allocation", service_area: "",
+  active_days: ["Mon","Tue","Wed","Thu","Fri"],
+  start_time: "08:00", end_time: "18:00",
+  min_deliveries: "", max_deliveries: "",
+  driver_capacity: "", max_orders: "", cutoff_time: "20:00",
 };
 
 const newDeliveryForm = (): DeliveryForm => ({
@@ -198,19 +223,8 @@ export default function RoutesPage() {
   const [routeDeliveries, setRouteDeliveries] = useState<Delivery[]>([]);
   const [loadingDeliveries, setLoadingDeliveries] = useState(false);
 
-  // Wizard state (create mode only)
-  const [wizardStep, setWizardStep]       = useState(1);
-  const [wizardType, setWizardType]       = useState<"allocation" | "managed">("allocation");
-  const [wizardName, setWizardName]       = useState("");
-  const [wizardArea, setWizardArea]       = useState("");
-  const [wizardDays, setWizardDays]       = useState<string[]>(["Mon","Tue","Wed","Thu","Fri"]);
-  const [wizardStartTime, setWizardStartTime] = useState("08:00");
-  const [wizardEndTime, setWizardEndTime]   = useState("18:00");
-  const [wizardMinDel, setWizardMinDel]   = useState("");
-  const [wizardMaxDel, setWizardMaxDel]   = useState("");
-  const [wizardDriverCap, setWizardDriverCap] = useState("");
-  const [wizardMaxOrders, setWizardMaxOrders] = useState("");
-  const [wizardCutoff, setWizardCutoff]   = useState("20:00");
+  // Wizard UI state (shared by create & edit)
+  const [wizardStep, setWizardStep]           = useState(1);
   const [wizardRequestsTab, setWizardRequestsTab] = useState<"ondemand" | "business">("ondemand");
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
@@ -297,12 +311,6 @@ export default function RoutesPage() {
     return list;
   }, [routes, activeTab, search]);
 
-  const tabCounts = useMemo(() => ({
-    all: routes.length,
-    active: routes.filter((r) => r.status === "active").length,
-    at_capacity: routes.filter((r) => r.status === "pending").length,
-    archived: routes.filter((r) => ["completed", "cancelled"].includes(r.status)).length,
-  }), [routes]);
 
   // ── View panel ─────────────────────────────────────────────────────────────
 
@@ -335,19 +343,7 @@ export default function RoutesPage() {
     setSelectedExisting(new Set());
     setSelectedRequestIds(new Set());
     setRouteDeliveries([]);
-    // Reset wizard
     setWizardStep(1);
-    setWizardType("allocation");
-    setWizardName("");
-    setWizardArea("");
-    setWizardDays(["Mon","Tue","Wed","Thu","Fri"]);
-    setWizardStartTime("08:00");
-    setWizardEndTime("18:00");
-    setWizardMinDel("");
-    setWizardMaxDel("");
-    setWizardDriverCap("");
-    setWizardMaxOrders("");
-    setWizardCutoff("20:00");
     setWizardRequestsTab("ondemand");
     fetchUnassigned();
     fetchAcceptedRequests();
@@ -356,6 +352,9 @@ export default function RoutesPage() {
 
   const openEdit = async (route: PartnerRoute) => {
     setEditing(route);
+    setWizardStep(1);
+    setWizardRequestsTab("ondemand");
+    setFormError(null);
     setForm({
       name: route.name,
       start_location: route.start_location ?? "",
@@ -364,11 +363,20 @@ export default function RoutesPage() {
       end_lat: "", end_lng: "",
       driver_id: route.driver_id ? String(route.driver_id) : "",
       status: route.status,
+      route_type: route.route_type ?? "allocation",
+      service_area: route.service_area ?? "",
+      active_days: route.active_days ?? ["Mon","Tue","Wed","Thu","Fri"],
+      start_time: route.start_time ?? "08:00",
+      end_time: route.end_time ?? "18:00",
+      min_deliveries: route.min_deliveries != null ? String(route.min_deliveries) : "",
+      max_deliveries: route.max_deliveries != null ? String(route.max_deliveries) : "",
+      driver_capacity: route.driver_capacity != null ? String(route.driver_capacity) : "",
+      max_orders: route.max_orders != null ? String(route.max_orders) : "",
+      cutoff_time: route.cutoff_time ?? "20:00",
     });
-    setFormError(null);
     setDeliveryMode("existing");
     setSelectedExisting(new Set());
-    await Promise.all([fetchRouteDeliveries(route.id), fetchUnassigned()]);
+    await Promise.all([fetchRouteDeliveries(route.id), fetchUnassigned(), fetchAcceptedRequests()]);
     setModalOpen(true);
   };
 
@@ -388,18 +396,16 @@ export default function RoutesPage() {
         status: form.status,
         lat: form.start_lat || "0",
         lng: form.start_lng || "0",
-        ...(!editing && {
-          route_type: wizardType,
-          service_area: wizardArea || null,
-          active_days: wizardDays,
-          start_time: wizardStartTime,
-          end_time: wizardEndTime,
-          min_deliveries: parseInt(wizardMinDel) || 0,
-          max_deliveries: wizardMaxDel ? parseInt(wizardMaxDel) : null,
-          driver_capacity: wizardType === "allocation" && wizardDriverCap ? parseInt(wizardDriverCap) : null,
-          max_orders: wizardType === "managed" && wizardMaxOrders ? parseInt(wizardMaxOrders) : null,
-          cutoff_time: wizardType === "managed" && wizardCutoff ? wizardCutoff : null,
-        }),
+        route_type: form.route_type,
+        service_area: form.service_area || null,
+        active_days: form.active_days,
+        start_time: form.start_time,
+        end_time: form.end_time,
+        min_deliveries: parseInt(form.min_deliveries) || 0,
+        max_deliveries: form.max_deliveries ? parseInt(form.max_deliveries) : null,
+        driver_capacity: form.route_type === "allocation" && form.driver_capacity ? parseInt(form.driver_capacity) : null,
+        max_orders: form.route_type === "managed" && form.max_orders ? parseInt(form.max_orders) : null,
+        cutoff_time: form.route_type === "managed" && form.cutoff_time ? form.cutoff_time : null,
       };
 
       if (editing) {
@@ -502,14 +508,6 @@ export default function RoutesPage() {
   // ── Delivery form helpers ──────────────────────────────────────────────────
 
   const addNewDelivery = () => setNewDeliveries((prev) => [...prev, newDeliveryForm()]);
-
-  const removeNewDelivery = (localId: number) => {
-    if (newDeliveries.length > 1)
-      setNewDeliveries((prev) => prev.filter((d) => d.localId !== localId));
-  };
-
-  const updateNewDelivery = (localId: number, field: string, value: string) =>
-    setNewDeliveries((prev) => prev.map((d) => d.localId === localId ? { ...d, [field]: value } : d));
 
   const toggleExisting = (id: number) => {
     setSelectedExisting((prev) => {
@@ -703,8 +701,12 @@ export default function RoutesPage() {
                             {statusDisplay.label}
                           </span>
                           {/* Mode badge */}
-                          <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 999, backgroundColor: "#EEF2FF", color: "#4338CA" }}>
-                            Allocation
+                          <span style={{
+                            fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 999,
+                            backgroundColor: route.route_type === "managed" ? "#FFF7ED" : "#EEF2FF",
+                            color: route.route_type === "managed" ? "#C2410C" : "#4338CA",
+                          }}>
+                            {route.route_type === "managed" ? "Managed" : "Allocation"}
                           </span>
                         </div>
                       </div>
@@ -738,20 +740,34 @@ export default function RoutesPage() {
                       </div>
 
                       {/* Card Stats */}
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderTop: "1px solid #E5E7EB", borderBottom: "1px solid #E5E7EB" }}>
-                        <div style={{ padding: 16, textAlign: "center", borderRight: "1px solid #E5E7EB" }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Max Drivers</div>
-                          <div style={{ fontSize: 20, fontWeight: 600, color: "#1F2937" }}>{route.delivery_count || "—"}</div>
-                        </div>
-                        <div style={{ padding: 16, textAlign: "center", borderRight: "1px solid #E5E7EB" }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Assigned</div>
-                          <div style={{ fontSize: 20, fontWeight: 600, color: "#1F2937" }}>{route.driver ? 1 : 0}</div>
-                        </div>
-                        <div style={{ padding: 16, textAlign: "center" }}>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Available</div>
-                          <div style={{ fontSize: 20, fontWeight: 600, color: "#1F2937" }}>{route.driver ? 0 : route.delivery_count}</div>
-                        </div>
-                      </div>
+                      {(() => {
+                        const isManaged = route.route_type === "managed";
+                        const capacity = isManaged ? route.max_orders : route.driver_capacity;
+                        const assigned = route.delivery_count;
+                        const available = capacity != null ? Math.max(0, capacity - assigned) : null;
+                        return (
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderTop: "1px solid #E5E7EB", borderBottom: "1px solid #E5E7EB" }}>
+                            <div style={{ padding: 16, textAlign: "center", borderRight: "1px solid #E5E7EB" }}>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                                {isManaged ? "Max Orders" : "Max Drivers"}
+                              </div>
+                              <div style={{ fontSize: 20, fontWeight: 600, color: "#1F2937" }}>
+                                {capacity ?? "—"}
+                              </div>
+                            </div>
+                            <div style={{ padding: 16, textAlign: "center", borderRight: "1px solid #E5E7EB" }}>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Assigned</div>
+                              <div style={{ fontSize: 20, fontWeight: 600, color: "#1F2937" }}>{assigned}</div>
+                            </div>
+                            <div style={{ padding: 16, textAlign: "center" }}>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Available</div>
+                              <div style={{ fontSize: 20, fontWeight: 600, color: "#1F2937" }}>
+                                {available != null ? available : "—"}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Card Footer */}
                       <div style={{ padding: "16px 24px", display: "flex", gap: 12 }}>
@@ -857,8 +873,12 @@ export default function RoutesPage() {
                       </span>
                     );
                   })()}
-                  <span style={{ fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 999, backgroundColor: "#EEF2FF", color: "#4338CA" }}>
-                    Allocation
+                  <span style={{
+                    fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 999,
+                    backgroundColor: viewRoute.route_type === "managed" ? "#FFF7ED" : "#EEF2FF",
+                    color: viewRoute.route_type === "managed" ? "#C2410C" : "#4338CA",
+                  }}>
+                    {viewRoute.route_type === "managed" ? "Managed" : "Allocation"}
                   </span>
                 </div>
               </div>
@@ -1081,538 +1101,357 @@ export default function RoutesPage() {
               </button>
             </div>
 
-            <div className="overflow-y-auto flex-1">
-              {editing ? (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 lg:divide-x divide-gray-100">
-
-                  {/* Left: route info */}
-                  <div className="px-6 py-5 space-y-4">
-                    <h4 className="text-sm font-semibold text-gray-700">Route Information</h4>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-1.5 block">
-                        Route Name <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={form.name}
-                        onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                        placeholder="e.g., Westlands Morning Run"
-                        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-1.5 block">Start Location</label>
-                      <AddressSearch
-                        value={form.start_location}
-                        onSelect={(r) => setForm((f) => ({
-                          ...f, start_location: r.display_name,
-                          start_lat: r.coordinates ? String(r.coordinates[0]) : f.start_lat,
-                          start_lng: r.coordinates ? String(r.coordinates[1]) : f.start_lng,
-                        }))}
-                        placeholder="Search for starting point"
-                        className="mt-1"
-                        countryCode="ke"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-700 mb-1.5 block">End Location</label>
-                      <AddressSearch
-                        value={form.end_location}
-                        onSelect={(r) => setForm((f) => ({
-                          ...f, end_location: r.display_name,
-                          end_lat: r.coordinates ? String(r.coordinates[0]) : f.end_lat,
-                          end_lng: r.coordinates ? String(r.coordinates[1]) : f.end_lng,
-                        }))}
-                        placeholder="Search for ending point"
-                        className="mt-1"
-                        countryCode="ke"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 mb-1.5 block">Assign Driver</label>
-                        <select
-                          value={form.driver_id}
-                          onChange={(e) => setForm((f) => ({ ...f, driver_id: e.target.value }))}
-                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 bg-white"
-                        >
-                          <option value="">Unassigned</option>
-                          {drivers.map((d) => (
-                            <option key={d.id} value={d.id}>{d.full_name}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-700 mb-1.5 block">Status</label>
-                        <select
-                          value={form.status}
-                          onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                          className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 bg-white"
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="active">Active</option>
-                          <option value="completed">Completed</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-                      </div>
-                    </div>
-                    {formError && <p className="text-xs text-red-600">{formError}</p>}
-                    <div className="flex gap-3 pt-2">
-                      <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</Button>
-                      <Button onClick={() => handleSave()} disabled={saving} className="bg-emerald-700 hover:bg-emerald-800">
-                        {saving ? "Saving…" : "Save Changes"}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Right: deliveries management */}
-                  <div className="px-6 py-5 space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-semibold text-gray-700">Deliveries</h4>
-                      {loadingDeliveries && <RefreshCw className="h-4 w-4 animate-spin text-gray-400" />}
-                    </div>
-                    <div className="border rounded-lg p-3">
-                      <p className="text-xs font-medium text-gray-500 mb-2">
-                        On this route ({routeDeliveries.length})
-                      </p>
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {routeDeliveries.length === 0 ? (
-                          <p className="text-xs text-gray-400 text-center py-4">No deliveries on this route</p>
-                        ) : routeDeliveries.map((d) => (
-                          <div key={d.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-medium text-gray-900 truncate">{d.customer_name}</p>
-                              <p className="text-[11px] text-gray-500 truncate">{d.location}</p>
-                              <p className="text-[11px] text-gray-400">{d.item} · {d.phone}</p>
-                            </div>
-                            <button
-                              onClick={() => handleRemoveFromRoute(d.id)}
-                              className="ml-2 p-1.5 rounded text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors shrink-0"
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="border rounded-lg p-3">
-                      <p className="text-xs font-medium text-gray-500 mb-2">
-                        Unassigned deliveries ({unassigned.length})
-                      </p>
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {unassigned.length === 0 ? (
-                          <p className="text-xs text-gray-400 text-center py-4">No unassigned deliveries</p>
-                        ) : unassigned.map((d) => (
-                          <div key={d.id} className="flex items-center justify-between p-2 bg-blue-50 rounded-lg">
-                            <div className="min-w-0 flex-1">
-                              <p className="text-xs font-medium text-gray-900 truncate">{d.customer_name}</p>
-                              <p className="text-[11px] text-gray-500 truncate">{d.location}</p>
-                              <p className="text-[11px] text-gray-400">{d.item} · {d.phone}</p>
-                            </div>
-                            <button
-                              onClick={() => handleAddToRoute(d.id)}
-                              className="ml-2 p-1.5 rounded text-emerald-600 hover:bg-emerald-50 transition-colors shrink-0"
-                            >
-                              <ChevronRight className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-              ) : (
-                /* ── Create Wizard ── */
-                (() => {
-                  const STEPS = ["TYPE","INFO","CAPACITY","REQUESTS"];
-                  const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-
-                  const StepCircle = ({ n }: { n: number }) => {
-                    const done = wizardStep > n;
-                    const active = wizardStep === n;
-                    return (
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                        <div style={{
-                          width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-                          backgroundColor: done ? "#10B981" : "transparent",
-                          border: done ? "none" : active ? "2px solid #10B981" : "2px solid #D1D5DB",
-                        }}>
-                          {done
-                            ? <CheckCircle className="h-4 w-4" style={{ color: "#fff" }} />
-                            : <span style={{ fontSize: 12, fontWeight: 700, color: active ? "#10B981" : "#9CA3AF" }}>{n}</span>
-                          }
-                        </div>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: active ? "#10B981" : done ? "#10B981" : "#9CA3AF", letterSpacing: "0.05em" }}>{STEPS[n-1]}</span>
-                      </div>
-                    );
-                  };
-
+            {/* ── Unified wizard (create & edit) ── */}
+            <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
+              {/* Step progress bar */}
+              {(() => {
+                const STEPS = ["TYPE","INFO","CAPACITY","REQUESTS"];
+                const StepCircle = ({ n }: { n: number }) => {
+                  const done = wizardStep > n;
+                  const active = wizardStep === n;
                   return (
-                    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-                      {/* Step progress */}
-                      <div style={{ padding: "20px 32px 16px", borderBottom: "1px solid #F3F4F6", display: "flex", alignItems: "flex-start", justifyContent: "center", gap: 0 }}>
-                        {[1,2,3,4].map((n) => (
-                          <div key={n} style={{ display: "flex", alignItems: "flex-start" }}>
-                            <StepCircle n={n} />
-                            {n < 4 && (
-                              <div style={{ width: 64, height: 2, backgroundColor: wizardStep > n ? "#10B981" : "#E5E7EB", marginTop: 15, marginLeft: 0, marginRight: 0 }} />
-                            )}
-                          </div>
-                        ))}
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: done ? "#10B981" : "transparent", border: done ? "none" : active ? "2px solid #10B981" : "2px solid #D1D5DB" }}>
+                        {done
+                          ? <CheckCircle className="h-4 w-4" style={{ color: "#fff" }} />
+                          : <span style={{ fontSize: 12, fontWeight: 700, color: active ? "#10B981" : "#9CA3AF" }}>{n}</span>}
                       </div>
-
-                      {/* Step content */}
-                      <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
-
-                        {/* STEP 1: TYPE */}
-                        {wizardStep === 1 && (
-                          <div>
-                            <p style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700, color: "#111827" }}>Choose Route Type</p>
-                            <p style={{ margin: "0 0 24px", fontSize: 13, color: "#6B7280" }}>Select how this route will be managed</p>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                              {(["allocation","managed"] as const).map((type) => {
-                                const selected = wizardType === type;
-                                const title = type === "allocation" ? "Allocation" : "Managed Delivery";
-                                const sub   = type === "allocation" ? "Drivers assigned directly to your clients" : "You manage the full delivery fulfillment";
-                                const perks = type === "allocation"
-                                  ? ["Best for recurring clients","Simple driver assignment","Client-controlled dispatch"]
-                                  : ["Full delivery control","Route optimization","Real-time tracking"];
-                                return (
-                                  <div
-                                    key={type}
-                                    onClick={() => setWizardType(type)}
-                                    style={{
-                                      border: selected ? "2px solid #10B981" : "2px solid #E5E7EB",
-                                      borderRadius: 12, padding: 20, cursor: "pointer",
-                                      backgroundColor: selected ? "#F0FDF4" : "#fff",
-                                      position: "relative", transition: "all 0.15s",
-                                    }}
-                                  >
-                                    {selected && (
-                                      <div style={{ position: "absolute", top: 12, right: 12, width: 20, height: 20, borderRadius: "50%", backgroundColor: "#10B981", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                        <CheckCircle className="h-3 w-3" style={{ color: "#fff" }} />
-                                      </div>
-                                    )}
-                                    <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: selected ? "#DCFCE7" : "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
-                                      {type === "allocation"
-                                        ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={selected ? "#059669" : "#6B7280"} strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                                        : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={selected ? "#059669" : "#6B7280"} strokeWidth="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-                                      }
-                                    </div>
-                                    <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "#111827" }}>{title}</p>
-                                    <p style={{ margin: "0 0 14px", fontSize: 12, color: "#6B7280" }}>{sub}</p>
-                                    <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
-                                      {perks.map((p) => (
-                                        <li key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#374151" }}>
-                                          <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#10B981", flexShrink: 0 }} />
-                                          {p}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* STEP 2: INFO */}
-                        {wizardStep === 2 && (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                            <div>
-                              <p style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700, color: "#111827" }}>Route Information</p>
-                              <p style={{ margin: 0, fontSize: 13, color: "#6B7280" }}>Basic details for this route</p>
-                            </div>
-                            <div>
-                              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Route Name <span style={{ color: "#EF4444" }}>*</span></label>
-                              <input
-                                type="text"
-                                value={wizardName}
-                                onChange={(e) => setWizardName(e.target.value)}
-                                placeholder="e.g., Westlands Morning Run"
-                                style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
-                              />
-                              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9CA3AF" }}>Give this route a descriptive name</p>
-                            </div>
-                            <div>
-                              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
-                                Service Area
-                                <span title="Comma-separated areas this route covers" style={{ width: 16, height: 16, borderRadius: "50%", backgroundColor: "#E5E7EB", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#6B7280", cursor: "default" }}>i</span>
-                              </label>
-                              <input
-                                type="text"
-                                value={wizardArea}
-                                onChange={(e) => setWizardArea(e.target.value)}
-                                placeholder="e.g., Westlands, Parklands, Lavington"
-                                style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
-                              />
-                              <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9CA3AF" }}>Comma-separated areas</p>
-                            </div>
-                            <div>
-                              <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 10 }}>Active Days</label>
-                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                                {DAYS.map((d) => {
-                                  const on = wizardDays.includes(d);
-                                  return (
-                                    <button
-                                      key={d}
-                                      type="button"
-                                      onClick={() => setWizardDays((prev) => on ? prev.filter((x) => x !== d) : [...prev, d])}
-                                      style={{
-                                        padding: "8px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
-                                        border: on ? "2px solid #10B981" : "2px solid #E5E7EB",
-                                        backgroundColor: on ? "#F0FDF4" : "#fff",
-                                        color: on ? "#059669" : "#6B7280",
-                                        transition: "all 0.12s",
-                                      }}
-                                    >{d}</button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* STEP 3: CAPACITY */}
-                        {wizardStep === 3 && (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                            <div>
-                              <p style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700, color: "#111827" }}>Capacity Settings</p>
-                              <p style={{ margin: 0, fontSize: 13, color: "#6B7280" }}>Set time windows and delivery limits</p>
-                            </div>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                              <div>
-                                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Start Time</label>
-                                <input type="time" value={wizardStartTime} onChange={(e) => setWizardStartTime(e.target.value)}
-                                  style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                              </div>
-                              <div>
-                                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>End Time</label>
-                                <input type="time" value={wizardEndTime} onChange={(e) => setWizardEndTime(e.target.value)}
-                                  style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                              </div>
-                              <div>
-                                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Min Deliveries / Day</label>
-                                <input type="number" min="0" value={wizardMinDel} onChange={(e) => setWizardMinDel(e.target.value)}
-                                  placeholder="0"
-                                  style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                              </div>
-                              <div>
-                                <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Max Deliveries / Day</label>
-                                <input type="number" min="0" value={wizardMaxDel} onChange={(e) => setWizardMaxDel(e.target.value)}
-                                  placeholder="50"
-                                  style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                              </div>
-                            </div>
-                            {/* Configuration block */}
-                            <div style={{ borderLeft: "4px solid #10B981", paddingLeft: 16, paddingTop: 4, paddingBottom: 4 }}>
-                              <p style={{ margin: "0 0 14px", fontSize: 13, fontWeight: 700, color: "#065F46" }}>
-                                {wizardType === "allocation" ? "Allocation Configuration" : "Managed Delivery Configuration"}
-                              </p>
-                              {wizardType === "allocation" ? (
-                                <div>
-                                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Driver Capacity</label>
-                                  <input type="number" min="1" value={wizardDriverCap} onChange={(e) => setWizardDriverCap(e.target.value)}
-                                    placeholder="5"
-                                    style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                                  <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9CA3AF" }}>Max drivers assigned to this route at once</p>
-                                </div>
-                              ) : (
-                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                                  <div>
-                                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Max Orders</label>
-                                    <input type="number" min="1" value={wizardMaxOrders} onChange={(e) => setWizardMaxOrders(e.target.value)}
-                                      placeholder="100"
-                                      style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                                  </div>
-                                  <div>
-                                    <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Order Cutoff Time</label>
-                                    <input type="time" value={wizardCutoff} onChange={(e) => setWizardCutoff(e.target.value)}
-                                      style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* STEP 4: REQUESTS */}
-                        {wizardStep === 4 && (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                            <div>
-                              <p style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700, color: "#111827" }}>Attach Requests</p>
-                              <p style={{ margin: 0, fontSize: 13, color: "#6B7280" }}>Link delivery requests to this route</p>
-                            </div>
-                            {/* Tabs */}
-                            <div style={{ display: "flex", gap: 0, borderBottom: "2px solid #F3F4F6" }}>
-                              {(["ondemand","business"] as const).map((tab) => {
-                                const label = tab === "ondemand" ? "On-Demand Requests" : "Business Deliveries";
-                                const active = wizardRequestsTab === tab;
-                                return (
-                                  <button
-                                    key={tab}
-                                    type="button"
-                                    onClick={() => setWizardRequestsTab(tab)}
-                                    style={{
-                                      padding: "10px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer",
-                                      border: "none", background: "none",
-                                      color: active ? "#059669" : "#9CA3AF",
-                                      borderBottom: active ? "2px solid #10B981" : "2px solid transparent",
-                                      marginBottom: -2, transition: "all 0.12s",
-                                    }}
-                                  >{label}</button>
-                                );
-                              })}
-                            </div>
-                            {wizardRequestsTab === "ondemand" ? (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                                {acceptedRequests.length === 0 ? (
-                                  <div style={{ textAlign: "center", padding: "40px 0", color: "#9CA3AF" }}>
-                                    <ClipboardList className="h-8 w-8 mx-auto mb-2" style={{ color: "#D1D5DB" }} />
-                                    <p style={{ fontSize: 13, margin: 0 }}>No approved requests available</p>
-                                  </div>
-                                ) : acceptedRequests.map((req) => {
-                                  const checked = selectedRequestIds.has(req.id);
-                                  const timeAgo = (() => {
-                                    const diff = Date.now() - new Date(req.start_date).getTime();
-                                    const days = Math.floor(diff / 86400000);
-                                    return days === 0 ? "Today" : `${days}d ago`;
-                                  })();
-                                  return (
-                                    <div
-                                      key={req.id}
-                                      onClick={() => setSelectedRequestIds((prev) => {
-                                        const next = new Set(prev);
-                                        next.has(req.id) ? next.delete(req.id) : next.add(req.id);
-                                        return next;
-                                      })}
-                                      style={{
-                                        border: checked ? "2px solid #10B981" : "1px solid #E5E7EB",
-                                        borderRadius: 10, padding: 14, cursor: "pointer",
-                                        backgroundColor: checked ? "#F0FDF4" : "#fff",
-                                        transition: "all 0.12s",
-                                      }}
-                                    >
-                                      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
-                                        <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#111827" }}>{req.business_name}</p>
-                                        <span style={{ fontSize: 11, color: "#9CA3AF", flexShrink: 0 }}>{timeAgo}</span>
-                                      </div>
-                                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                                        <div style={{ backgroundColor: "#F9FAFB", borderRadius: 8, padding: "8px 10px" }}>
-                                          <p style={{ margin: "0 0 2px", fontSize: 10, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" }}>PICKUP</p>
-                                          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#374151" }}>{req.allocated_count} drivers</p>
-                                        </div>
-                                        <div style={{ backgroundColor: "#F9FAFB", borderRadius: 8, padding: "8px 10px" }}>
-                                          <p style={{ margin: "0 0 2px", fontSize: 10, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" }}>DROPOFF</p>
-                                          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#374151" }}>{req.drivers_requested} needed</p>
-                                        </div>
-                                        <div style={{ backgroundColor: "#F9FAFB", borderRadius: 8, padding: "8px 10px" }}>
-                                          <p style={{ margin: "0 0 2px", fontSize: 10, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" }}>VALUE</p>
-                                          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#374151" }}>KES —</p>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                                {unassigned.length === 0 ? (
-                                  <div style={{ textAlign: "center", padding: "40px 0", color: "#9CA3AF" }}>
-                                    <Package className="h-8 w-8 mx-auto mb-2" style={{ color: "#D1D5DB" }} />
-                                    <p style={{ fontSize: 13, margin: 0 }}>No business deliveries available</p>
-                                  </div>
-                                ) : unassigned.map((d) => {
-                                  const sel = selectedExisting.has(d.id);
-                                  return (
-                                    <div
-                                      key={d.id}
-                                      onClick={() => toggleExisting(d.id)}
-                                      style={{
-                                        border: sel ? "2px solid #10B981" : "1px solid #E5E7EB",
-                                        borderRadius: 10, padding: 14, cursor: "pointer",
-                                        backgroundColor: sel ? "#F0FDF4" : "#fff",
-                                        transition: "all 0.12s",
-                                      }}
-                                    >
-                                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                                        <div>
-                                          <p style={{ margin: "0 0 3px", fontSize: 14, fontWeight: 700, color: "#111827" }}>{d.customer_name}</p>
-                                          <p style={{ margin: 0, fontSize: 12, color: "#6B7280" }}>{d.location}</p>
-                                        </div>
-                                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                                          {sel && <CheckCircle className="h-4 w-4" style={{ color: "#10B981" }} />}
-                                          <button type="button" style={{ fontSize: 12, fontWeight: 600, color: "#059669", background: "none", border: "1px solid #A7F3D0", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}>Edit</button>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
-                                <button
-                                  type="button"
-                                  onClick={addNewDelivery}
-                                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 0", border: "2px dashed #E5E7EB", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "#9CA3AF", backgroundColor: "transparent", cursor: "pointer" }}
-                                >
-                                  <Plus className="h-4 w-4" /> Add Delivery
-                                </button>
-                              </div>
-                            )}
-                            {formError && <p style={{ margin: 0, fontSize: 12, color: "#DC2626" }}>{formError}</p>}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Wizard footer */}
-                      <div style={{ borderTop: "1px solid #E5E7EB", padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-                        <div style={{ display: "flex", gap: 10 }}>
-                          {wizardStep > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => setWizardStep((s) => s - 1)}
-                              style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", fontSize: 13, fontWeight: 600, color: "#374151", backgroundColor: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, cursor: "pointer" }}
-                            >
-                              ← Back
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setModalOpen(false)}
-                            style={{ padding: "10px 16px", fontSize: 13, fontWeight: 600, color: "#6B7280", backgroundColor: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, cursor: "pointer" }}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                        {wizardStep < 4 ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (wizardStep === 2 && !wizardName.trim()) { setFormError("Route name is required."); return; }
-                              setFormError(null);
-                              setWizardStep((s) => s + 1);
-                            }}
-                            style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", fontSize: 13, fontWeight: 600, color: "#fff", backgroundColor: "#10B981", border: "none", borderRadius: 8, cursor: "pointer" }}
-                          >
-                            Continue →
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            disabled={saving}
-                            onClick={async () => {
-                              if (!wizardName.trim()) { setFormError("Route name is required."); return; }
-                              await handleSave(wizardName);
-                            }}
-                            style={{ padding: "10px 20px", fontSize: 13, fontWeight: 600, color: "#fff", backgroundColor: "#14532D", border: "none", borderRadius: 8, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}
-                          >
-                            {saving ? "Creating…" : "Create Route"}
-                          </button>
-                        )}
-                      </div>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: active ? "#10B981" : done ? "#10B981" : "#9CA3AF", letterSpacing: "0.05em" }}>{STEPS[n-1]}</span>
                     </div>
                   );
-                })()
-              )}
+                };
+                return (
+                  <div style={{ padding: "20px 32px 16px", borderBottom: "1px solid #F3F4F6", display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
+                    {[1,2,3,4].map((n) => (
+                      <div key={n} style={{ display: "flex", alignItems: "flex-start" }}>
+                        <StepCircle n={n} />
+                        {n < 4 && <div style={{ width: 64, height: 2, backgroundColor: wizardStep > n ? "#10B981" : "#E5E7EB", marginTop: 15 }} />}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* Step content */}
+              <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
+                {/* STEP 1: TYPE */}
+                {wizardStep === 1 && (
+                  <div>
+                    <p style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700, color: "#111827" }}>Choose Route Type</p>
+                    <p style={{ margin: "0 0 24px", fontSize: 13, color: "#6B7280" }}>Select how this route will be managed</p>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                      {(["allocation","managed"] as const).map((type) => {
+                        const selected = form.route_type === type;
+                        const title = type === "allocation" ? "Allocation" : "Managed Delivery";
+                        const sub   = type === "allocation" ? "Drivers assigned directly to your clients" : "You manage the full delivery fulfillment";
+                        const perks = type === "allocation"
+                          ? ["Best for recurring clients","Simple driver assignment","Client-controlled dispatch"]
+                          : ["Full delivery control","Route optimization","Real-time tracking"];
+                        return (
+                          <div key={type} onClick={() => setForm((f) => ({ ...f, route_type: type }))}
+                            style={{ border: selected ? "2px solid #10B981" : "2px solid #E5E7EB", borderRadius: 12, padding: 20, cursor: "pointer", backgroundColor: selected ? "#F0FDF4" : "#fff", position: "relative", transition: "all 0.15s" }}>
+                            {selected && (
+                              <div style={{ position: "absolute", top: 12, right: 12, width: 20, height: 20, borderRadius: "50%", backgroundColor: "#10B981", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                <CheckCircle className="h-3 w-3" style={{ color: "#fff" }} />
+                              </div>
+                            )}
+                            <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: selected ? "#DCFCE7" : "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                              {type === "allocation"
+                                ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={selected ? "#059669" : "#6B7280"} strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                                : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={selected ? "#059669" : "#6B7280"} strokeWidth="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>}
+                            </div>
+                            <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "#111827" }}>{title}</p>
+                            <p style={{ margin: "0 0 14px", fontSize: 12, color: "#6B7280" }}>{sub}</p>
+                            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
+                              {perks.map((p) => (
+                                <li key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#374151" }}>
+                                  <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#10B981", flexShrink: 0 }} />{p}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 2: INFO */}
+                {wizardStep === 2 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                    <div>
+                      <p style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700, color: "#111827" }}>Route Information</p>
+                      <p style={{ margin: 0, fontSize: 13, color: "#6B7280" }}>Basic details for this route</p>
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Route Name <span style={{ color: "#EF4444" }}>*</span></label>
+                      <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                        placeholder="e.g., Westlands Morning Run"
+                        style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                      <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9CA3AF" }}>Give this route a descriptive name</p>
+                    </div>
+                    <div>
+                      <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                        Service Area
+                        <span title="Comma-separated areas this route covers" style={{ width: 16, height: 16, borderRadius: "50%", backgroundColor: "#E5E7EB", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#6B7280", cursor: "default" }}>i</span>
+                      </label>
+                      <input type="text" value={form.service_area} onChange={(e) => setForm((f) => ({ ...f, service_area: e.target.value }))}
+                        placeholder="e.g., Westlands, Parklands, Lavington"
+                        style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                      <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9CA3AF" }}>Comma-separated areas</p>
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 10 }}>Active Days</label>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d) => {
+                          const on = form.active_days.includes(d);
+                          return (
+                            <button key={d} type="button"
+                              onClick={() => setForm((f) => ({ ...f, active_days: on ? f.active_days.filter((x) => x !== d) : [...f.active_days, d] }))}
+                              style={{ padding: "8px 14px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", border: on ? "2px solid #10B981" : "2px solid #E5E7EB", backgroundColor: on ? "#F0FDF4" : "#fff", color: on ? "#059669" : "#6B7280", transition: "all 0.12s" }}
+                            >{d}</button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 3: CAPACITY */}
+                {wizardStep === 3 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                    <div>
+                      <p style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700, color: "#111827" }}>Capacity Settings</p>
+                      <p style={{ margin: 0, fontSize: 13, color: "#6B7280" }}>Set time windows and delivery limits</p>
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Start Time</label>
+                        <input type="time" value={form.start_time} onChange={(e) => setForm((f) => ({ ...f, start_time: e.target.value }))}
+                          style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>End Time</label>
+                        <input type="time" value={form.end_time} onChange={(e) => setForm((f) => ({ ...f, end_time: e.target.value }))}
+                          style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Min Deliveries / Day</label>
+                        <input type="number" min="0" value={form.min_deliveries} placeholder="0" onChange={(e) => setForm((f) => ({ ...f, min_deliveries: e.target.value }))}
+                          style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Max Deliveries / Day</label>
+                        <input type="number" min="0" value={form.max_deliveries} placeholder="50" onChange={(e) => setForm((f) => ({ ...f, max_deliveries: e.target.value }))}
+                          style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                      </div>
+                    </div>
+                    <div style={{ borderLeft: "4px solid #10B981", paddingLeft: 16, paddingTop: 4, paddingBottom: 4 }}>
+                      <p style={{ margin: "0 0 14px", fontSize: 13, fontWeight: 700, color: "#065F46" }}>
+                        {form.route_type === "allocation" ? "Allocation Configuration" : "Managed Delivery Configuration"}
+                      </p>
+                      {form.route_type === "allocation" ? (
+                        <div>
+                          <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Driver Capacity</label>
+                          <input type="number" min="1" value={form.driver_capacity} placeholder="5" onChange={(e) => setForm((f) => ({ ...f, driver_capacity: e.target.value }))}
+                            style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                          <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9CA3AF" }}>Max drivers assigned to this route at once</p>
+                        </div>
+                      ) : (
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Max Orders</label>
+                            <input type="number" min="1" value={form.max_orders} placeholder="100" onChange={(e) => setForm((f) => ({ ...f, max_orders: e.target.value }))}
+                              style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                          </div>
+                          <div>
+                            <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Order Cutoff Time</label>
+                            <input type="time" value={form.cutoff_time} onChange={(e) => setForm((f) => ({ ...f, cutoff_time: e.target.value }))}
+                              style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 4: REQUESTS / DELIVERIES */}
+                {wizardStep === 4 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div>
+                      <p style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700, color: "#111827" }}>
+                        {editing ? "Manage Deliveries" : "Attach Requests"}
+                      </p>
+                      <p style={{ margin: 0, fontSize: 13, color: "#6B7280" }}>
+                        {editing ? "Add or remove stops on this route" : "Link delivery requests to this route"}
+                      </p>
+                    </div>
+                    {/* Tabs */}
+                    <div style={{ display: "flex", borderBottom: "2px solid #F3F4F6" }}>
+                      {(["ondemand","business"] as const).map((tab) => {
+                        const label = tab === "ondemand"
+                          ? "On-Demand Requests"
+                          : editing ? "Route Deliveries" : "Business Deliveries";
+                        const active = wizardRequestsTab === tab;
+                        return (
+                          <button key={tab} type="button" onClick={() => setWizardRequestsTab(tab)}
+                            style={{ padding: "10px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none", background: "none", color: active ? "#059669" : "#9CA3AF", borderBottom: active ? "2px solid #10B981" : "2px solid transparent", marginBottom: -2, transition: "all 0.12s" }}>
+                            {label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {wizardRequestsTab === "ondemand" ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {acceptedRequests.length === 0 ? (
+                          <div style={{ textAlign: "center", padding: "40px 0", color: "#9CA3AF" }}>
+                            <ClipboardList className="h-8 w-8 mx-auto mb-2" style={{ color: "#D1D5DB" }} />
+                            <p style={{ fontSize: 13, margin: 0 }}>No approved requests available</p>
+                          </div>
+                        ) : acceptedRequests.map((req) => {
+                          const checked = selectedRequestIds.has(req.id);
+                          const timeAgo = (() => {
+                            const days = Math.floor((Date.now() - new Date(req.start_date).getTime()) / 86400000);
+                            return days === 0 ? "Today" : `${days}d ago`;
+                          })();
+                          return (
+                            <div key={req.id}
+                              onClick={() => setSelectedRequestIds((prev) => { const s = new Set(prev); s.has(req.id) ? s.delete(req.id) : s.add(req.id); return s; })}
+                              style={{ border: checked ? "2px solid #10B981" : "1px solid #E5E7EB", borderRadius: 10, padding: 14, cursor: "pointer", backgroundColor: checked ? "#F0FDF4" : "#fff", transition: "all 0.12s" }}>
+                              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+                                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#111827" }}>{req.business_name}</p>
+                                <span style={{ fontSize: 11, color: "#9CA3AF", flexShrink: 0 }}>{timeAgo}</span>
+                              </div>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                                {[["PICKUP", `${req.allocated_count} drivers`], ["DROPOFF", `${req.drivers_requested} needed`], ["VALUE", "KES —"]].map(([label, val]) => (
+                                  <div key={label} style={{ backgroundColor: "#F9FAFB", borderRadius: 8, padding: "8px 10px" }}>
+                                    <p style={{ margin: "0 0 2px", fontSize: 10, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" }}>{label}</p>
+                                    <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#374151" }}>{val}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : editing ? (
+                      /* Edit mode — show route deliveries + unassigned */
+                      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                        {/* On this route */}
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                            <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>On this route ({routeDeliveries.length})</p>
+                            {loadingDeliveries && <RefreshCw className="h-3.5 w-3.5 animate-spin" style={{ color: "#9CA3AF" }} />}
+                          </div>
+                          {routeDeliveries.length === 0 ? (
+                            <p style={{ fontSize: 13, color: "#9CA3AF", textAlign: "center", padding: "16px 0" }}>No stops on this route yet</p>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              {routeDeliveries.map((d) => (
+                                <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 14px", backgroundColor: "#fff" }}>
+                                  <div style={{ minWidth: 0, flex: 1 }}>
+                                    <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.customer_name}</p>
+                                    <p style={{ margin: 0, fontSize: 12, color: "#6B7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.location}</p>
+                                  </div>
+                                  <button onClick={() => handleRemoveFromRoute(d.id)}
+                                    style={{ marginLeft: 12, padding: 6, borderRadius: 6, border: "1px solid #FECACA", backgroundColor: "#FEF2F2", color: "#DC2626", cursor: "pointer", flexShrink: 0 }}>
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {/* Unassigned to add */}
+                        <div>
+                          <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Add Stops ({unassigned.length} available)</p>
+                          {unassigned.length === 0 ? (
+                            <p style={{ fontSize: 13, color: "#9CA3AF", textAlign: "center", padding: "16px 0" }}>No unassigned deliveries</p>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                              {unassigned.map((d) => (
+                                <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 14px", backgroundColor: "#F9FAFB" }}>
+                                  <div style={{ minWidth: 0, flex: 1 }}>
+                                    <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.customer_name}</p>
+                                    <p style={{ margin: 0, fontSize: 12, color: "#6B7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.location}</p>
+                                  </div>
+                                  <button onClick={() => handleAddToRoute(d.id)}
+                                    style={{ marginLeft: 12, padding: "5px 12px", borderRadius: 6, border: "1px solid #A7F3D0", backgroundColor: "#ECFDF5", color: "#059669", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
+                                    + Add
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      /* Create mode — unassigned business deliveries */
+                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {unassigned.length === 0 ? (
+                          <div style={{ textAlign: "center", padding: "40px 0", color: "#9CA3AF" }}>
+                            <Package className="h-8 w-8 mx-auto mb-2" style={{ color: "#D1D5DB" }} />
+                            <p style={{ fontSize: 13, margin: 0 }}>No business deliveries available</p>
+                          </div>
+                        ) : unassigned.map((d) => {
+                          const sel = selectedExisting.has(d.id);
+                          return (
+                            <div key={d.id} onClick={() => toggleExisting(d.id)}
+                              style={{ border: sel ? "2px solid #10B981" : "1px solid #E5E7EB", borderRadius: 10, padding: 14, cursor: "pointer", backgroundColor: sel ? "#F0FDF4" : "#fff", transition: "all 0.12s" }}>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                                <div>
+                                  <p style={{ margin: "0 0 3px", fontSize: 14, fontWeight: 700, color: "#111827" }}>{d.customer_name}</p>
+                                  <p style={{ margin: 0, fontSize: 12, color: "#6B7280" }}>{d.location}</p>
+                                </div>
+                                {sel && <CheckCircle className="h-4 w-4" style={{ color: "#10B981" }} />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <button type="button" onClick={addNewDelivery}
+                          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 0", border: "2px dashed #E5E7EB", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "#9CA3AF", backgroundColor: "transparent", cursor: "pointer" }}>
+                          <Plus className="h-4 w-4" /> Add Delivery
+                        </button>
+                      </div>
+                    )}
+                    {formError && <p style={{ margin: 0, fontSize: 12, color: "#DC2626" }}>{formError}</p>}
+                  </div>
+                )}
+              </div>
+
+              {/* Wizard footer */}
+              <div style={{ borderTop: "1px solid #E5E7EB", padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+                <div style={{ display: "flex", gap: 10 }}>
+                  {wizardStep > 1 && (
+                    <button type="button" onClick={() => setWizardStep((s) => s - 1)}
+                      style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 16px", fontSize: 13, fontWeight: 600, color: "#374151", backgroundColor: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, cursor: "pointer" }}>
+                      ← Back
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setModalOpen(false)}
+                    style={{ padding: "10px 16px", fontSize: 13, fontWeight: 600, color: "#6B7280", backgroundColor: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, cursor: "pointer" }}>
+                    Cancel
+                  </button>
+                </div>
+                {wizardStep < 4 ? (
+                  <button type="button"
+                    onClick={() => {
+                      if (wizardStep === 2 && !form.name.trim()) { setFormError("Route name is required."); return; }
+                      setFormError(null);
+                      setWizardStep((s) => s + 1);
+                    }}
+                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", fontSize: 13, fontWeight: 600, color: "#fff", backgroundColor: "#10B981", border: "none", borderRadius: 8, cursor: "pointer" }}>
+                    Continue →
+                  </button>
+                ) : (
+                  <button type="button" disabled={saving}
+                    onClick={() => handleSave()}
+                    style={{ padding: "10px 20px", fontSize: 13, fontWeight: 600, color: "#fff", backgroundColor: "#14532D", border: "none", borderRadius: 8, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+                    {saving ? (editing ? "Saving…" : "Creating…") : (editing ? "Save Changes" : "Create Route")}
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

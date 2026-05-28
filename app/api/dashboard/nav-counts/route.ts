@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
     const supabase = makeClient(token!);
 
-    const [driversRes, fleetRes, requestsRes] = await Promise.all([
+    const [driversRes, fleetRes, requestsRes, deliveriesRes] = await Promise.all([
       supabase
         .from("partner_drivers")
         .select("id", { count: "exact", head: true })
@@ -55,12 +55,20 @@ export async function GET(req: NextRequest) {
         .select("id", { count: "exact", head: true })
         .eq("service_provider_id", providerId)
         .eq("status", "pending"),
+
+      supabase
+        .from("partner_deliveries")
+        .select("id", { count: "exact", head: true })
+        .eq("provider_id", providerId)
+        .eq("status", "pending")
+        .is("route_id", null),
     ]);
 
     return NextResponse.json({
       drivers:         driversRes.count ?? 0,
       fleet:           fleetRes.count   ?? 0,
       pendingRequests: requestsRes.count ?? 0,
+      deliveries:      deliveriesRes.count ?? 0,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Server error";
