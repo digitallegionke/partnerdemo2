@@ -23,26 +23,16 @@ import {
 import AddressSearch, {
   type AddressSelectResult,
 } from "@/components/address-search";
+import type {
+  CreateDeliveryPayload,
+  DeliveryItem,
+  DeliveryPriority,
+  DeliverySizeKey,
+} from "@/components/add-delivery-modal";
+import { parsePointCoordinates } from "@/lib/supabase";
+import type { Database } from "@/lib/supabase";
 
-export type DeliverySizeKey = "S" | "M" | "L" | "XL";
-
-export type DeliveryPriority = "standard" | "express";
-
-export type DeliveryItem = { name: string; value: string; weight: string };
-
-export type CreateDeliveryPayload = {
-  customer_name: string;
-  pickup_location: string;
-  pickup_coordinates?: [number, number];
-  location: string;
-  coordinates?: [number, number];
-  item: string;
-  phone: string;
-  drop_time: string;
-  estimated_value: string | null;
-  weight: string | null;
-  delivery_notes: string | null;
-};
+type PartnerDelivery = Database["public"]["Tables"]["partner_deliveries"]["Row"];
 
 const DELIVERY_SIZES: {
   key: DeliverySizeKey;
@@ -72,6 +62,98 @@ const EMPTY_FORM = {
   drop_time: "",
   priority: "standard" as DeliveryPriority,
 };
+
+function parseItemsFromDb(
+  itemStr: string,
+  legacyValue: string | null,
+  legacyWeight: string | null
+): DeliveryItem[] {
+  try {
+    const parsed = JSON.parse(itemStr);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((i) => ({
+        name: String(i.name ?? ""),
+        value: String(i.value ?? ""),
+        weight: String(i.weight ?? ""),
+      }));
+    }
+  } catch {
+    // plain-text legacy item
+  }
+  // Legacy: single plain-text item
+  const legacyVal = (legacyValue ?? "").replace(/^KSh\s*/i, "");
+  return [{ name: itemStr, value: legacyVal, weight: legacyWeight ?? "" }];
+}
+
+function parseClientFromNotes(notes: string | null): string {
+  if (!notes) return "";
+  const match = notes.match(/Client:\s*([^|]+)/);
+  return match ? match[1].trim() : "";
+}
+
+function parseSizeFromNotes(notes: string | null): DeliverySizeKey | "" {
+  if (!notes) return "";
+  const match = notes.match(/Size:\s*([A-Z]+)/);
+  const key = match?.[1]?.trim() as DeliverySizeKey;
+  return (["S", "M", "L", "XL"] as string[]).includes(key) ? key : "";
+}
+
+function parsePriorityFromNotes(notes: string | null): DeliveryPriority {
+  if (!notes) return "standard";
+  return notes.toLowerCase().includes("priority: express") ? "express" : "standard";
+}
+
+function parseTimeFromIso(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return `${d.getHours().toString().padStart(2, "0")}:${d
+    .getMinutes()
+    .toString()
+    .padStart(2, "0")}`;
+}
+
+function parseCoordsToStrings(
+  raw: string | null
+): { lat: string; lng: string } {
+  if (!raw) return { lat: "", lng: "" };
+  try {
+    const [lat, lng] = parsePointCoordinates(raw as string | number[] | object);
+    return { lat: lat.toString(), lng: lng.toString() };
+  } catch {
+    return { lat: "", lng: "" };
+  }
+}
+
+function formFromDelivery(delivery: PartnerDelivery): typeof EMPTY_FORM {
+  const client = parseClientFromNotes(delivery.delivery_notes);
+  const deliverySize = parseSizeFromNotes(delivery.delivery_notes);
+  const priority = parsePriorityFromNotes(delivery.delivery_notes);
+  const drop_time = parseTimeFromIso(delivery.drop_time);
+
+  const { lat, lng } = parseCoordsToStrings(delivery.coordinates);
+  const { lat: pickup_lat, lng: pickup_lng } = parseCoordsToStrings(
+    delivery.pickup_coordinates
+  );
+
+  return {
+    clientQuery: client,
+    selectedClient: client,
+    deliverySize,
+    customer_name: delivery.customer_name,
+    phone: delivery.phone,
+    pickup_location: delivery.pickup_location ?? "",
+    pickup_lat,
+    pickup_lng,
+    location: delivery.location,
+    lat,
+    lng,
+    items: parseItemsFromDb(delivery.item, delivery.estimated_value, delivery.weight),
+    drop_time,
+    weight: delivery.weight ?? "",
+    priority,
+  };
+}
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
@@ -135,32 +217,38 @@ function FieldLabel({
 const inputCls =
   "mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500";
 
-interface AddDeliveryModalProps {
+interface EditDeliveryModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (payload: CreateDeliveryPayload) => Promise<void>;
+  delivery: PartnerDelivery | null;
+  onSubmit: (id: number, payload: CreateDeliveryPayload) => Promise<void>;
   saving?: boolean;
   clientOptions?: string[];
 }
 
-export default function AddDeliveryModal({
+export default function EditDeliveryModal({
   open,
   onClose,
+  delivery,
   onSubmit,
   saving = false,
   clientOptions = [],
-}: AddDeliveryModalProps) {
+}: EditDeliveryModalProps) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [showClientResults, setShowClientResults] = useState(false);
 
   useEffect(() => {
-    if (!open) {
+    if (open && delivery) {
+      setForm(formFromDelivery(delivery));
+      setFormError(null);
+      setShowClientResults(false);
+    } else if (!open) {
       setForm(EMPTY_FORM);
       setFormError(null);
       setShowClientResults(false);
     }
-  }, [open]);
+  }, [open, delivery]);
 
   const deliveryDistanceKm = useMemo(
     () =>
@@ -215,6 +303,7 @@ export default function AddDeliveryModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!delivery) return;
     setFormError(null);
 
     if (!form.deliverySize) {
@@ -276,6 +365,10 @@ export default function AddDeliveryModal({
     if (form.priority === "express") notesParts.push("Priority: Express");
     if (deliveryDistanceKm != null) notesParts.push(`Distance: ${deliveryDistanceKm} km`);
 
+    if (delivery.delivery_notes?.toLowerCase().includes("approved")) {
+      notesParts.push("Approved");
+    }
+
     const estimatedValue = totalValue > 0
       ? `KSh ${totalValue.toLocaleString("en-KE")}`
       : null;
@@ -285,7 +378,7 @@ export default function AddDeliveryModal({
       : null;
 
     try {
-      await onSubmit({
+      await onSubmit(delivery.id, {
         customer_name: form.customer_name.trim(),
         pickup_location: form.pickup_location.trim(),
         pickup_coordinates: [pickupLat, pickupLng],
@@ -299,20 +392,20 @@ export default function AddDeliveryModal({
         delivery_notes: notesParts.length ? notesParts.join(" | ") : null,
       });
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to create delivery");
+      setFormError(err instanceof Error ? err.message : "Failed to update delivery");
     }
   };
 
-  if (!open) return null;
+  if (!open || !delivery) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col">
         <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b shrink-0">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Add Delivery</h2>
+            <h2 className="text-xl font-bold text-gray-900">Edit Delivery</h2>
             <p className="mt-0.5 text-sm text-gray-500">
-              Add a new delivery to the system.
+              Update the details for this delivery.
             </p>
           </div>
           <button
@@ -512,7 +605,7 @@ export default function AddDeliveryModal({
               <div>
                 <FieldLabel required>Drop Off Latitude</FieldLabel>
                 <input
-                  id="delivery-latitude"
+                  id="edit-delivery-latitude"
                   name="latitude"
                   required
                   type="text"
@@ -529,7 +622,7 @@ export default function AddDeliveryModal({
               <div>
                 <FieldLabel required>Drop Off Longitude</FieldLabel>
                 <input
-                  id="delivery-longitude"
+                  id="edit-delivery-longitude"
                   name="longitude"
                   required
                   type="text"
@@ -549,7 +642,6 @@ export default function AddDeliveryModal({
             <div>
               <FieldLabel required>Items</FieldLabel>
               {form.items.length === 1 ? (
-                /* Single item — stacked layout (name + value/weight side by side) */
                 <div className="mt-2 space-y-2">
                   <input
                     autoComplete="new-password"
@@ -584,7 +676,6 @@ export default function AddDeliveryModal({
                   </div>
                 </div>
               ) : (
-                /* Multiple items — compact rows: name · value · weight · × */
                 <div className="mt-2 space-y-2">
                   {form.items.map((item, index) => (
                     <div key={index} className="flex gap-2 items-center">
@@ -706,18 +797,37 @@ export default function AddDeliveryModal({
               </div>
             </div>
 
-            {/* Distance (computed) */}
-            <div>
-              <FieldLabel hint="pick up → drop off">Distance (km)</FieldLabel>
-              <div className="relative mt-1.5">
-                <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                <input
-                  readOnly
-                  disabled
-                  value={deliveryDistanceKm != null ? String(deliveryDistanceKm) : ""}
-                  placeholder="Enter both locations above"
-                  className={`${inputCls} pl-9 mt-0 bg-gray-50 text-gray-600 cursor-not-allowed`}
-                />
+            {/* Priority + distance */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <FieldLabel>Priority</FieldLabel>
+                <Select
+                  value={form.priority}
+                  onValueChange={(v) =>
+                    setForm((f) => ({ ...f, priority: v as DeliveryPriority }))
+                  }
+                >
+                  <SelectTrigger className="mt-1.5 h-[42px] rounded-lg border-gray-200">
+                    <SelectValue placeholder="Standard" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="standard">Standard</SelectItem>
+                    <SelectItem value="express">Express</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <FieldLabel hint="pick up → drop off">Distance (km)</FieldLabel>
+                <div className="relative mt-1.5">
+                  <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                  <input
+                    readOnly
+                    disabled
+                    value={deliveryDistanceKm != null ? String(deliveryDistanceKm) : ""}
+                    placeholder="Enter both locations above"
+                    className={`${inputCls} pl-9 mt-0 bg-gray-50 text-gray-600 cursor-not-allowed`}
+                  />
+                </div>
               </div>
             </div>
 
@@ -737,7 +847,7 @@ export default function AddDeliveryModal({
               disabled={saving}
               className="bg-emerald-400 hover:bg-emerald-500 text-gray-900 font-semibold min-w-[140px]"
             >
-              {saving ? "Creating..." : "Create Delivery"}
+              {saving ? "Saving..." : "Save Changes"}
             </Button>
           </div>
         </form>

@@ -30,6 +30,7 @@ interface AddressSearchProps {
   value?: string;
   className?: string;
   countryCode?: string;
+  autoComplete?: string;
 }
 
 function normalizePlaceId(placeId: string) {
@@ -80,6 +81,7 @@ export default function AddressSearch({
   value = "",
   className = "",
   countryCode = "ke",
+  autoComplete = "new-password",
 }: AddressSearchProps) {
   const [query, setQuery] = useState(value);
   const [showResults, setShowResults] = useState(false);
@@ -231,6 +233,7 @@ export default function AddressSearch({
         <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4 pointer-events-none" />
         <Input
           type="text"
+          autoComplete={autoComplete}
           className="pl-10 bg-white border-gray-300"
           placeholder={placeholder}
           value={query}

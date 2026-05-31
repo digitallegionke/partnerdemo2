@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { coordinatesToPoint } from "@/lib/supabase";
 
 function makeClient(authToken?: string) {
   return createClient(
@@ -68,7 +69,8 @@ export async function PATCH(
     if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
     const {
-      route_id, status, order_index, customer_name, location,
+      route_id, status, order_index, customer_name,
+      pickup_location, pickup_coordinates, location, coordinates,
       item, phone, drop_time, estimated_value, weight, delivery_notes,
     } = body;
 
@@ -77,6 +79,7 @@ export async function PATCH(
     if (status !== undefined) updates.status = status;
     if (order_index !== undefined) updates.order_index = order_index;
     if (customer_name !== undefined) updates.customer_name = customer_name;
+    if (pickup_location !== undefined) updates.pickup_location = pickup_location;
     if (location !== undefined) updates.location = location;
     if (item !== undefined) updates.item = item;
     if (phone !== undefined) updates.phone = phone;
@@ -84,6 +87,20 @@ export async function PATCH(
     if (estimated_value !== undefined) updates.estimated_value = estimated_value;
     if (weight !== undefined) updates.weight = weight;
     if (delivery_notes !== undefined) updates.delivery_notes = delivery_notes;
+    if (coordinates !== undefined) {
+      if (Array.isArray(coordinates) && coordinates.length >= 2) {
+        updates.coordinates = coordinatesToPoint([coordinates[0], coordinates[1]]);
+      } else if (typeof coordinates === "string") {
+        updates.coordinates = coordinates;
+      }
+    }
+    if (pickup_coordinates !== undefined) {
+      if (Array.isArray(pickup_coordinates) && pickup_coordinates.length >= 2) {
+        updates.pickup_coordinates = coordinatesToPoint([pickup_coordinates[0], pickup_coordinates[1]]);
+      } else if (typeof pickup_coordinates === "string") {
+        updates.pickup_coordinates = pickup_coordinates;
+      }
+    }
 
     // If assigning to a route, verify it belongs to this provider
     if (route_id != null) {

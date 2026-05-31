@@ -90,8 +90,9 @@ export async function POST(req: NextRequest) {
     if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
     const {
-      customer_name, location, coordinates, item, phone, drop_time,
-      route_id, delivery_notes, estimated_value, weight, status, order_index,
+      customer_name, location, coordinates, pickup_location, pickup_coordinates,
+      item, phone, drop_time, route_id, delivery_notes, estimated_value, weight,
+      status, order_index,
     } = body;
 
     if (!customer_name || !location || !item || !phone || !drop_time) {
@@ -122,11 +123,20 @@ export async function POST(req: NextRequest) {
       coordsString = coordinates;
     }
 
+    let pickupCoordsString: string | null = null;
+    if (Array.isArray(pickup_coordinates) && pickup_coordinates.length >= 2) {
+      pickupCoordsString = coordinatesToPoint([pickup_coordinates[0], pickup_coordinates[1]]);
+    } else if (typeof pickup_coordinates === "string") {
+      pickupCoordsString = pickup_coordinates;
+    }
+
     const { data, error } = await supabase
       .from("partner_deliveries")
       .insert({
         provider_id: providerId,
         customer_name,
+        pickup_location: pickup_location ?? null,
+        pickup_coordinates: pickupCoordsString,
         location,
         coordinates: coordsString,
         item,
@@ -136,7 +146,7 @@ export async function POST(req: NextRequest) {
         delivery_notes: delivery_notes ?? null,
         estimated_value: estimated_value ?? null,
         weight: weight ?? null,
-        status: status ?? "pending",
+        status: status ?? "awaiting_approval",
         order_index: order_index ?? null,
       })
       .select()

@@ -277,6 +277,8 @@ export interface Database {
           provider_id: number;
           route_id: number | null;
           customer_name: string;
+          pickup_location: string | null;
+          pickup_coordinates: string | null;
           location: string;
           coordinates: string | null;
           item: string;
@@ -284,7 +286,7 @@ export interface Database {
           weight: string | null;
           phone: string;
           drop_time: string;
-          status: "pending" | "in-progress" | "completed" | "failed";
+          status: "awaiting_approval" | "pending" | "rejected" | "out_for_delivery" | "cancelled" | "in_transit" | "delivered" | "failed";
           order_index: number | null;
           delivery_notes: string | null;
           created_at: string;
@@ -294,6 +296,8 @@ export interface Database {
           provider_id: number;
           route_id?: number | null;
           customer_name: string;
+          pickup_location?: string | null;
+          pickup_coordinates?: string | null;
           location: string;
           coordinates?: string | null;
           item: string;
@@ -301,13 +305,15 @@ export interface Database {
           weight?: string | null;
           phone: string;
           drop_time: string;
-          status?: "pending" | "in-progress" | "completed" | "failed";
+          status?: "awaiting_approval" | "pending" | "rejected" | "out_for_delivery" | "cancelled" | "in_transit" | "delivered" | "failed";
           order_index?: number | null;
           delivery_notes?: string | null;
         };
         Update: {
           route_id?: number | null;
           customer_name?: string;
+          pickup_location?: string | null;
+          pickup_coordinates?: string | null;
           location?: string;
           coordinates?: string | null;
           item?: string;
@@ -315,7 +321,7 @@ export interface Database {
           weight?: string | null;
           phone?: string;
           drop_time?: string;
-          status?: "pending" | "in-progress" | "completed" | "failed";
+          status?: "awaiting_approval" | "pending" | "rejected" | "out_for_delivery" | "cancelled" | "in_transit" | "delivered" | "failed";
           order_index?: number | null;
           delivery_notes?: string | null;
         };
