@@ -25,7 +25,14 @@ import {
 import AddressSearch, {
   type AddressSelectResult,
 } from "@/components/address-search";
-import { supabase } from "@/lib/supabase";
+import type {
+  CreateDeliveryPayload,
+  DeliveryItem,
+  DeliveryPriority,
+  DeliverySizeKey,
+} from "@/components/add-delivery-modal";
+import { parsePointCoordinates, supabase } from "@/lib/supabase";
+import type { Database } from "@/lib/supabase";
 
 type ClientOption = {
   id: number;
@@ -47,25 +54,7 @@ async function fetchActiveClients(): Promise<ClientOption[]> {
   }
 }
 
-export type DeliverySizeKey = "S" | "M" | "L" | "XL";
-
-export type DeliveryPriority = "standard" | "express";
-
-export type DeliveryItem = { name: string; value: string; weight: string; size: DeliverySizeKey | "" };
-
-export type CreateDeliveryPayload = {
-  customer_name: string;
-  pickup_location: string;
-  pickup_coordinates?: [number, number];
-  location: string;
-  coordinates?: [number, number];
-  item: string;
-  phone: string;
-  drop_time: string;
-  estimated_value: string | null;
-  weight: string | null;
-  delivery_notes: string | null;
-};
+type PartnerDelivery = Database["public"]["Tables"]["partner_deliveries"]["Row"];
 
 const DELIVERY_SIZES: {
   key: DeliverySizeKey;
@@ -110,6 +99,99 @@ const EMPTY_FORM = {
   drop_time: "",
   priority: "standard" as DeliveryPriority,
 };
+
+function parseItemsFromDb(
+  itemStr: string,
+  legacyValue: string | null,
+  legacyWeight: string | null,
+  legacySize: DeliverySizeKey | "" = ""
+): DeliveryItem[] {
+  const validSizes = ["S", "M", "L", "XL"];
+  try {
+    const parsed = JSON.parse(itemStr);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.map((i) => ({
+        name: String(i.name ?? ""),
+        value: String(i.value ?? ""),
+        weight: String(i.weight ?? ""),
+        size: validSizes.includes(i.size) ? (i.size as DeliverySizeKey) : legacySize,
+      }));
+    }
+  } catch {
+    // plain-text legacy item
+  }
+  const legacyVal = (legacyValue ?? "").replace(/^KSh\s*/i, "");
+  return [{ name: itemStr, value: legacyVal, weight: legacyWeight ?? "", size: legacySize }];
+}
+
+function parseClientFromNotes(notes: string | null): string {
+  if (!notes) return "";
+  const match = notes.match(/Client:\s*([^|]+)/);
+  return match ? match[1].trim() : "";
+}
+
+function parseSizeFromNotes(notes: string | null): DeliverySizeKey | "" {
+  if (!notes) return "";
+  const match = notes.match(/Size:\s*([A-Z]+)/);
+  const key = match?.[1]?.trim() as DeliverySizeKey;
+  return (["S", "M", "L", "XL"] as string[]).includes(key) ? key : "";
+}
+
+function parsePriorityFromNotes(notes: string | null): DeliveryPriority {
+  if (!notes) return "standard";
+  return notes.toLowerCase().includes("priority: express") ? "express" : "standard";
+}
+
+function parseTimeFromIso(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  return `${d.getHours().toString().padStart(2, "0")}:${d
+    .getMinutes()
+    .toString()
+    .padStart(2, "0")}`;
+}
+
+function parseCoordsToStrings(
+  raw: string | null
+): { lat: string; lng: string } {
+  if (!raw) return { lat: "", lng: "" };
+  try {
+    const [lat, lng] = parsePointCoordinates(raw as string | number[] | object);
+    return { lat: lat.toString(), lng: lng.toString() };
+  } catch {
+    return { lat: "", lng: "" };
+  }
+}
+
+function formFromDelivery(delivery: PartnerDelivery): typeof EMPTY_FORM {
+  const client = parseClientFromNotes(delivery.delivery_notes);
+  const deliverySize = parseSizeFromNotes(delivery.delivery_notes);
+  const priority = parsePriorityFromNotes(delivery.delivery_notes);
+  const drop_time = parseTimeFromIso(delivery.drop_time);
+
+  const { lat, lng } = parseCoordsToStrings(delivery.coordinates);
+  const { lat: pickup_lat, lng: pickup_lng } = parseCoordsToStrings(
+    delivery.pickup_coordinates
+  );
+
+  return {
+    clientQuery: client,
+    selectedClient: client,
+    deliverySize,
+    customer_name: delivery.customer_name,
+    phone: delivery.phone,
+    pickup_location: delivery.pickup_location ?? "",
+    pickup_lat,
+    pickup_lng,
+    location: delivery.location,
+    lat,
+    lng,
+    items: parseItemsFromDb(delivery.item, delivery.estimated_value, delivery.weight, deliverySize),
+    drop_time,
+    priority,
+  };
+}
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371;
@@ -174,20 +256,22 @@ function FieldLabel({
 const inputCls =
   "mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500";
 
-interface AddDeliveryModalProps {
+interface EditDeliveryModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (payload: CreateDeliveryPayload) => Promise<void>;
+  delivery: PartnerDelivery | null;
+  onSubmit: (id: number, payload: CreateDeliveryPayload) => Promise<void>;
   saving?: boolean;
   clientOptions?: string[]; // kept for backward compat, ignored
 }
 
-export default function AddDeliveryModal({
+export default function EditDeliveryModal({
   open,
   onClose,
+  delivery,
   onSubmit,
   saving = false,
-}: AddDeliveryModalProps) {
+}: EditDeliveryModalProps) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [showClientResults, setShowClientResults] = useState(false);
@@ -198,14 +282,21 @@ export default function AddDeliveryModal({
   useEffect(() => {
     if (open) {
       fetchActiveClients().then(setClients);
-    } else {
+    }
+    if (open && delivery) {
+      setForm(formFromDelivery(delivery));
+      setFormError(null);
+      setShowClientResults(false);
+      setEditingIndex(null);
+      setEditForm({ name: "", value: "", weight: "", size: "" });
+    } else if (!open) {
       setForm(EMPTY_FORM);
       setFormError(null);
       setShowClientResults(false);
       setEditingIndex(null);
       setEditForm({ name: "", value: "", weight: "", size: "" });
     }
-  }, [open]);
+  }, [open, delivery]);
 
   const deliveryDistanceKm = useMemo(
     () =>
@@ -310,6 +401,7 @@ export default function AddDeliveryModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!delivery) return;
     setFormError(null);
 
     if (!form.deliverySize) {
@@ -375,6 +467,10 @@ export default function AddDeliveryModal({
     if (form.priority === "express") notesParts.push("Priority: Express");
     if (deliveryDistanceKm != null) notesParts.push(`Distance: ${deliveryDistanceKm} km`);
 
+    if (delivery.delivery_notes?.toLowerCase().includes("approved")) {
+      notesParts.push("Approved");
+    }
+
     const estimatedValue = totalValue > 0
       ? `KSh ${totalValue.toLocaleString("en-KE")}`
       : null;
@@ -384,7 +480,7 @@ export default function AddDeliveryModal({
       : null;
 
     try {
-      await onSubmit({
+      await onSubmit(delivery.id, {
         customer_name: form.customer_name.trim(),
         pickup_location: form.pickup_location.trim(),
         pickup_coordinates: [pickupLat, pickupLng],
@@ -398,20 +494,20 @@ export default function AddDeliveryModal({
         delivery_notes: notesParts.length ? notesParts.join(" | ") : null,
       });
     } catch (err) {
-      setFormError(err instanceof Error ? err.message : "Failed to create delivery");
+      setFormError(err instanceof Error ? err.message : "Failed to update delivery");
     }
   };
 
-  if (!open) return null;
+  if (!open || !delivery) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 pt-6 pb-10">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col">
         <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b shrink-0">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Add Delivery</h2>
+            <h2 className="text-xl font-bold text-gray-900">Edit Delivery</h2>
             <p className="mt-0.5 text-sm text-gray-500">
-              Add a new delivery to the system.
+              Update the details for this delivery.
             </p>
           </div>
           <button
@@ -637,7 +733,7 @@ export default function AddDeliveryModal({
                 <div>
                   <FieldLabel required>Latitude</FieldLabel>
                   <input
-                    id="delivery-latitude"
+                    id="edit-delivery-latitude"
                     name="latitude"
                     required
                     type="text"
@@ -654,7 +750,7 @@ export default function AddDeliveryModal({
                 <div>
                   <FieldLabel required>Longitude</FieldLabel>
                   <input
-                    id="delivery-longitude"
+                    id="edit-delivery-longitude"
                     name="longitude"
                     required
                     type="text"
@@ -671,181 +767,181 @@ export default function AddDeliveryModal({
               </div>
 
             {/* ── Items ──────────────────────────────── */}
-            <div>
-              <FieldLabel required>Items</FieldLabel>
+              <div>
+                <FieldLabel required>Items</FieldLabel>
 
-              {form.items.length > 0 && (
-                <div className="mt-2 rounded-lg border border-gray-200 overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-100">
-                      <tr>
-                        <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Item</th>
-                        <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Size</th>
-                        <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-500 uppercase tracking-wide">Value</th>
-                        <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-500 uppercase tracking-wide">Weight</th>
-                        <th className="w-16" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {form.items.map((item, index) => (
-                        <tr
-                          key={index}
-                          className={`transition-colors ${editingIndex === index ? "bg-emerald-50/40" : "hover:bg-gray-50/50"}`}
-                        >
-                          <td className="px-3 py-2.5 font-medium text-gray-900">{item.name}</td>
-                          <td className="px-3 py-2.5">
-                            {item.size ? (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-700">
-                                {item.size}
-                              </span>
-                            ) : (
-                              <span className="text-gray-400 text-xs">—</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2.5 text-right text-gray-600">
-                            {item.value
-                              ? `KSh ${parseFloat(item.value.replace(/[^\d.]/g, "")).toLocaleString("en-KE")}`
-                              : <span className="text-gray-400 text-xs">—</span>}
-                          </td>
-                          <td className="px-3 py-2.5 text-right text-gray-600">
-                            {item.weight ? `${item.weight} kg` : <span className="text-gray-400 text-xs">—</span>}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <div className="flex gap-0.5 justify-end">
-                              <button
-                                type="button"
-                                onClick={() => handleEditItem(index)}
-                                className="p-1.5 rounded text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteItem(index)}
-                                className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </td>
+                {form.items.length > 0 && (
+                  <div className="mt-2 rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-100">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Item</th>
+                          <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Size</th>
+                          <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-500 uppercase tracking-wide">Value</th>
+                          <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-500 uppercase tracking-wide">Weight</th>
+                          <th className="w-16" />
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {form.items.map((item, index) => (
+                          <tr
+                            key={index}
+                            className={`transition-colors ${editingIndex === index ? "bg-emerald-50/40" : "hover:bg-gray-50/50"}`}
+                          >
+                            <td className="px-3 py-2.5 font-medium text-gray-900">{item.name}</td>
+                            <td className="px-3 py-2.5">
+                              {item.size ? (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-700">
+                                  {item.size}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-gray-600">
+                              {item.value
+                                ? `KSh ${parseFloat(item.value.replace(/[^\d.]/g, "")).toLocaleString("en-KE")}`
+                                : <span className="text-gray-400 text-xs">—</span>}
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-gray-600">
+                              {item.weight ? `${item.weight} kg` : <span className="text-gray-400 text-xs">—</span>}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <div className="flex gap-0.5 justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditItem(index)}
+                                  className="p-1.5 rounded text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteItem(index)}
+                                  className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
-              {editingIndex !== null && (
-                <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/20 p-3 space-y-2">
-                  <p className="text-xs font-semibold text-emerald-700">
-                    {editingIndex === -1 ? "New item" : "Edit item"}
-                  </p>
-                  <input
-                    autoFocus
-                    autoComplete="new-password"
-                    placeholder="What's being delivered?"
-                    value={editForm.name}
-                    onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
-                    className={inputCls}
-                  />
-                  <div className="flex gap-1.5">
-                    {DELIVERY_SIZES.map(({ key, dims, Icon }) => (
-                      <button
-                        key={key}
-                        type="button"
-                        title={`${key}: ${dims}`}
-                        onClick={() => setEditForm((f) => ({ ...f, size: key }))}
-                        className={`flex-1 rounded-lg border-2 py-1.5 flex flex-col items-center gap-0.5 text-[11px] font-bold transition-all ${
-                          editForm.size === key
-                            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                            : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
-                        }`}
-                      >
-                        <Icon className="h-3 w-3" />
-                        {key}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
+                {editingIndex !== null && (
+                  <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/20 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-emerald-700">
+                      {editingIndex === -1 ? "New item" : "Edit item"}
+                    </p>
                     <input
+                      autoFocus
                       autoComplete="new-password"
-                      placeholder="Estimated value (KSh)"
-                      inputMode="decimal"
-                      value={editForm.value}
-                      onChange={(e) => setEditForm((f) => ({ ...f, value: e.target.value }))}
+                      placeholder="What's being delivered?"
+                      value={editForm.name}
+                      onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
                       className={inputCls}
                     />
-                    <input
-                      autoComplete="new-password"
-                      placeholder="Weight (kg)"
-                      inputMode="decimal"
-                      value={editForm.weight}
-                      onChange={(e) => setEditForm((f) => ({ ...f, weight: e.target.value }))}
-                      className={inputCls}
-                    />
-                  </div>
-                  <div className="flex gap-2 justify-end pt-0.5">
-                    {(editingIndex !== -1 || form.items.length > 0) && (
+                    <div className="flex gap-1.5">
+                      {DELIVERY_SIZES.map(({ key, dims, Icon }) => (
+                        <button
+                          key={key}
+                          type="button"
+                          title={`${key}: ${dims}`}
+                          onClick={() => setEditForm((f) => ({ ...f, size: key }))}
+                          className={`flex-1 rounded-lg border-2 py-1.5 flex flex-col items-center gap-0.5 text-[11px] font-bold transition-all ${
+                            editForm.size === key
+                              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                              : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                          }`}
+                        >
+                          <Icon className="h-3 w-3" />
+                          {key}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        autoComplete="new-password"
+                        placeholder="Estimated value (KSh)"
+                        inputMode="decimal"
+                        value={editForm.value}
+                        onChange={(e) => setEditForm((f) => ({ ...f, value: e.target.value }))}
+                        className={inputCls}
+                      />
+                      <input
+                        autoComplete="new-password"
+                        placeholder="Weight (kg)"
+                        inputMode="decimal"
+                        value={editForm.weight}
+                        onChange={(e) => setEditForm((f) => ({ ...f, weight: e.target.value }))}
+                        className={inputCls}
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end pt-0.5">
+                      {(editingIndex !== -1 || form.items.length > 0) && (
+                        <button
+                          type="button"
+                          onClick={() => setEditingIndex(null)}
+                          className="px-3 py-1.5 text-xs text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={() => setEditingIndex(null)}
-                        className="px-3 py-1.5 text-xs text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                        disabled={!editForm.name.trim() || !editForm.size}
+                        onClick={handleSaveItem}
+                        className="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       >
-                        Cancel
+                        {editingIndex === -1 ? "Add Item" : "Save Changes"}
                       </button>
-                    )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between mt-3">
+                  {editingIndex === null ? (
                     <button
                       type="button"
-                      disabled={!editForm.name.trim() || !editForm.size}
-                      onClick={handleSaveItem}
-                      className="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      onClick={() => {
+                        setEditForm({ name: "", value: "", weight: "", size: "" });
+                        setEditingIndex(-1);
+                      }}
+                      className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 hover:text-emerald-800 transition-colors"
                     >
-                      {editingIndex === -1 ? "Add Item" : "Save Changes"}
+                      <Plus className="h-4 w-4" />
+                      Add Item
                     </button>
-                  </div>
+                  ) : (
+                    <div />
+                  )}
+                  {(totalValue > 0 || totalWeight > 0 || totalVolume > 0) && (
+                    <div className="flex gap-2 flex-wrap justify-end">
+                      {totalValue > 0 && (
+                        <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
+                          <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Approx. value</p>
+                          <p className="text-sm font-semibold text-gray-900">KSh {totalValue.toLocaleString("en-KE")}</p>
+                        </div>
+                      )}
+                      {totalWeight > 0 && (
+                        <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
+                          <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Total weight</p>
+                          <p className="text-sm font-semibold text-gray-900">{Math.round(totalWeight * 100) / 100} kg</p>
+                        </div>
+                      )}
+                      {totalVolume > 0 && (
+                        <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
+                          <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Total volume</p>
+                          <p className="text-sm font-semibold text-gray-900">{totalVolume.toLocaleString("en-KE")} cm³</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              )}
-
-              <div className="flex items-center justify-between mt-3">
-                {editingIndex === null ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditForm({ name: "", value: "", weight: "", size: "" });
-                      setEditingIndex(-1);
-                    }}
-                    className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 hover:text-emerald-800 transition-colors"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Item
-                  </button>
-                ) : (
-                  <div />
-                )}
-                {(totalValue > 0 || totalWeight > 0 || totalVolume > 0) && (
-                  <div className="flex gap-2 flex-wrap justify-end">
-                    {totalValue > 0 && (
-                      <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
-                        <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Approx. value</p>
-                        <p className="text-sm font-semibold text-gray-900">KSh {totalValue.toLocaleString("en-KE")}</p>
-                      </div>
-                    )}
-                    {totalWeight > 0 && (
-                      <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
-                        <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Total weight</p>
-                        <p className="text-sm font-semibold text-gray-900">{Math.round(totalWeight * 100) / 100} kg</p>
-                      </div>
-                    )}
-                    {totalVolume > 0 && (
-                      <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
-                        <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Total volume</p>
-                        <p className="text-sm font-semibold text-gray-900">{totalVolume.toLocaleString("en-KE")} cm³</p>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
-            </div>
 
             {/* ── Schedule ───────────────────────────── */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -910,7 +1006,7 @@ export default function AddDeliveryModal({
               disabled={saving}
               className="bg-emerald-400 hover:bg-emerald-500 text-gray-900 font-semibold min-w-[140px]"
             >
-              {saving ? "Creating..." : "Create Delivery"}
+              {saving ? "Saving..." : "Save Changes"}
             </Button>
           </div>
         </form>

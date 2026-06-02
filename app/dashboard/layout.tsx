@@ -20,6 +20,7 @@ import {
   ChevronDown,
   PanelLeftClose,
   PanelLeftOpen,
+  Building2,
 } from "lucide-react";
 import {
   getProviderAccessProfile,
@@ -68,6 +69,7 @@ const NAV_SECTIONS = [
     label: "Deliveries",
     items: [
       { href: "/dashboard/deliveries", label: "Deliveries", icon: Package },
+      { href: "/dashboard/clients",    label: "Clients",    icon: Building2 },
     ],
   },
   {

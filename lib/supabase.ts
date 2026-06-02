@@ -277,6 +277,8 @@ export interface Database {
           provider_id: number;
           route_id: number | null;
           customer_name: string;
+          pickup_location: string | null;
+          pickup_coordinates: string | null;
           location: string;
           coordinates: string | null;
           item: string;
@@ -284,7 +286,7 @@ export interface Database {
           weight: string | null;
           phone: string;
           drop_time: string;
-          status: "pending" | "in-progress" | "completed" | "failed";
+          status: "awaiting_approval" | "pending" | "rejected" | "out_for_delivery" | "cancelled" | "in_transit" | "delivered" | "failed";
           order_index: number | null;
           delivery_notes: string | null;
           created_at: string;
@@ -294,6 +296,8 @@ export interface Database {
           provider_id: number;
           route_id?: number | null;
           customer_name: string;
+          pickup_location?: string | null;
+          pickup_coordinates?: string | null;
           location: string;
           coordinates?: string | null;
           item: string;
@@ -301,13 +305,15 @@ export interface Database {
           weight?: string | null;
           phone: string;
           drop_time: string;
-          status?: "pending" | "in-progress" | "completed" | "failed";
+          status?: "awaiting_approval" | "pending" | "rejected" | "out_for_delivery" | "cancelled" | "in_transit" | "delivered" | "failed";
           order_index?: number | null;
           delivery_notes?: string | null;
         };
         Update: {
           route_id?: number | null;
           customer_name?: string;
+          pickup_location?: string | null;
+          pickup_coordinates?: string | null;
           location?: string;
           coordinates?: string | null;
           item?: string;
@@ -315,7 +321,7 @@ export interface Database {
           weight?: string | null;
           phone?: string;
           drop_time?: string;
-          status?: "pending" | "in-progress" | "completed" | "failed";
+          status?: "awaiting_approval" | "pending" | "rejected" | "out_for_delivery" | "cancelled" | "in_transit" | "delivered" | "failed";
           order_index?: number | null;
           delivery_notes?: string | null;
         };
@@ -922,6 +928,40 @@ export interface Database {
           notes?: string | null;
           created_at?: string;
           updated_at?: string;
+        };
+      };
+      partner_clients: {
+        Row: {
+          id: number;
+          provider_id: number;
+          company_name: string;
+          contact_name: string;
+          phone: string;
+          email: string | null;
+          area: string | null;
+          note: string | null;
+          status: "active" | "inactive";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          provider_id: number;
+          company_name: string;
+          contact_name: string;
+          phone: string;
+          email?: string | null;
+          area?: string | null;
+          note?: string | null;
+          status?: "active" | "inactive";
+        };
+        Update: {
+          company_name?: string;
+          contact_name?: string;
+          phone?: string;
+          email?: string | null;
+          area?: string | null;
+          note?: string | null;
+          status?: "active" | "inactive";
         };
       };
       partner_driver_vehicle_assignments: {
