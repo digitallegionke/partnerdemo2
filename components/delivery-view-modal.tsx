@@ -76,14 +76,30 @@ function formatValue(value: string | null): string {
   return `KES ${num.toLocaleString("en-KE")}`;
 }
 
-function parseItemsForDisplay(itemStr: string): { name: string; value: string }[] {
+const SIZE_VOLUMES: Record<string, number> = {
+  S: 20 * 7 * 15,
+  M: 37 * 18 * 30,
+  L: 48 * 23 * 38,
+  XL: 40 * 40 * 40,
+};
+
+function parseItemsForDisplay(itemStr: string): { name: string; value: string; size: string }[] {
   try {
     const parsed = JSON.parse(itemStr);
     if (Array.isArray(parsed) && parsed.length > 0) {
-      return parsed.map((i) => ({ name: String(i.name ?? ""), value: String(i.value ?? "") }));
+      return parsed.map((i) => ({
+        name: String(i.name ?? ""),
+        value: String(i.value ?? ""),
+        size: String(i.size ?? ""),
+      }));
     }
   } catch {}
-  return [{ name: itemStr, value: "" }];
+  return [{ name: itemStr, value: "", size: "" }];
+}
+
+function computeItemsVolume(itemStr: string): number {
+  const items = parseItemsForDisplay(itemStr);
+  return items.reduce((sum, i) => sum + (SIZE_VOLUMES[i.size] ?? 0), 0);
 }
 
 interface DeliveryViewModalProps {
@@ -238,45 +254,73 @@ export default function DeliveryViewModal({
             {/* Delivery Details */}
             <div>
               <p className="text-sm font-semibold text-gray-900 mb-3">Delivery Details</p>
-              <div className="space-y-2.5">
-                <div>
-                  <p className="text-xs text-gray-400 mb-1">Items:</p>
-                  {parseItemsForDisplay(delivery.item).map((item, i) => (
-                    <div key={i} className="flex items-center justify-between text-sm">
-                      <span className="font-medium text-gray-800">{item.name}</span>
-                      {item.value && (
-                        <span className="text-gray-500 ml-4">
-                          KSh {parseFloat(item.value.replace(/[^\d.]/g, "") || "0").toLocaleString("en-KE")}
+              {(() => {
+                const parsedItems = parseItemsForDisplay(delivery.item);
+                const totalVolume = computeItemsVolume(delivery.item);
+                return (
+                  <div className="space-y-2.5">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-xs text-gray-400">Items:</p>
+                        <span className="text-[11px] font-semibold text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                          {parsedItems.length} {parsedItems.length === 1 ? "item" : "items"}
                         </span>
-                      )}
+                      </div>
+                      <div className="space-y-1">
+                        {parsedItems.map((item, i) => (
+                          <div key={i} className="flex items-center justify-between text-sm gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {item.size && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-700 shrink-0">
+                                  {item.size}
+                                </span>
+                              )}
+                              <span className="font-medium text-gray-800 truncate">{item.name}</span>
+                            </div>
+                            {item.value && (
+                              <span className="text-gray-500 shrink-0">
+                                KSh {parseFloat(item.value.replace(/[^\d.]/g, "") || "0").toLocaleString("en-KE")}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-sm text-gray-500 w-24 shrink-0">Value:</span>
-                  <span className="text-sm font-semibold text-gray-900">
-                    {formatValue(delivery.estimated_value)}
-                  </span>
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-sm text-gray-500 w-24 shrink-0">Scheduled:</span>
-                  <span className="text-sm font-medium text-gray-800">
-                    {formatScheduled(delivery.drop_time)}
-                  </span>
-                </div>
-                {delivery.distanceKm != null && (
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-sm text-gray-500 w-24 shrink-0">Distance:</span>
-                    <span className="text-sm font-medium text-gray-800">{delivery.distanceKm} km</span>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-sm text-gray-500 w-24 shrink-0">Value:</span>
+                      <span className="text-sm font-semibold text-gray-900">
+                        {formatValue(delivery.estimated_value)}
+                      </span>
+                    </div>
+                    {totalVolume > 0 && (
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm text-gray-500 w-24 shrink-0">Volume:</span>
+                        <span className="text-sm font-medium text-gray-800">
+                          {totalVolume.toLocaleString("en-KE")} cm³
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-sm text-gray-500 w-24 shrink-0">Scheduled:</span>
+                      <span className="text-sm font-medium text-gray-800">
+                        {formatScheduled(delivery.drop_time)}
+                      </span>
+                    </div>
+                    {delivery.distanceKm != null && (
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm text-gray-500 w-24 shrink-0">Distance:</span>
+                        <span className="text-sm font-medium text-gray-800">{delivery.distanceKm} km</span>
+                      </div>
+                    )}
+                    {delivery.weight && (
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm text-gray-500 w-24 shrink-0">Weight:</span>
+                        <span className="text-sm font-medium text-gray-800">{delivery.weight} kg</span>
+                      </div>
+                    )}
                   </div>
-                )}
-                {delivery.weight && (
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-sm text-gray-500 w-24 shrink-0">Weight:</span>
-                    <span className="text-sm font-medium text-gray-800">{delivery.weight} kg</span>
-                  </div>
-                )}
-              </div>
+                );
+              })()}
             </div>
           </div>
 

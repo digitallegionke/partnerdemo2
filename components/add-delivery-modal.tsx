@@ -11,6 +11,8 @@ import {
   Car,
   Truck,
   Ruler,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +30,7 @@ export type DeliverySizeKey = "S" | "M" | "L" | "XL";
 
 export type DeliveryPriority = "standard" | "express";
 
-export type DeliveryItem = { name: string; value: string; weight: string };
+export type DeliveryItem = { name: string; value: string; weight: string; size: DeliverySizeKey | "" };
 
 export type CreateDeliveryPayload = {
   customer_name: string;
@@ -56,6 +58,21 @@ const DELIVERY_SIZES: {
   { key: "XL", dims: "Over 40 × 40 × 40 cm", vehicle: "Pickup Truck", Icon: Truck },
 ];
 
+const DELIVERY_SIZE_VOLUMES: Record<DeliverySizeKey, number> = {
+  S: 20 * 7 * 15,
+  M: 37 * 18 * 30,
+  L: 48 * 23 * 38,
+  XL: 40 * 40 * 40,
+};
+
+function getDeliverySizeFromVolume(volume: number): DeliverySizeKey {
+  if (volume <= DELIVERY_SIZE_VOLUMES.S) return "S";
+  if (volume <= DELIVERY_SIZE_VOLUMES.M) return "M";
+  if (volume <= DELIVERY_SIZE_VOLUMES.L) return "L";
+  return "XL";
+}
+
+
 const EMPTY_FORM = {
   clientQuery: "",
   selectedClient: "" as string,
@@ -68,7 +85,7 @@ const EMPTY_FORM = {
   location: "",
   lat: "",
   lng: "",
-  items: [{ name: "", value: "", weight: "" }] as DeliveryItem[],
+  items: [] as DeliveryItem[],
   drop_time: "",
   priority: "standard" as DeliveryPriority,
 };
@@ -153,12 +170,16 @@ export default function AddDeliveryModal({
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [showClientResults, setShowClientResults] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<DeliveryItem>({ name: "", value: "", weight: "", size: "" });
 
   useEffect(() => {
     if (!open) {
       setForm(EMPTY_FORM);
       setFormError(null);
       setShowClientResults(false);
+      setEditingIndex(null);
+      setEditForm({ name: "", value: "", weight: "", size: "" });
     }
   }, [open]);
 
@@ -189,6 +210,27 @@ export default function AddDeliveryModal({
     [form.items]
   );
 
+  const totalVolume = useMemo(
+    () => form.items.reduce((sum, item) => {
+      if (!item.size) return sum;
+      return sum + DELIVERY_SIZE_VOLUMES[item.size];
+    }, 0),
+    [form.items]
+  );
+
+  useEffect(() => {
+    if (totalVolume > 0) {
+      setForm((f) => ({ ...f, deliverySize: getDeliverySizeFromVolume(totalVolume) }));
+    }
+  }, [totalVolume]);
+
+  useEffect(() => {
+    if (form.items.length === 0) {
+      setEditingIndex(-1);
+      setEditForm({ name: "", value: "", weight: "", size: "" });
+    }
+  }, [form.items.length]);
+
   const handlePickupSelect = (result: AddressSelectResult) => {
     setForm((f) => ({
       ...f,
@@ -212,6 +254,29 @@ export default function AddDeliveryModal({
     if (!q) return clientOptions.slice(0, 8);
     return clientOptions.filter((c) => c.toLowerCase().includes(q)).slice(0, 8);
   }, [form.clientQuery, clientOptions]);
+
+  const handleSaveItem = () => {
+    if (!editForm.name.trim()) return;
+    setForm((f) => {
+      if (editingIndex === -1) return { ...f, items: [...f.items, editForm] };
+      return { ...f, items: f.items.map((it, i) => (i === editingIndex ? editForm : it)) };
+    });
+    setEditingIndex(null);
+    setEditForm({ name: "", value: "", weight: "", size: "" });
+  };
+
+  const handleEditItem = (index: number) => {
+    setEditForm(form.items[index]);
+    setEditingIndex(index);
+  };
+
+  const handleDeleteItem = (index: number) => {
+    setForm((f) => ({ ...f, items: f.items.filter((_, i) => i !== index) }));
+    if (editingIndex === index) {
+      setEditingIndex(null);
+      setEditForm({ name: "", value: "", weight: "", size: "" });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -248,6 +313,10 @@ export default function AddDeliveryModal({
     const validItems = form.items.filter((i) => i.name.trim());
     if (validItems.length === 0) {
       setFormError("At least one item is required.");
+      return;
+    }
+    if (validItems.some((i) => !i.size)) {
+      setFormError("Please select a size for each item.");
       return;
     }
     if (!form.drop_time) {
@@ -377,12 +446,23 @@ export default function AddDeliveryModal({
 
             {/* Delivery size */}
             <div>
-              <FieldLabel required hint="determines vehicle type">
-                Delivery Size
-              </FieldLabel>
+              <div className="flex items-center justify-between">
+                <FieldLabel required hint="auto-selected from item sizes">
+                  Delivery Size
+                </FieldLabel>
+                {totalVolume > 0 && (
+                  <span className="text-xs text-gray-500">
+                    Items total:{" "}
+                    <span className="font-semibold text-gray-700">
+                      {totalVolume.toLocaleString("en-KE")} cm³
+                    </span>
+                  </span>
+                )}
+              </div>
               <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {DELIVERY_SIZES.map(({ key, dims, vehicle, Icon }) => {
                   const selected = form.deliverySize === key;
+                  const vol = DELIVERY_SIZE_VOLUMES[key];
                   return (
                     <button
                       key={key}
@@ -404,7 +484,10 @@ export default function AddDeliveryModal({
                         {key}
                       </span>
                       <p className="mt-2 text-[11px] leading-snug text-gray-500">{dims}</p>
-                      <div className="mt-2 flex items-center gap-1 text-xs font-medium text-gray-700">
+                      <p className="text-[10px] text-gray-400 mt-0.5">
+                        {vol.toLocaleString("en-KE")} cm³
+                      </p>
+                      <div className="mt-1.5 flex items-center gap-1 text-xs font-medium text-gray-700">
                         <Icon className="h-3.5 w-3.5 shrink-0" />
                         {vehicle}
                       </div>
@@ -412,6 +495,11 @@ export default function AddDeliveryModal({
                   );
                 })}
               </div>
+              {totalVolume > 0 && (
+                <p className="mt-1.5 text-[11px] text-emerald-700">
+                  Auto-selected based on total item volume — you can override manually.
+                </p>
+              )}
             </div>
 
             {/* Customer + phone */}
@@ -548,126 +636,176 @@ export default function AddDeliveryModal({
             {/* Items */}
             <div>
               <FieldLabel required>Items</FieldLabel>
-              {form.items.length === 1 ? (
-                /* Single item — stacked layout (name + value/weight side by side) */
-                <div className="mt-2 space-y-2">
+
+              {form.items.length > 0 && (
+                <div className="mt-2 rounded-lg border border-gray-200 overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>
+                        <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Item</th>
+                        <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Size</th>
+                        <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-500 uppercase tracking-wide">Value</th>
+                        <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-500 uppercase tracking-wide">Weight</th>
+                        <th className="w-16" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {form.items.map((item, index) => (
+                        <tr
+                          key={index}
+                          className={`transition-colors ${editingIndex === index ? "bg-emerald-50/40" : "hover:bg-gray-50/50"}`}
+                        >
+                          <td className="px-3 py-2.5 font-medium text-gray-900">{item.name}</td>
+                          <td className="px-3 py-2.5">
+                            {item.size ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-700">
+                                {item.size}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-gray-600">
+                            {item.value
+                              ? `KSh ${parseFloat(item.value.replace(/[^\d.]/g, "")).toLocaleString("en-KE")}`
+                              : <span className="text-gray-400 text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-2.5 text-right text-gray-600">
+                            {item.weight ? `${item.weight} kg` : <span className="text-gray-400 text-xs">—</span>}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <div className="flex gap-0.5 justify-end">
+                              <button
+                                type="button"
+                                onClick={() => handleEditItem(index)}
+                                className="p-1.5 rounded text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteItem(index)}
+                                className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {editingIndex !== null && (
+                <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/20 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-emerald-700">
+                    {editingIndex === -1 ? "New item" : "Edit item"}
+                  </p>
                   <input
+                    autoFocus
                     autoComplete="new-password"
                     placeholder="What's being delivered?"
-                    value={form.items[0].name}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, items: [{ ...f.items[0], name: e.target.value }] }))
-                    }
+                    value={editForm.name}
+                    onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
                     className={inputCls}
                   />
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="flex gap-1.5">
+                    {DELIVERY_SIZES.map(({ key, dims, Icon }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        title={`${key}: ${dims}`}
+                        onClick={() => setEditForm((f) => ({ ...f, size: key }))}
+                        className={`flex-1 rounded-lg border-2 py-1.5 flex flex-col items-center gap-0.5 text-[11px] font-bold transition-all ${
+                          editForm.size === key
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                            : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                        }`}
+                      >
+                        <Icon className="h-3 w-3" />
+                        {key}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
                     <input
                       autoComplete="new-password"
                       placeholder="Estimated value (KSh)"
                       inputMode="decimal"
-                      value={form.items[0].value}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, items: [{ ...f.items[0], value: e.target.value }] }))
-                      }
+                      value={editForm.value}
+                      onChange={(e) => setEditForm((f) => ({ ...f, value: e.target.value }))}
                       className={inputCls}
                     />
                     <input
                       autoComplete="new-password"
                       placeholder="Weight (kg)"
                       inputMode="decimal"
-                      value={form.items[0].weight}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, items: [{ ...f.items[0], weight: e.target.value }] }))
-                      }
+                      value={editForm.weight}
+                      onChange={(e) => setEditForm((f) => ({ ...f, weight: e.target.value }))}
                       className={inputCls}
                     />
                   </div>
-                </div>
-              ) : (
-                /* Multiple items — compact rows: name · value · weight · × */
-                <div className="mt-2 space-y-2">
-                  {form.items.map((item, index) => (
-                    <div key={index} className="flex gap-2 items-center">
-                      <input
-                        autoComplete="new-password"
-                        placeholder="Item name"
-                        value={item.name}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            items: f.items.map((it, i) =>
-                              i === index ? { ...it, name: e.target.value } : it
-                            ),
-                          }))
-                        }
-                        className="min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500"
-                      />
-                      <input
-                        autoComplete="new-password"
-                        placeholder="KSh"
-                        inputMode="decimal"
-                        value={item.value}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            items: f.items.map((it, i) =>
-                              i === index ? { ...it, value: e.target.value } : it
-                            ),
-                          }))
-                        }
-                        className="w-24 shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500"
-                      />
-                      <input
-                        autoComplete="new-password"
-                        placeholder="kg"
-                        inputMode="decimal"
-                        value={item.weight}
-                        onChange={(e) =>
-                          setForm((f) => ({
-                            ...f,
-                            items: f.items.map((it, i) =>
-                              i === index ? { ...it, weight: e.target.value } : it
-                            ),
-                          }))
-                        }
-                        className="w-20 shrink-0 rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500"
-                      />
+                  <div className="flex gap-2 justify-end pt-0.5">
+                    {(editingIndex !== -1 || form.items.length > 0) && (
                       <button
                         type="button"
-                        onClick={() =>
-                          setForm((f) => ({
-                            ...f,
-                            items: f.items.filter((_, i) => i !== index),
-                          }))
-                        }
-                        className="p-1.5 text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                        onClick={() => setEditingIndex(null)}
+                        className="px-3 py-1.5 text-xs text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
                       >
-                        <X className="h-4 w-4" />
+                        Cancel
                       </button>
-                    </div>
-                  ))}
+                    )}
+                    <button
+                      type="button"
+                      disabled={!editForm.name.trim() || !editForm.size}
+                      onClick={handleSaveItem}
+                      className="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {editingIndex === -1 ? "Add Item" : "Save Changes"}
+                    </button>
+                  </div>
                 </div>
               )}
-              <div className="flex items-center justify-between mt-2">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setForm((f) => ({
-                      ...f,
-                      items: [...f.items, { name: "", value: "", weight: "" }],
-                    }))
-                  }
-                  className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 hover:text-emerald-800 transition-colors"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Item
-                </button>
-                {(totalValue > 0 || totalWeight > 0) && (
-                  <p className="text-sm font-semibold text-gray-900">
-                    {totalValue > 0 && `KSh ${totalValue.toLocaleString("en-KE")}`}
-                    {totalValue > 0 && totalWeight > 0 && " · "}
-                    {totalWeight > 0 && `${Math.round(totalWeight * 100) / 100} kg`}
-                  </p>
+
+              <div className="flex items-center justify-between mt-3">
+                {editingIndex === null ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditForm({ name: "", value: "", weight: "", size: "" });
+                      setEditingIndex(-1);
+                    }}
+                    className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 hover:text-emerald-800 transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add Item
+                  </button>
+                ) : (
+                  <div />
+                )}
+                {(totalValue > 0 || totalWeight > 0 || totalVolume > 0) && (
+                  <div className="flex gap-2 flex-wrap justify-end">
+                    {totalValue > 0 && (
+                      <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Approx. value</p>
+                        <p className="text-sm font-semibold text-gray-900">KSh {totalValue.toLocaleString("en-KE")}</p>
+                      </div>
+                    )}
+                    {totalWeight > 0 && (
+                      <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Total weight</p>
+                        <p className="text-sm font-semibold text-gray-900">{Math.round(totalWeight * 100) / 100} kg</p>
+                      </div>
+                    )}
+                    {totalVolume > 0 && (
+                      <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Total volume</p>
+                        <p className="text-sm font-semibold text-gray-900">{totalVolume.toLocaleString("en-KE")} cm³</p>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
