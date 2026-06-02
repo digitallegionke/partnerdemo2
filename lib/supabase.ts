@@ -930,6 +930,40 @@ export interface Database {
           updated_at?: string;
         };
       };
+      partner_clients: {
+        Row: {
+          id: number;
+          provider_id: number;
+          company_name: string;
+          contact_name: string;
+          phone: string;
+          email: string | null;
+          area: string | null;
+          note: string | null;
+          status: "active" | "inactive";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          provider_id: number;
+          company_name: string;
+          contact_name: string;
+          phone: string;
+          email?: string | null;
+          area?: string | null;
+          note?: string | null;
+          status?: "active" | "inactive";
+        };
+        Update: {
+          company_name?: string;
+          contact_name?: string;
+          phone?: string;
+          email?: string | null;
+          area?: string | null;
+          note?: string | null;
+          status?: "active" | "inactive";
+        };
+      };
       partner_driver_vehicle_assignments: {
         Row: {
           id: number;

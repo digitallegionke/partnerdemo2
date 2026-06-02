@@ -31,8 +31,28 @@ import type {
   DeliveryPriority,
   DeliverySizeKey,
 } from "@/components/add-delivery-modal";
-import { parsePointCoordinates } from "@/lib/supabase";
+import { parsePointCoordinates, supabase } from "@/lib/supabase";
 import type { Database } from "@/lib/supabase";
+
+type ClientOption = {
+  id: number;
+  company_name: string;
+  contact_name: string;
+  status: string;
+};
+
+async function fetchActiveClients(): Promise<ClientOption[]> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token ? `Bearer ${session.access_token}` : "";
+    const res = await fetch("/api/clients", { headers: { Authorization: token } });
+    if (!res.ok) return [];
+    const data: ClientOption[] = await res.json();
+    return data.filter((c) => c.status === "active");
+  } catch {
+    return [];
+  }
+}
 
 type PartnerDelivery = Database["public"]["Tables"]["partner_deliveries"]["Row"];
 
@@ -232,6 +252,7 @@ function FieldLabel({
   );
 }
 
+
 const inputCls =
   "mt-1.5 w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-500";
 
@@ -241,7 +262,7 @@ interface EditDeliveryModalProps {
   delivery: PartnerDelivery | null;
   onSubmit: (id: number, payload: CreateDeliveryPayload) => Promise<void>;
   saving?: boolean;
-  clientOptions?: string[];
+  clientOptions?: string[]; // kept for backward compat, ignored
 }
 
 export default function EditDeliveryModal({
@@ -250,15 +271,18 @@ export default function EditDeliveryModal({
   delivery,
   onSubmit,
   saving = false,
-  clientOptions = [],
 }: EditDeliveryModalProps) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [showClientResults, setShowClientResults] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<DeliveryItem>({ name: "", value: "", weight: "", size: "" });
+  const [clients, setClients] = useState<ClientOption[]>([]);
 
   useEffect(() => {
+    if (open) {
+      fetchActiveClients().then(setClients);
+    }
     if (open && delivery) {
       setForm(formFromDelivery(delivery));
       setFormError(null);
@@ -342,9 +366,15 @@ export default function EditDeliveryModal({
 
   const filteredClients = useMemo(() => {
     const q = form.clientQuery.trim().toLowerCase();
-    if (!q) return clientOptions.slice(0, 8);
-    return clientOptions.filter((c) => c.toLowerCase().includes(q)).slice(0, 8);
-  }, [form.clientQuery, clientOptions]);
+    if (!q) return clients.slice(0, 8);
+    return clients
+      .filter(
+        (c) =>
+          c.company_name.toLowerCase().includes(q) ||
+          c.contact_name.toLowerCase().includes(q)
+      )
+      .slice(0, 8);
+  }, [form.clientQuery, clients]);
 
   const handleSaveItem = () => {
     if (!editForm.name.trim()) return;
@@ -471,7 +501,7 @@ export default function EditDeliveryModal({
   if (!open || !delivery) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 px-4 pt-6 pb-10">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-3xl max-h-[92vh] flex flex-col">
         <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b shrink-0">
           <div>
@@ -493,467 +523,472 @@ export default function EditDeliveryModal({
         <form onSubmit={handleSubmit} autoComplete="new-password" className="flex flex-col min-h-0 flex-1">
           <div className="overflow-y-auto px-6 py-5 space-y-5">
 
-            {/* Client */}
-            <div className="relative">
-              <FieldLabel hint="optional">Client</FieldLabel>
-              <div className="relative mt-1.5">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                <input
-                  type="text"
-                  autoComplete="new-password"
-                  placeholder="Search clients..."
-                  value={form.clientQuery}
-                  onChange={(e) => {
-                    setForm((f) => ({
-                      ...f,
-                      clientQuery: e.target.value,
-                      selectedClient: "",
-                    }));
-                    setShowClientResults(true);
-                  }}
-                  onFocus={() => setShowClientResults(true)}
-                  className={`${inputCls} pl-9 mt-0`}
-                />
-                <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300 pointer-events-none" />
-              </div>
-              {showClientResults && filteredClients.length > 0 && (
-                <ul className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg py-1 max-h-40 overflow-auto">
-                  {filteredClients.map((name) => (
-                    <li key={name}>
-                      <button
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                        onClick={() => {
-                          setForm((f) => ({
-                            ...f,
-                            clientQuery: name,
-                            selectedClient: name,
-                          }));
-                          setShowClientResults(false);
-                        }}
-                      >
-                        {name}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {/* Delivery size */}
-            <div>
-              <div className="flex items-center justify-between">
-                <FieldLabel required hint="auto-selected from item sizes">
-                  Delivery Size
-                </FieldLabel>
-                {totalVolume > 0 && (
-                  <span className="text-xs text-gray-500">
-                    Items total:{" "}
-                    <span className="font-semibold text-gray-700">
-                      {totalVolume.toLocaleString("en-KE")} cm³
-                    </span>
-                  </span>
+            {/* ── Client ─────────────────────────────── */}
+              <div className="relative">
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    autoComplete="new-password"
+                    placeholder="Search clients..."
+                    value={form.clientQuery}
+                    onChange={(e) => {
+                      setForm((f) => ({
+                        ...f,
+                        clientQuery: e.target.value,
+                        selectedClient: "",
+                      }));
+                      setShowClientResults(true);
+                    }}
+                    onFocus={() => setShowClientResults(true)}
+                    onBlur={() => setTimeout(() => setShowClientResults(false), 150)}
+                    className={`${inputCls} pl-9 mt-0`}
+                  />
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300 pointer-events-none" />
+                </div>
+                {showClientResults && filteredClients.length > 0 && (
+                  <ul
+                    className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg py-1 max-h-48 overflow-auto"
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    {filteredClients.map((c) => (
+                      <li key={c.id}>
+                        <button
+                          type="button"
+                          className="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors"
+                          onClick={() => {
+                            setForm((f) => ({
+                              ...f,
+                              clientQuery: c.company_name,
+                              selectedClient: c.company_name,
+                            }));
+                            setShowClientResults(false);
+                          }}
+                        >
+                          <p className="text-sm font-medium text-gray-800">{c.company_name}</p>
+                          <p className="text-xs text-gray-400">{c.contact_name}</p>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {showClientResults && form.clientQuery.trim() && filteredClients.length === 0 && (
+                  <div className="absolute z-10 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg px-3 py-3">
+                    <p className="text-sm text-gray-400">No active clients found</p>
+                  </div>
                 )}
               </div>
-              <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {DELIVERY_SIZES.map(({ key, dims, vehicle, Icon }) => {
-                  const selected = form.deliverySize === key;
-                  const vol = DELIVERY_SIZE_VOLUMES[key];
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, deliverySize: key }))}
-                      className={`rounded-xl border-2 p-3 text-left transition-all ${
-                        selected
-                          ? "border-emerald-500 bg-emerald-50/80 ring-1 ring-emerald-500/30"
-                          : "border-gray-200 bg-white hover:border-gray-300"
-                      }`}
-                    >
-                      <span
-                        className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${
-                          selected
-                            ? "bg-emerald-600 text-white"
-                            : "bg-emerald-100 text-emerald-800"
-                        }`}
-                      >
-                        {key}
+
+            {/* ── Delivery Size ──────────────────────── */}
+              <div>
+                <div className="flex items-center justify-between">
+                  <FieldLabel required hint="auto-selected from item sizes">
+                    Delivery Size
+                  </FieldLabel>
+                  {totalVolume > 0 && (
+                    <span className="text-xs text-gray-500">
+                      Items total:{" "}
+                      <span className="font-semibold text-gray-700">
+                        {totalVolume.toLocaleString("en-KE")} cm³
                       </span>
-                      <p className="mt-2 text-[11px] leading-snug text-gray-500">{dims}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">
-                        {vol.toLocaleString("en-KE")} cm³
-                      </p>
-                      <div className="mt-1.5 flex items-center gap-1 text-xs font-medium text-gray-700">
-                        <Icon className="h-3.5 w-3.5 shrink-0" />
-                        {vehicle}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-              {totalVolume > 0 && (
-                <p className="mt-1.5 text-[11px] text-emerald-700">
-                  Auto-selected based on total item volume — you can override manually.
-                </p>
-              )}
-            </div>
-
-            {/* Customer + phone */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <FieldLabel required>Customer Name</FieldLabel>
-                <input
-                  required
-                  autoComplete="new-password"
-                  placeholder="Recipient name"
-                  value={form.customer_name}
-                  onChange={(e) => setForm((f) => ({ ...f, customer_name: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <FieldLabel required>Phone Number</FieldLabel>
-                <input
-                  required
-                  type="tel"
-                  autoComplete="new-password"
-                  placeholder="+254 712 345 678"
-                  value={form.phone}
-                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-            </div>
-
-            {/* Pick Up Location */}
-            <div>
-              <FieldLabel required>Pick Up Location</FieldLabel>
-              <AddressSearch
-                value={form.pickup_location}
-                placeholder="Enter pick up address"
-                className="mt-1.5"
-                countryCode="ke"
-                onSelect={handlePickupSelect}
-              />
-              {formatCoordPreview(form.pickup_lat, form.pickup_lng) && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Coordinates: {formatCoordPreview(form.pickup_lat, form.pickup_lng)}
-                </p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <FieldLabel required>Pick Up Latitude</FieldLabel>
-                <input
-                  required
-                  type="text"
-                  inputMode="decimal"
-                  autoComplete="new-password"
-                  placeholder="-1.2921"
-                  value={form.pickup_lat}
-                  onChange={(e) => setForm((f) => ({ ...f, pickup_lat: e.target.value }))}
-                  onFocus={() => setShowClientResults(false)}
-                  className={inputCls}
-                />
-                <p className="mt-1 text-xs text-gray-500">Auto-filled when selecting address</p>
-              </div>
-              <div>
-                <FieldLabel required>Pick Up Longitude</FieldLabel>
-                <input
-                  required
-                  type="text"
-                  inputMode="decimal"
-                  autoComplete="new-password"
-                  placeholder="36.8219"
-                  value={form.pickup_lng}
-                  onChange={(e) => setForm((f) => ({ ...f, pickup_lng: e.target.value }))}
-                  onFocus={() => setShowClientResults(false)}
-                  className={inputCls}
-                />
-                <p className="mt-1 text-xs text-gray-500">Auto-filled when selecting address</p>
-              </div>
-            </div>
-
-            {/* Drop Off Location */}
-            <div>
-              <FieldLabel required>Drop Off Location</FieldLabel>
-              <AddressSearch
-                value={form.location}
-                placeholder="Enter drop off address"
-                className="mt-1.5"
-                countryCode="ke"
-                onSelect={handleDropoffSelect}
-              />
-              {formatCoordPreview(form.lat, form.lng) && (
-                <p className="text-xs text-gray-500 mt-1">
-                  Coordinates: {formatCoordPreview(form.lat, form.lng)}
-                </p>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <FieldLabel required>Drop Off Latitude</FieldLabel>
-                <input
-                  id="edit-delivery-latitude"
-                  name="latitude"
-                  required
-                  type="text"
-                  inputMode="decimal"
-                  autoComplete="new-password"
-                  placeholder="-1.2921"
-                  value={form.lat}
-                  onChange={(e) => setForm((f) => ({ ...f, lat: e.target.value }))}
-                  onFocus={() => setShowClientResults(false)}
-                  className={inputCls}
-                />
-                <p className="mt-1 text-xs text-gray-500">Auto-filled when selecting address</p>
-              </div>
-              <div>
-                <FieldLabel required>Drop Off Longitude</FieldLabel>
-                <input
-                  id="edit-delivery-longitude"
-                  name="longitude"
-                  required
-                  type="text"
-                  inputMode="decimal"
-                  autoComplete="new-password"
-                  placeholder="36.8219"
-                  value={form.lng}
-                  onChange={(e) => setForm((f) => ({ ...f, lng: e.target.value }))}
-                  onFocus={() => setShowClientResults(false)}
-                  className={inputCls}
-                />
-                <p className="mt-1 text-xs text-gray-500">Auto-filled when selecting address</p>
-              </div>
-            </div>
-
-            {/* Items */}
-            <div>
-              <FieldLabel required>Items</FieldLabel>
-
-              {form.items.length > 0 && (
-                <div className="mt-2 rounded-lg border border-gray-200 overflow-hidden">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b border-gray-100">
-                      <tr>
-                        <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Item</th>
-                        <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Size</th>
-                        <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-500 uppercase tracking-wide">Value</th>
-                        <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-500 uppercase tracking-wide">Weight</th>
-                        <th className="w-16" />
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {form.items.map((item, index) => (
-                        <tr
-                          key={index}
-                          className={`transition-colors ${editingIndex === index ? "bg-emerald-50/40" : "hover:bg-gray-50/50"}`}
-                        >
-                          <td className="px-3 py-2.5 font-medium text-gray-900">{item.name}</td>
-                          <td className="px-3 py-2.5">
-                            {item.size ? (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-700">
-                                {item.size}
-                              </span>
-                            ) : (
-                              <span className="text-gray-400 text-xs">—</span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2.5 text-right text-gray-600">
-                            {item.value
-                              ? `KSh ${parseFloat(item.value.replace(/[^\d.]/g, "")).toLocaleString("en-KE")}`
-                              : <span className="text-gray-400 text-xs">—</span>}
-                          </td>
-                          <td className="px-3 py-2.5 text-right text-gray-600">
-                            {item.weight ? `${item.weight} kg` : <span className="text-gray-400 text-xs">—</span>}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <div className="flex gap-0.5 justify-end">
-                              <button
-                                type="button"
-                                onClick={() => handleEditItem(index)}
-                                className="p-1.5 rounded text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteItem(index)}
-                                className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                    </span>
+                  )}
                 </div>
-              )}
-
-              {editingIndex !== null && (
-                <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/20 p-3 space-y-2">
-                  <p className="text-xs font-semibold text-emerald-700">
-                    {editingIndex === -1 ? "New item" : "Edit item"}
-                  </p>
-                  <input
-                    autoFocus
-                    autoComplete="new-password"
-                    placeholder="What's being delivered?"
-                    value={editForm.name}
-                    onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
-                    className={inputCls}
-                  />
-                  <div className="flex gap-1.5">
-                    {DELIVERY_SIZES.map(({ key, dims, Icon }) => (
+                <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {DELIVERY_SIZES.map(({ key, dims, vehicle, Icon }) => {
+                    const selected = form.deliverySize === key;
+                    const vol = DELIVERY_SIZE_VOLUMES[key];
+                    return (
                       <button
                         key={key}
                         type="button"
-                        title={`${key}: ${dims}`}
-                        onClick={() => setEditForm((f) => ({ ...f, size: key }))}
-                        className={`flex-1 rounded-lg border-2 py-1.5 flex flex-col items-center gap-0.5 text-[11px] font-bold transition-all ${
-                          editForm.size === key
-                            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                            : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                        onClick={() => setForm((f) => ({ ...f, deliverySize: key }))}
+                        className={`rounded-xl border-2 p-3 text-left transition-all ${
+                          selected
+                            ? "border-emerald-500 bg-emerald-50/80 ring-1 ring-emerald-500/30"
+                            : "border-gray-200 bg-white hover:border-gray-300"
                         }`}
                       >
-                        <Icon className="h-3 w-3" />
-                        {key}
+                        <span
+                          className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${
+                            selected
+                              ? "bg-emerald-600 text-white"
+                              : "bg-emerald-100 text-emerald-800"
+                          }`}
+                        >
+                          {key}
+                        </span>
+                        <p className="mt-2 text-[11px] leading-snug text-gray-500">{dims}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5">
+                          {vol.toLocaleString("en-KE")} cm³
+                        </p>
+                        <div className="mt-1.5 flex items-center gap-1 text-xs font-medium text-gray-700">
+                          <Icon className="h-3.5 w-3.5 shrink-0" />
+                          {vehicle}
+                        </div>
                       </button>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      autoComplete="new-password"
-                      placeholder="Estimated value (KSh)"
-                      inputMode="decimal"
-                      value={editForm.value}
-                      onChange={(e) => setEditForm((f) => ({ ...f, value: e.target.value }))}
-                      className={inputCls}
-                    />
-                    <input
-                      autoComplete="new-password"
-                      placeholder="Weight (kg)"
-                      inputMode="decimal"
-                      value={editForm.weight}
-                      onChange={(e) => setEditForm((f) => ({ ...f, weight: e.target.value }))}
-                      className={inputCls}
-                    />
-                  </div>
-                  <div className="flex gap-2 justify-end pt-0.5">
-                    {(editingIndex !== -1 || form.items.length > 0) && (
-                      <button
-                        type="button"
-                        onClick={() => setEditingIndex(null)}
-                        className="px-3 py-1.5 text-xs text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      disabled={!editForm.name.trim() || !editForm.size}
-                      onClick={handleSaveItem}
-                      className="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {editingIndex === -1 ? "Add Item" : "Save Changes"}
-                    </button>
-                  </div>
+                    );
+                  })}
                 </div>
-              )}
-
-              <div className="flex items-center justify-between mt-3">
-                {editingIndex === null ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEditForm({ name: "", value: "", weight: "", size: "" });
-                      setEditingIndex(-1);
-                    }}
-                    className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 hover:text-emerald-800 transition-colors"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add Item
-                  </button>
-                ) : (
-                  <div />
-                )}
-                {(totalValue > 0 || totalWeight > 0 || totalVolume > 0) && (
-                  <div className="flex gap-2 flex-wrap justify-end">
-                    {totalValue > 0 && (
-                      <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
-                        <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Approx. value</p>
-                        <p className="text-sm font-semibold text-gray-900">KSh {totalValue.toLocaleString("en-KE")}</p>
-                      </div>
-                    )}
-                    {totalWeight > 0 && (
-                      <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
-                        <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Total weight</p>
-                        <p className="text-sm font-semibold text-gray-900">{Math.round(totalWeight * 100) / 100} kg</p>
-                      </div>
-                    )}
-                    {totalVolume > 0 && (
-                      <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
-                        <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Total volume</p>
-                        <p className="text-sm font-semibold text-gray-900">{totalVolume.toLocaleString("en-KE")} cm³</p>
-                      </div>
-                    )}
-                  </div>
+                {totalVolume > 0 && (
+                  <p className="mt-1.5 text-[11px] text-emerald-700">
+                    Auto-selected based on total item volume — you can override manually.
+                  </p>
                 )}
               </div>
-            </div>
 
-            {/* Drop Time + Priority */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <FieldLabel required>Drop Time</FieldLabel>
-                <div className="relative mt-1.5">
-                  <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            {/* ── Recipient ──────────────────────────── */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <FieldLabel required>Customer Name</FieldLabel>
                   <input
                     required
-                    type="time"
-                    value={form.drop_time}
-                    onChange={(e) => setForm((f) => ({ ...f, drop_time: e.target.value }))}
-                    className={`${inputCls} pl-9 mt-0`}
+                    autoComplete="new-password"
+                    placeholder="Recipient name"
+                    value={form.customer_name}
+                    onChange={(e) => setForm((f) => ({ ...f, customer_name: e.target.value }))}
+                    className={inputCls}
+                  />
+                </div>
+                <div>
+                  <FieldLabel required>Phone Number</FieldLabel>
+                  <input
+                    required
+                    type="tel"
+                    autoComplete="new-password"
+                    placeholder="+254 712 345 678"
+                    value={form.phone}
+                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                    className={inputCls}
                   />
                 </div>
               </div>
-              <div>
-                <FieldLabel>Priority</FieldLabel>
-                <Select
-                  value={form.priority}
-                  onValueChange={(v) =>
-                    setForm((f) => ({ ...f, priority: v as DeliveryPriority }))
-                  }
-                >
-                  <SelectTrigger className="mt-1.5 h-[42px] rounded-lg border-gray-200">
-                    <SelectValue placeholder="Standard" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="standard">Standard</SelectItem>
-                    <SelectItem value="express">Express</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
 
-            {/* Distance (computed) */}
-            <div>
-              <FieldLabel hint="pick up → drop off">Distance (km)</FieldLabel>
-              <div className="relative mt-1.5">
-                <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                <input
-                  readOnly
-                  disabled
-                  value={deliveryDistanceKm != null ? String(deliveryDistanceKm) : ""}
-                  placeholder="Enter both locations above"
-                  className={`${inputCls} pl-9 mt-0 bg-gray-50 text-gray-600 cursor-not-allowed`}
+            {/* ── Pick Up ────────────────────────────── */}
+              <div>
+                <FieldLabel required>Location</FieldLabel>
+                <AddressSearch
+                  value={form.pickup_location}
+                  placeholder="Enter pick up address"
+                  className="mt-1.5"
+                  countryCode="ke"
+                  onSelect={handlePickupSelect}
                 />
+                {formatCoordPreview(form.pickup_lat, form.pickup_lng) && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Coordinates: {formatCoordPreview(form.pickup_lat, form.pickup_lng)}
+                  </p>
+                )}
               </div>
-            </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <FieldLabel required>Latitude</FieldLabel>
+                  <input
+                    required
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="new-password"
+                    placeholder="-1.2921"
+                    value={form.pickup_lat}
+                    onChange={(e) => setForm((f) => ({ ...f, pickup_lat: e.target.value }))}
+                    onFocus={() => setShowClientResults(false)}
+                    className={inputCls}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Auto-filled when selecting address</p>
+                </div>
+                <div>
+                  <FieldLabel required>Longitude</FieldLabel>
+                  <input
+                    required
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="new-password"
+                    placeholder="36.8219"
+                    value={form.pickup_lng}
+                    onChange={(e) => setForm((f) => ({ ...f, pickup_lng: e.target.value }))}
+                    onFocus={() => setShowClientResults(false)}
+                    className={inputCls}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Auto-filled when selecting address</p>
+                </div>
+              </div>
+
+            {/* ── Drop Off ───────────────────────────── */}
+              <div>
+                <FieldLabel required>Location</FieldLabel>
+                <AddressSearch
+                  value={form.location}
+                  placeholder="Enter drop off address"
+                  className="mt-1.5"
+                  countryCode="ke"
+                  onSelect={handleDropoffSelect}
+                />
+                {formatCoordPreview(form.lat, form.lng) && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Coordinates: {formatCoordPreview(form.lat, form.lng)}
+                  </p>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <FieldLabel required>Latitude</FieldLabel>
+                  <input
+                    id="edit-delivery-latitude"
+                    name="latitude"
+                    required
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="new-password"
+                    placeholder="-1.2921"
+                    value={form.lat}
+                    onChange={(e) => setForm((f) => ({ ...f, lat: e.target.value }))}
+                    onFocus={() => setShowClientResults(false)}
+                    className={inputCls}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Auto-filled when selecting address</p>
+                </div>
+                <div>
+                  <FieldLabel required>Longitude</FieldLabel>
+                  <input
+                    id="edit-delivery-longitude"
+                    name="longitude"
+                    required
+                    type="text"
+                    inputMode="decimal"
+                    autoComplete="new-password"
+                    placeholder="36.8219"
+                    value={form.lng}
+                    onChange={(e) => setForm((f) => ({ ...f, lng: e.target.value }))}
+                    onFocus={() => setShowClientResults(false)}
+                    className={inputCls}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Auto-filled when selecting address</p>
+                </div>
+              </div>
+
+            {/* ── Items ──────────────────────────────── */}
+              <div>
+                <FieldLabel required>Items</FieldLabel>
+
+                {form.items.length > 0 && (
+                  <div className="mt-2 rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-100">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Item</th>
+                          <th className="px-3 py-2 text-left text-[11px] font-medium text-gray-500 uppercase tracking-wide">Size</th>
+                          <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-500 uppercase tracking-wide">Value</th>
+                          <th className="px-3 py-2 text-right text-[11px] font-medium text-gray-500 uppercase tracking-wide">Weight</th>
+                          <th className="w-16" />
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {form.items.map((item, index) => (
+                          <tr
+                            key={index}
+                            className={`transition-colors ${editingIndex === index ? "bg-emerald-50/40" : "hover:bg-gray-50/50"}`}
+                          >
+                            <td className="px-3 py-2.5 font-medium text-gray-900">{item.name}</td>
+                            <td className="px-3 py-2.5">
+                              {item.size ? (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-700">
+                                  {item.size}
+                                </span>
+                              ) : (
+                                <span className="text-gray-400 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-gray-600">
+                              {item.value
+                                ? `KSh ${parseFloat(item.value.replace(/[^\d.]/g, "")).toLocaleString("en-KE")}`
+                                : <span className="text-gray-400 text-xs">—</span>}
+                            </td>
+                            <td className="px-3 py-2.5 text-right text-gray-600">
+                              {item.weight ? `${item.weight} kg` : <span className="text-gray-400 text-xs">—</span>}
+                            </td>
+                            <td className="px-3 py-2.5">
+                              <div className="flex gap-0.5 justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditItem(index)}
+                                  className="p-1.5 rounded text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteItem(index)}
+                                  className="p-1.5 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {editingIndex !== null && (
+                  <div className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50/20 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-emerald-700">
+                      {editingIndex === -1 ? "New item" : "Edit item"}
+                    </p>
+                    <input
+                      autoFocus
+                      autoComplete="new-password"
+                      placeholder="What's being delivered?"
+                      value={editForm.name}
+                      onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                      className={inputCls}
+                    />
+                    <div className="flex gap-1.5">
+                      {DELIVERY_SIZES.map(({ key, dims, Icon }) => (
+                        <button
+                          key={key}
+                          type="button"
+                          title={`${key}: ${dims}`}
+                          onClick={() => setEditForm((f) => ({ ...f, size: key }))}
+                          className={`flex-1 rounded-lg border-2 py-1.5 flex flex-col items-center gap-0.5 text-[11px] font-bold transition-all ${
+                            editForm.size === key
+                              ? "border-emerald-500 bg-emerald-50 text-emerald-700"
+                              : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                          }`}
+                        >
+                          <Icon className="h-3 w-3" />
+                          {key}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        autoComplete="new-password"
+                        placeholder="Estimated value (KSh)"
+                        inputMode="decimal"
+                        value={editForm.value}
+                        onChange={(e) => setEditForm((f) => ({ ...f, value: e.target.value }))}
+                        className={inputCls}
+                      />
+                      <input
+                        autoComplete="new-password"
+                        placeholder="Weight (kg)"
+                        inputMode="decimal"
+                        value={editForm.weight}
+                        onChange={(e) => setEditForm((f) => ({ ...f, weight: e.target.value }))}
+                        className={inputCls}
+                      />
+                    </div>
+                    <div className="flex gap-2 justify-end pt-0.5">
+                      {(editingIndex !== -1 || form.items.length > 0) && (
+                        <button
+                          type="button"
+                          onClick={() => setEditingIndex(null)}
+                          className="px-3 py-1.5 text-xs text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={!editForm.name.trim() || !editForm.size}
+                        onClick={handleSaveItem}
+                        className="px-3 py-1.5 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {editingIndex === -1 ? "Add Item" : "Save Changes"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between mt-3">
+                  {editingIndex === null ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditForm({ name: "", value: "", weight: "", size: "" });
+                        setEditingIndex(-1);
+                      }}
+                      className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600 hover:text-emerald-800 transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add Item
+                    </button>
+                  ) : (
+                    <div />
+                  )}
+                  {(totalValue > 0 || totalWeight > 0 || totalVolume > 0) && (
+                    <div className="flex gap-2 flex-wrap justify-end">
+                      {totalValue > 0 && (
+                        <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
+                          <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Approx. value</p>
+                          <p className="text-sm font-semibold text-gray-900">KSh {totalValue.toLocaleString("en-KE")}</p>
+                        </div>
+                      )}
+                      {totalWeight > 0 && (
+                        <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
+                          <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Total weight</p>
+                          <p className="text-sm font-semibold text-gray-900">{Math.round(totalWeight * 100) / 100} kg</p>
+                        </div>
+                      )}
+                      {totalVolume > 0 && (
+                        <div className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-1.5 text-right">
+                          <p className="text-[10px] uppercase tracking-wide text-gray-400 font-medium">Total volume</p>
+                          <p className="text-sm font-semibold text-gray-900">{totalVolume.toLocaleString("en-KE")} cm³</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            {/* ── Schedule ───────────────────────────── */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <FieldLabel required>Drop Time</FieldLabel>
+                  <div className="relative mt-1.5">
+                    <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                    <input
+                      required
+                      type="time"
+                      value={form.drop_time}
+                      onChange={(e) => setForm((f) => ({ ...f, drop_time: e.target.value }))}
+                      className={`${inputCls} pl-9 mt-0`}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <FieldLabel>Priority</FieldLabel>
+                  <Select
+                    value={form.priority}
+                    onValueChange={(v) =>
+                      setForm((f) => ({ ...f, priority: v as DeliveryPriority }))
+                    }
+                  >
+                    <SelectTrigger className="mt-1.5 h-[42px] rounded-lg border-gray-200">
+                      <SelectValue placeholder="Standard" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="standard">Standard</SelectItem>
+                      <SelectItem value="express">Express</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div>
+                <FieldLabel hint="pick up → drop off">Distance (km)</FieldLabel>
+                <div className="relative mt-1.5">
+                  <Ruler className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                  <input
+                    readOnly
+                    disabled
+                    value={deliveryDistanceKm != null ? String(deliveryDistanceKm) : ""}
+                    placeholder="Enter both locations above"
+                    className={`${inputCls} pl-9 mt-0 bg-gray-50 text-gray-600 cursor-not-allowed`}
+                  />
+                </div>
+              </div>
 
             {formError && (
               <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
