@@ -140,14 +140,36 @@ export interface Database {
           lng?: string;
         };
       };
+      partner_route_groups: {
+        Row: {
+          id: number;
+          provider_id: number;
+          name: string;
+          color: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          provider_id: number;
+          name: string;
+          color?: string;
+        };
+        Update: {
+          name?: string;
+          color?: string;
+          updated_at?: string;
+        };
+      };
       partner_routes: {
         Row: {
           id: number;
           provider_id: number;
           name: string;
+          route_name_id: number | null;
           driver_id: number | null;
+          group_id: number | null;
           status: "active" | "completed" | "pending" | "cancelled";
-          route_type: "allocation" | "managed";
+          route_type: "on_demand" | "planned";
           total_distance: number | null;
           estimated_duration: number | null;
           start_location: string | null;
@@ -170,9 +192,11 @@ export interface Database {
         Insert: {
           provider_id: number;
           name: string;
+          route_name_id?: number | null;
           driver_id?: number | null;
+          group_id?: number | null;
           status?: "active" | "completed" | "pending" | "cancelled";
-          route_type?: "allocation" | "managed";
+          route_type?: "on_demand" | "planned";
           total_distance?: number | null;
           estimated_duration?: number | null;
           start_location?: string | null;
@@ -192,9 +216,11 @@ export interface Database {
         };
         Update: {
           name?: string;
+          route_name_id?: number | null;
           driver_id?: number | null;
+          group_id?: number | null;
           status?: "active" | "completed" | "pending" | "cancelled";
-          route_type?: "allocation" | "managed";
+          route_type?: "on_demand" | "planned";
           total_distance?: number | null;
           estimated_duration?: number | null;
           start_location?: string | null;
@@ -276,6 +302,7 @@ export interface Database {
           id: number;
           provider_id: number;
           route_id: number | null;
+          route_name_id: number | null;
           customer_name: string;
           pickup_location: string | null;
           pickup_coordinates: string | null;
@@ -295,6 +322,7 @@ export interface Database {
         Insert: {
           provider_id: number;
           route_id?: number | null;
+          route_name_id?: number | null;
           customer_name: string;
           pickup_location?: string | null;
           pickup_coordinates?: string | null;
@@ -311,6 +339,7 @@ export interface Database {
         };
         Update: {
           route_id?: number | null;
+          route_name_id?: number | null;
           customer_name?: string;
           pickup_location?: string | null;
           pickup_coordinates?: string | null;
@@ -962,6 +991,24 @@ export interface Database {
           area?: string | null;
           note?: string | null;
           status?: "active" | "inactive";
+        };
+      };
+      partner_route_names: {
+        Row: {
+          id: number;
+          provider_id: number;
+          name: string;
+          notes: string | null;
+          created_at: string;
+        };
+        Insert: {
+          provider_id: number;
+          name: string;
+          notes?: string | null;
+        };
+        Update: {
+          name?: string;
+          notes?: string | null;
         };
       };
       partner_driver_vehicle_assignments: {

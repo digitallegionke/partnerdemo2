@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { HexColorPicker } from "react-colorful";
 import {
   Plus, Pencil, Search, X, MapPin, Clock,
-  RefreshCw, AlertCircle, ChevronRight,
+  RefreshCw, AlertCircle, ChevronRight, ChevronDown,
   ClipboardList, Eye, Package, CheckCircle, Archive,
-  Route as RouteIcon,
+  Route as RouteIcon, Layers, Trash2, User, Car,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AddressSearch from "@/components/address-search";
@@ -17,11 +18,22 @@ import { supabase, parsePointCoordinates } from "@/lib/supabase";
 
 type RouteStatus = "active" | "completed" | "pending" | "cancelled";
 
+type RouteGroup = {
+  id: number;
+  provider_id: number;
+  name: string;
+  color: string;
+  created_at: string;
+  updated_at: string;
+};
+
 type PartnerRoute = {
   id: number;
   name: string;
   status: RouteStatus;
-  route_type: "allocation" | "managed";
+  route_type: "on_demand" | "planned";
+  group_id: number | null;
+  route_name_id: number | null;
   driver_id: number | null;
   start_location: string | null;
   end_location: string | null;
@@ -49,6 +61,7 @@ type PartnerRoute = {
 type Delivery = {
   id: number;
   route_id: number | null;
+  route_name_id: number | null;
   customer_name: string;
   location: string;
   coordinates: string | number[] | object;
@@ -77,6 +90,7 @@ type DeliveryForm = {
 };
 
 type FormState = {
+  route_name_id: string;
   name: string;
   start_location: string;
   start_lat: string;
@@ -86,7 +100,7 @@ type FormState = {
   end_lng: string;
   driver_id: string;
   status: string;
-  route_type: "allocation" | "managed";
+  route_type: "on_demand" | "planned";
   service_area: string;
   active_days: string[];
   start_time: string;
@@ -120,14 +134,20 @@ const STATUS_TABS = [
 
 const MODE_TABS = [
   { key: "all", label: "All Modes" },
-  { key: "allocation", label: "Allocation" },
-  { key: "managed", label: "Managed" },
+  { key: "on_demand", label: "On-Demand Requests" },
+  { key: "planned", label: "Planned Deliveries" },
 ];
 
+const GROUP_COLORS = [
+  "#10B981", "#3B82F6", "#8B5CF6", "#F97316", "#EF4444", "#14B8A6",
+];
+
+const EMPTY_GROUP_FORM = { name: "", color: "#10B981", route_ids: [] as number[] };
+
 const EMPTY_FORM: FormState = {
-  name: "", start_location: "", start_lat: "", start_lng: "",
+  route_name_id: "", name: "", start_location: "", start_lat: "", start_lng: "",
   end_location: "", end_lat: "", end_lng: "", driver_id: "", status: "pending",
-  route_type: "allocation", service_area: "",
+  route_type: "on_demand", service_area: "",
   active_days: ["Mon","Tue","Wed","Thu","Fri"],
   start_time: "08:00", end_time: "18:00",
   min_deliveries: "", max_deliveries: "",
@@ -195,6 +215,7 @@ export default function RoutesPage() {
   const [loading, setLoading]               = useState(true);
   const [error, setError]                   = useState<string | null>(null);
   const [drivers, setDrivers]               = useState<any[]>([]);
+  const [routeNamesList, setRouteNamesList]  = useState<{ id: number; name: string }[]>([]);
   const [acceptedRequests, setAcceptedRequests] = useState<AcceptedRequest[]>([]);
   const [selectedRequestIds, setSelectedRequestIds] = useState<Set<number>>(new Set());
 
@@ -227,6 +248,32 @@ export default function RoutesPage() {
   const [wizardStep, setWizardStep]           = useState(1);
   const [wizardRequestsTab, setWizardRequestsTab] = useState<"ondemand" | "business">("ondemand");
 
+  // Route groups
+  const [groups, setGroups]                   = useState<RouteGroup[]>([]);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<number>>(new Set());
+  const [groupModalOpen, setGroupModalOpen]   = useState(false);
+  const [editingGroup, setEditingGroup]       = useState<RouteGroup | null>(null);
+  const [groupForm, setGroupForm]             = useState(EMPTY_GROUP_FORM);
+  const [savingGroup, setSavingGroup]         = useState(false);
+  const [groupFormError, setGroupFormError]   = useState<string | null>(null);
+  const [showColorWheel, setShowColorWheel]   = useState(false);
+  const [customColors, setCustomColors]       = useState<string[]>([]);
+
+  // Reusable confirm modal
+  const [confirmModal, setConfirmModal] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    onConfirm: () => void;
+  }>({ open: false, title: "", message: "", onConfirm: () => {} });
+
+  const openConfirm = (title: string, message: string, onConfirm: () => void, confirmLabel = "Delete") =>
+    setConfirmModal({ open: true, title, message, confirmLabel, onConfirm });
+
+  const closeConfirm = () =>
+    setConfirmModal((m) => ({ ...m, open: false }));
+
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
   const fetchRoutes = async () => {
@@ -245,6 +292,13 @@ export default function RoutesPage() {
     try {
       const data = await apiFetch("/api/drivers");
       setDrivers(Array.isArray(data) ? data : []);
+    } catch { /* non-blocking */ }
+  };
+
+  const fetchRouteNamesList = async () => {
+    try {
+      const data = await apiFetch("/api/route-names");
+      setRouteNamesList(Array.isArray(data) ? data.map((r: any) => ({ id: r.id, name: r.name })) : []);
     } catch { /* non-blocking */ }
   };
 
@@ -287,9 +341,17 @@ export default function RoutesPage() {
     finally { setLoadingDeliveries(false); }
   };
 
+  const fetchGroups = async () => {
+    try {
+      const data = await apiFetch("/api/route-groups");
+      setGroups(Array.isArray(data) ? data : []);
+    } catch { /* non-blocking */ }
+  };
+
   useEffect(() => {
     fetchRoutes();
     fetchDrivers();
+    fetchGroups();
   }, []);
 
   // ── Derived ────────────────────────────────────────────────────────────────
@@ -299,6 +361,7 @@ export default function RoutesPage() {
     if (activeTab === "active")      list = list.filter((r) => r.status === "active");
     else if (activeTab === "at_capacity") list = list.filter((r) => r.status === "pending");
     else if (activeTab === "archived")    list = list.filter((r) => ["completed", "cancelled"].includes(r.status));
+    if (modeTab !== "all") list = list.filter((r) => r.route_type === modeTab);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((r) =>
@@ -309,7 +372,7 @@ export default function RoutesPage() {
       );
     }
     return list;
-  }, [routes, activeTab, search]);
+  }, [routes, activeTab, modeTab, search]);
 
 
   // ── View panel ─────────────────────────────────────────────────────────────
@@ -347,6 +410,7 @@ export default function RoutesPage() {
     setWizardRequestsTab("ondemand");
     fetchUnassigned();
     fetchAcceptedRequests();
+    fetchRouteNamesList();
     setModalOpen(true);
   };
 
@@ -355,7 +419,12 @@ export default function RoutesPage() {
     setWizardStep(1);
     setWizardRequestsTab("ondemand");
     setFormError(null);
+    const namesList = await apiFetch("/api/route-names").then(
+      (d: any[]) => (Array.isArray(d) ? d.map((r: any) => ({ id: r.id, name: r.name })) : [])
+    ).catch(() => [] as { id: number; name: string }[]);
+    setRouteNamesList(namesList);
     setForm({
+      route_name_id: route.route_name_id ? String(route.route_name_id) : "",
       name: route.name,
       start_location: route.start_location ?? "",
       start_lat: "", start_lng: "",
@@ -363,7 +432,7 @@ export default function RoutesPage() {
       end_lat: "", end_lng: "",
       driver_id: route.driver_id ? String(route.driver_id) : "",
       status: route.status,
-      route_type: route.route_type ?? "allocation",
+      route_type: route.route_type ?? "on_demand",
       service_area: route.service_area ?? "",
       active_days: route.active_days ?? ["Mon","Tue","Wed","Thu","Fri"],
       start_time: route.start_time ?? "08:00",
@@ -376,8 +445,9 @@ export default function RoutesPage() {
     });
     setDeliveryMode("existing");
     setSelectedExisting(new Set());
-    await Promise.all([fetchRouteDeliveries(route.id), fetchUnassigned(), fetchAcceptedRequests()]);
     setModalOpen(true);
+    // Fetch route deliveries and unassigned in background after modal opens
+    Promise.all([fetchRouteDeliveries(route.id), fetchUnassigned(), fetchAcceptedRequests()]);
   };
 
   // ── Save ───────────────────────────────────────────────────────────────────
@@ -390,12 +460,11 @@ export default function RoutesPage() {
     try {
       const payload: any = {
         name: routeName.trim(),
+        route_name_id: form.route_name_id ? parseInt(form.route_name_id) : null,
         start_location: form.start_location || null,
         end_location: form.end_location || null,
         driver_id: form.driver_id ? parseInt(form.driver_id) : null,
         status: form.status,
-        lat: form.start_lat || "0",
-        lng: form.start_lng || "0",
         route_type: form.route_type,
         service_area: form.service_area || null,
         active_days: form.active_days,
@@ -403,9 +472,12 @@ export default function RoutesPage() {
         end_time: form.end_time,
         min_deliveries: parseInt(form.min_deliveries) || 0,
         max_deliveries: form.max_deliveries ? parseInt(form.max_deliveries) : null,
-        driver_capacity: form.route_type === "allocation" && form.driver_capacity ? parseInt(form.driver_capacity) : null,
-        max_orders: form.route_type === "managed" && form.max_orders ? parseInt(form.max_orders) : null,
-        cutoff_time: form.route_type === "managed" && form.cutoff_time ? form.cutoff_time : null,
+        driver_capacity: form.route_type === "on_demand" && form.driver_capacity ? parseInt(form.driver_capacity) : null,
+        max_orders: form.route_type === "planned" && form.max_orders ? parseInt(form.max_orders) : null,
+        cutoff_time: form.route_type === "planned" && form.cutoff_time ? form.cutoff_time : null,
+        // Only send lat/lng for new routes or when a new address was selected
+        ...(!editing && { lat: form.start_lat || "0", lng: form.start_lng || "0" }),
+        ...(editing && form.start_lat && { lat: form.start_lat, lng: form.start_lng }),
       };
 
       if (editing) {
@@ -413,39 +485,20 @@ export default function RoutesPage() {
           method: "PATCH",
           body: JSON.stringify(payload),
         });
-        setRoutes((prev) =>
-          prev.map((r) => r.id === updated.id
-            ? { ...updated, driver: r.driver, delivery_count: r.delivery_count }
-            : r
-          )
-        );
+        // Assign any newly selected deliveries to this route
+        for (const deliveryId of Array.from(selectedExisting)) {
+          await apiFetch(`/api/deliveries/${deliveryId}`, {
+            method: "PATCH", body: JSON.stringify({ route_id: editing.id }),
+          });
+        }
+        await fetchRoutes();
         setModalOpen(false);
       } else {
         const created = await apiFetch("/api/routes", { method: "POST", body: JSON.stringify(payload) });
-        if (deliveryMode === "new") {
-          const valid = newDeliveries.filter(
-            (d) => d.customer_name && d.location && d.lat && d.lng && d.phone && d.item && d.drop_time
-          );
-          for (let i = 0; i < valid.length; i++) {
-            const d = valid[i];
-            await apiFetch("/api/deliveries", {
-              method: "POST",
-              body: JSON.stringify({
-                customer_name: d.customer_name, location: d.location,
-                coordinates: [parseFloat(d.lat), parseFloat(d.lng)],
-                item: d.item, phone: d.phone, drop_time: d.drop_time,
-                estimated_value: d.estimated_value || null, weight: d.weight || null,
-                delivery_notes: d.delivery_notes || null,
-                route_id: created.id, order_index: i, status: "pending",
-              }),
-            });
-          }
-        } else {
-          for (const deliveryId of Array.from(selectedExisting)) {
-            await apiFetch(`/api/deliveries/${deliveryId}`, {
-              method: "PATCH", body: JSON.stringify({ route_id: created.id }),
-            });
-          }
+        for (const deliveryId of Array.from(selectedExisting)) {
+          await apiFetch(`/api/deliveries/${deliveryId}`, {
+            method: "PATCH", body: JSON.stringify({ route_id: created.id }),
+          });
         }
         await fetchRoutes();
         setModalOpen(false);
@@ -459,18 +512,111 @@ export default function RoutesPage() {
 
   // ── Delete / Archive ───────────────────────────────────────────────────────
 
-  const handleDelete = async (route: PartnerRoute) => {
-    if (!confirm(`Archive route "${route.name}"? All linked deliveries will be unassigned.`)) return;
-    setDeletingId(route.id);
+  const handleDelete = (route: PartnerRoute) => {
+    openConfirm(
+      `Archive "${route.name}"?`,
+      "All linked deliveries will be unassigned. This cannot be undone.",
+      async () => {
+        closeConfirm();
+        setDeletingId(route.id);
+        try {
+          await apiFetch(`/api/routes/${route.id}`, { method: "DELETE" });
+          setRoutes((prev) => prev.filter((r) => r.id !== route.id));
+          if (viewRoute?.id === route.id) setViewOpen(false);
+        } catch { /* silent — user stays in context */ }
+        finally { setDeletingId(null); }
+      },
+      "Archive"
+    );
+  };
+
+  // ── Route groups ──────────────────────────────────────────────────────────
+
+  const openCreateGroup = () => {
+    setEditingGroup(null);
+    setGroupForm(EMPTY_GROUP_FORM);
+    setGroupFormError(null);
+    setShowColorWheel(false);
+    setGroupModalOpen(true);
+  };
+
+  const openEditGroup = (group: RouteGroup) => {
+    setEditingGroup(group);
+    setGroupForm({
+      name: group.name,
+      color: group.color,
+      route_ids: routes.filter((r) => r.group_id === group.id).map((r) => r.id),
+    });
+    setGroupFormError(null);
+    setShowColorWheel(false);
+    setGroupModalOpen(true);
+  };
+
+  const handleSaveGroup = async () => {
+    if (!groupForm.name.trim()) { setGroupFormError("Group name is required."); return; }
+    setSavingGroup(true);
+    setGroupFormError(null);
     try {
-      await apiFetch(`/api/routes/${route.id}`, { method: "DELETE" });
-      setRoutes((prev) => prev.filter((r) => r.id !== route.id));
-      if (viewRoute?.id === route.id) setViewOpen(false);
+      if (editingGroup) {
+        const updated = await apiFetch(`/api/route-groups/${editingGroup.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ name: groupForm.name, color: groupForm.color, route_ids: groupForm.route_ids }),
+        });
+        setGroups((prev) => prev.map((g) => g.id === updated.id ? updated : g));
+        setRoutes((prev) => prev.map((r) => {
+          if (groupForm.route_ids.includes(r.id)) return { ...r, group_id: editingGroup.id };
+          if (r.group_id === editingGroup.id) return { ...r, group_id: null };
+          return r;
+        }));
+      } else {
+        const created = await apiFetch("/api/route-groups", {
+          method: "POST",
+          body: JSON.stringify({ name: groupForm.name, color: groupForm.color, route_ids: groupForm.route_ids }),
+        });
+        setGroups((prev) => [...prev, created]);
+        setRoutes((prev) => prev.map((r) =>
+          groupForm.route_ids.includes(r.id) ? { ...r, group_id: created.id } : r
+        ));
+      }
+      setGroupModalOpen(false);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to archive route");
+      setGroupFormError(err instanceof Error ? err.message : "Failed to save group");
     } finally {
-      setDeletingId(null);
+      setSavingGroup(false);
     }
+  };
+
+  const handleDeleteGroup = (group: RouteGroup) => {
+    openConfirm(
+      `Delete "${group.name}"?`,
+      "All routes in this group will be ungrouped. The routes themselves are not deleted.",
+      async () => {
+        closeConfirm();
+        try {
+          await apiFetch(`/api/route-groups/${group.id}`, { method: "DELETE" });
+          setGroups((prev) => prev.filter((g) => g.id !== group.id));
+          setRoutes((prev) => prev.map((r) => r.group_id === group.id ? { ...r, group_id: null } : r));
+        } catch { /* silent */ }
+      },
+      "Delete Group"
+    );
+  };
+
+  const toggleGroupCollapse = (groupId: number) => {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      next.has(groupId) ? next.delete(groupId) : next.add(groupId);
+      return next;
+    });
+  };
+
+  const toggleGroupRoute = (routeId: number) => {
+    setGroupForm((f) => ({
+      ...f,
+      route_ids: f.route_ids.includes(routeId)
+        ? f.route_ids.filter((id) => id !== routeId)
+        : [...f.route_ids, routeId],
+    }));
   };
 
   // ── View map ───────────────────────────────────────────────────────────────
@@ -563,23 +709,37 @@ export default function RoutesPage() {
               Routes & Zones
             </h1>
             <p style={{ margin: 0, fontSize: 14, color: "#6B7280" }}>
-              {routes.length} routes configured
+              {routes.length} routes · {groups.length} {groups.length === 1 ? "group" : "groups"}
             </p>
           </div>
-          <button
-            onClick={openAdd}
-            style={{
-              padding: "10px 20px", fontSize: 14, fontWeight: 600,
-              color: "#162318", backgroundColor: "#CDF782",
-              border: "none", borderRadius: 8, cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
-            }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Create Route
-          </button>
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              onClick={openCreateGroup}
+              style={{
+                padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                color: "#374151", backgroundColor: "#FFFFFF",
+                border: "1px solid #D1D5DB", borderRadius: 8, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 8,
+              }}
+            >
+              <Layers className="h-3.5 w-3.5" />
+              Create Group
+            </button>
+            <button
+              onClick={openAdd}
+              style={{
+                padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                color: "#162318", backgroundColor: "#CDF782",
+                border: "none", borderRadius: 8, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Create Route
+            </button>
+          </div>
         </div>
 
         {/* Toolbar */}
@@ -655,161 +815,177 @@ export default function RoutesPage() {
 
         ) : (
           <>
-            {/* Routes Grid */}
-            {filtered.length > 0 && (
-              <div
-                style={{
-                  padding: "0 24px 24px",
-                  display: "grid",
-                  gridTemplateColumns: viewOpen ? "repeat(auto-fill, minmax(340px, 1fr))" : "repeat(auto-fill, minmax(380px, 1fr))",
-                  gap: 20,
-                }}
-              >
-                {filtered.map((route, i) => {
-                  const statusDisplay = getStatusDisplay(route.status);
-                  const isViewing = viewRoute?.id === route.id && viewOpen;
+            {/* Routes — grouped + ungrouped */}
+            {filtered.length > 0 && (() => {
+              const gridStyle = {
+                display: "grid" as const,
+                gridTemplateColumns: viewOpen ? "repeat(auto-fill, minmax(340px, 1fr))" : "repeat(auto-fill, minmax(380px, 1fr))",
+                gap: 20,
+              };
 
-                  return (
-                    <div
-                      key={route.id}
-                      style={{
-                        backgroundColor: "#FFFFFF",
-                        border: isViewing ? "1.5px solid #0F6D48" : "1px solid #E5E7EB",
-                        borderRadius: 12,
-                        overflow: "hidden",
-                        animation: "fadeInUp 0.4s ease forwards",
-                        animationDelay: `${i * 40}ms`,
-                        opacity: 0,
-                        display: "flex",
-                        flexDirection: "column",
-                      }}
-                    >
-                      {/* Card Header */}
-                      <div style={{ padding: "20px 24px", borderBottom: "1px solid #E5E7EB", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
-                        <div>
-                          <div style={{ fontSize: 16, fontWeight: 600, color: "#1F2937", marginBottom: 4 }}>{route.name}</div>
-                          <div style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 500 }}>{routeIdLabel(route.id)}</div>
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
-                          {/* Status pill */}
-                          <span style={{
-                            display: "inline-flex", alignItems: "center", gap: 5,
-                            fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 999,
-                            backgroundColor: statusDisplay.bgColor, color: statusDisplay.textColor,
-                          }}>
-                            <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: statusDisplay.dotColor, display: "inline-block" }} />
-                            {statusDisplay.label}
-                          </span>
-                          {/* Mode badge */}
-                          <span style={{
-                            fontSize: 11, fontWeight: 600, padding: "3px 8px", borderRadius: 999,
-                            backgroundColor: route.route_type === "managed" ? "#FFF7ED" : "#EEF2FF",
-                            color: route.route_type === "managed" ? "#C2410C" : "#4338CA",
-                          }}>
-                            {route.route_type === "managed" ? "Managed" : "Allocation"}
-                          </span>
-                        </div>
+              const renderCard = (route: PartnerRoute, i: number) => {
+                const statusDisplay = getStatusDisplay(route.status);
+                const isViewing = viewRoute?.id === route.id && viewOpen;
+                const typeLabel = route.route_type;
+                const typeBg   = route.route_type === "planned" ? "#F0FDF4" : "#EEF2FF";
+                const typeColor = route.route_type === "planned" ? "#15803D" : "#4338CA";
+                const scheduleDays = Array.isArray(route.active_days) && route.active_days.length
+                  ? route.active_days.join(", ")
+                  : null;
+                const scheduleTime = route.start_time && route.end_time
+                  ? `${route.start_time} - ${route.end_time}`
+                  : null;
+                const scheduleLabel = [scheduleDays, scheduleTime].filter(Boolean).join(" · ");
+                return (
+                  <div
+                    key={route.id}
+                    style={{
+                      backgroundColor: "#FFFFFF",
+                      border: isViewing ? "1.5px solid #0F6D48" : "1px solid #E5E7EB",
+                      borderRadius: 12, overflow: "hidden",
+                      animation: "fadeInUp 0.4s ease forwards",
+                      animationDelay: `${i * 40}ms`, opacity: 0,
+                      display: "flex", flexDirection: "column",
+                    }}
+                  >
+                    {/* Header */}
+                    <div style={{ padding: "18px 20px", borderBottom: "1px solid #F3F4F6", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{route.name}</div>
+                        <div style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 500 }}>{routeIdLabel(route.id)}</div>
                       </div>
-
-                      {/* Card Info */}
-                      <div style={{ padding: "20px 24px" }}>
-                        {route.start_location && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151", marginBottom: 10 }}>
-                            <MapPin className="h-3.5 w-3.5 shrink-0" style={{ color: "#6B7280" }} />
-                            {route.start_location}
-                          </div>
-                        )}
-                        {route.end_location && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151", marginBottom: 10 }}>
-                            <ClipboardList className="h-3.5 w-3.5 shrink-0" style={{ color: "#6B7280" }} />
-                            {route.end_location}
-                          </div>
-                        )}
-                        {(route.total_distance || route.estimated_duration) && (
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151" }}>
-                            <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: "#6B7280" }} />
-                            {[
-                              route.total_distance ? `${route.total_distance.toFixed(1)} km` : null,
-                              route.estimated_duration ? formatDuration(route.estimated_duration) : null,
-                            ].filter(Boolean).join(" · ")}
-                          </div>
-                        )}
-                        {!route.start_location && !route.end_location && !route.total_distance && !route.estimated_duration && (
-                          <div style={{ fontSize: 13, color: "#9CA3AF" }}>No location info</div>
-                        )}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flexShrink: 0 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 999, backgroundColor: statusDisplay.bgColor, color: statusDisplay.textColor }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: statusDisplay.dotColor, display: "inline-block" }} />
+                          {statusDisplay.label}
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, backgroundColor: typeBg, color: typeColor }}>
+                          {typeLabel}
+                        </span>
                       </div>
+                    </div>
 
-                      {/* Card Stats */}
+                    {/* Info rows */}
+                    <div style={{ padding: "16px 20px", display: "flex", flexDirection: "column", gap: 10, flex: 1 }}>
+                      {route.start_location && (
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "#374151" }}>
+                          <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: "#10B981" }} />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{route.start_location}</span>
+                        </div>
+                      )}
+                      {route.end_location && (
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 13, color: "#374151" }}>
+                          <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: "#EF4444" }} />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{route.end_location}</span>
+                        </div>
+                      )}
+                      {route.driver && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151" }}>
+                          <User className="h-3.5 w-3.5 shrink-0" style={{ color: "#6B7280" }} />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{route.driver.name}</span>
+                        </div>
+                      )}
                       {(() => {
-                        const isManaged = route.route_type === "managed";
-                        const capacity = isManaged ? route.max_orders : route.driver_capacity;
-                        const assigned = route.delivery_count;
-                        const available = capacity != null ? Math.max(0, capacity - assigned) : null;
+                        if (!route.driver_id) return null;
+                        const driverRecord = drivers.find((d) => d.id === route.driver_id);
+                        const vehicle = driverRecord?.assigned_vehicle;
                         return (
-                          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", borderTop: "1px solid #E5E7EB", borderBottom: "1px solid #E5E7EB" }}>
-                            <div style={{ padding: 16, textAlign: "center", borderRight: "1px solid #E5E7EB" }}>
-                              <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                                {isManaged ? "Max Orders" : "Max Drivers"}
-                              </div>
-                              <div style={{ fontSize: 20, fontWeight: 600, color: "#1F2937" }}>
-                                {capacity ?? "—"}
-                              </div>
-                            </div>
-                            <div style={{ padding: 16, textAlign: "center", borderRight: "1px solid #E5E7EB" }}>
-                              <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Assigned</div>
-                              <div style={{ fontSize: 20, fontWeight: 600, color: "#1F2937" }}>{assigned}</div>
-                            </div>
-                            <div style={{ padding: 16, textAlign: "center" }}>
-                              <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.5px" }}>Available</div>
-                              <div style={{ fontSize: 20, fontWeight: 600, color: "#1F2937" }}>
-                                {available != null ? available : "—"}
-                              </div>
-                            </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: vehicle ? "#374151" : "#9CA3AF" }}>
+                            <Car className="h-3.5 w-3.5 shrink-0" style={{ color: vehicle ? "#6B7280" : "#D1D5DB" }} />
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {vehicle
+                                ? `${vehicle.plate_number}${vehicle.vehicle_type ? ` · ${vehicle.vehicle_type}` : ""}`
+                                : "No vehicle assigned yet"}
+                            </span>
                           </div>
                         );
                       })()}
-
-                      {/* Card Footer */}
-                      <div style={{ padding: "16px 24px", display: "flex", gap: 12 }}>
-                        <button
-                          onClick={() => handleView(route)}
-                          style={{
-                            flex: 1, padding: "10px 16px", fontSize: 13, fontWeight: 600,
-                            color: isViewing ? "#0F6D48" : "#374151",
-                            backgroundColor: isViewing ? "#F0FDF4" : "#FFFFFF",
-                            border: isViewing ? "1px solid #0F6D48" : "1px solid #E5E7EB",
-                            borderRadius: 6, cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                            transition: "all 0.15s",
-                          }}
-                          onMouseEnter={(e) => { if (!isViewing) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9FAFB"; }}
-                          onMouseLeave={(e) => { if (!isViewing) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#FFFFFF"; }}
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          View
-                        </button>
-                        <button
-                          onClick={() => openEdit(route)}
-                          style={{
-                            flex: 1, padding: "10px 16px", fontSize: 13, fontWeight: 600,
-                            color: "#0F6D48", backgroundColor: "#F0FDF4",
-                            border: "1px solid #0F6D48",
-                            borderRadius: 6, cursor: "pointer",
-                            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                            transition: "all 0.15s",
-                          }}
-                          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#E8F5ED")}
-                          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F0FDF4")}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          Edit
-                        </button>
-                      </div>
+                      {scheduleLabel && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151" }}>
+                          <Clock className="h-3.5 w-3.5 shrink-0" style={{ color: "#6B7280" }} />
+                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{scheduleLabel}</span>
+                        </div>
+                      )}
+                      {!route.start_location && !route.end_location && !route.driver && !scheduleLabel && (
+                        <div style={{ fontSize: 13, color: "#9CA3AF" }}>No location info</div>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            )}
+
+                    {/* Actions */}
+                    <div style={{ padding: "14px 20px", borderTop: "1px solid #F3F4F6", display: "flex", gap: 10 }}>
+                      <button onClick={() => handleView(route)} style={{ flex: 1, padding: "9px 14px", fontSize: 13, fontWeight: 600, color: isViewing ? "#0F6D48" : "#374151", backgroundColor: isViewing ? "#F0FDF4" : "#FFFFFF", border: isViewing ? "1px solid #0F6D48" : "1px solid #E5E7EB", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                        onMouseEnter={(e) => { if (!isViewing) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9FAFB"; }}
+                        onMouseLeave={(e) => { if (!isViewing) (e.currentTarget as HTMLButtonElement).style.backgroundColor = isViewing ? "#F0FDF4" : "#FFFFFF"; }}>
+                        <Eye className="h-3.5 w-3.5" /> View
+                      </button>
+                      <button onClick={() => openEdit(route)} style={{ flex: 1, padding: "9px 14px", fontSize: 13, fontWeight: 600, color: "#0F6D48", backgroundColor: "#F0FDF4", border: "1px solid #0F6D48", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                        onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#E8F5ED")}
+                        onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F0FDF4")}>
+                        <Pencil className="h-3.5 w-3.5" /> Edit
+                      </button>
+                    </div>
+                  </div>
+                );
+              };
+
+              const ungrouped = filtered.filter((r) => !r.group_id);
+
+              return (
+                <div style={{ padding: "0 24px 24px", display: "flex", flexDirection: "column", gap: 28 }}>
+                  {/* Named groups */}
+                  {groups.map((group) => {
+                    const groupRoutes = filtered.filter((r) => r.group_id === group.id);
+                    if (groupRoutes.length === 0) return null;
+                    const isCollapsed = collapsedGroups.has(group.id);
+                    return (
+                      <div key={group.id}>
+                        <div
+                          onClick={() => toggleGroupCollapse(group.id)}
+                          style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: isCollapsed ? 0 : 16, padding: "10px 16px", backgroundColor: "#F9FAFB", borderRadius: 8, borderLeft: `4px solid ${group.color}`, cursor: "pointer", userSelect: "none" }}
+                        >
+                          <div style={{ width: 10, height: 10, borderRadius: "50%", backgroundColor: group.color, flexShrink: 0 }} />
+                          <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: "#111827" }}>{group.name}</span>
+                          <span style={{ fontSize: 12, color: "#6B7280", fontWeight: 500, padding: "2px 8px", backgroundColor: "#E5E7EB", borderRadius: 999 }}>
+                            {groupRoutes.length} {groupRoutes.length === 1 ? "route" : "routes"}
+                          </span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openEditGroup(group); }}
+                            style={{ padding: "4px 10px", fontSize: 12, fontWeight: 600, color: "#374151", backgroundColor: "#fff", border: "1px solid #E5E7EB", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", gap: 4 }}
+                          >
+                            <Pencil className="h-3 w-3" /> Edit
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteGroup(group); }}
+                            style={{ padding: "4px 8px", fontSize: 12, color: "#EF4444", backgroundColor: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center" }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                          <ChevronDown className="h-4 w-4" style={{ color: "#6B7280", transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.2s", flexShrink: 0 }} />
+                        </div>
+                        {!isCollapsed && (
+                          <div style={gridStyle}>{groupRoutes.map((r, i) => renderCard(r, i))}</div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Ungrouped routes */}
+                  {ungrouped.length > 0 && (
+                    <div>
+                      {groups.length > 0 && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, padding: "10px 16px", backgroundColor: "#F9FAFB", borderRadius: 8, borderLeft: "4px solid #D1D5DB" }}>
+                          <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: "#6B7280" }}>Ungrouped</span>
+                          <span style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 500, padding: "2px 8px", backgroundColor: "#E5E7EB", borderRadius: 999 }}>
+                            {ungrouped.length} {ungrouped.length === 1 ? "route" : "routes"}
+                          </span>
+                        </div>
+                      )}
+                      <div style={gridStyle}>{ungrouped.map((r, i) => renderCard(r, i))}</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Empty state */}
             {filtered.length === 0 && !loading && (
@@ -875,10 +1051,10 @@ export default function RoutesPage() {
                   })()}
                   <span style={{
                     fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 999,
-                    backgroundColor: viewRoute.route_type === "managed" ? "#FFF7ED" : "#EEF2FF",
-                    color: viewRoute.route_type === "managed" ? "#C2410C" : "#4338CA",
+                    backgroundColor: viewRoute.route_type === "planned" ? "#FFF7ED" : "#EEF2FF",
+                    color: viewRoute.route_type === "planned" ? "#C2410C" : "#4338CA",
                   }}>
-                    {viewRoute.route_type === "managed" ? "Managed" : "Allocation"}
+                    {viewRoute.route_type === "planned" ? "Planned Deliveries" : "On-Demand Requests"}
                   </span>
                 </div>
               </div>
@@ -1090,10 +1266,17 @@ export default function RoutesPage() {
             <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b shrink-0">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">
-                  {editing ? `Edit Route — ${editing.name}` : "Create Route"}
+                  {editing ? `Edit Route — ${editing.name}` : "Create New Route"}
                 </h3>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  {editing ? "Update route details and manage deliveries." : "Create a new delivery route."}
+                  {wizardStep === 2
+                    ? form.route_type === "on_demand"
+                      ? "Add On-Demand Requests"
+                      : "Add Planned Deliveries"
+                    : editing
+                      ? "Update route details and manage deliveries."
+                      : "Define route identity, coverage and schedule"
+                  }
                 </p>
               </div>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600 mt-0.5">
@@ -1101,11 +1284,11 @@ export default function RoutesPage() {
               </button>
             </div>
 
-            {/* ── Unified wizard (create & edit) ── */}
+            {/* ── Wizard (2 steps: INFO → REQUESTS) ── */}
             <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
               {/* Step progress bar */}
               {(() => {
-                const STEPS = ["TYPE","INFO","CAPACITY","REQUESTS"];
+                const STEPS = ["INFO", "REQUESTS"];
                 const StepCircle = ({ n }: { n: number }) => {
                   const done = wizardStep > n;
                   const active = wizardStep === n;
@@ -1116,16 +1299,16 @@ export default function RoutesPage() {
                           ? <CheckCircle className="h-4 w-4" style={{ color: "#fff" }} />
                           : <span style={{ fontSize: 12, fontWeight: 700, color: active ? "#10B981" : "#9CA3AF" }}>{n}</span>}
                       </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: active ? "#10B981" : done ? "#10B981" : "#9CA3AF", letterSpacing: "0.05em" }}>{STEPS[n-1]}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: active ? "#10B981" : done ? "#10B981" : "#9CA3AF", letterSpacing: "0.05em" }}>{STEPS[n - 1]}</span>
                     </div>
                   );
                 };
                 return (
                   <div style={{ padding: "20px 32px 16px", borderBottom: "1px solid #F3F4F6", display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
-                    {[1,2,3,4].map((n) => (
+                    {[1, 2].map((n) => (
                       <div key={n} style={{ display: "flex", alignItems: "flex-start" }}>
                         <StepCircle n={n} />
-                        {n < 4 && <div style={{ width: 64, height: 2, backgroundColor: wizardStep > n ? "#10B981" : "#E5E7EB", marginTop: 15 }} />}
+                        {n < 2 && <div style={{ width: 120, height: 2, backgroundColor: wizardStep > n ? "#10B981" : "#E5E7EB", marginTop: 15 }} />}
                       </div>
                     ))}
                   </div>
@@ -1134,74 +1317,140 @@ export default function RoutesPage() {
 
               {/* Step content */}
               <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px" }}>
-                {/* STEP 1: TYPE */}
-                {wizardStep === 1 && (
-                  <div>
-                    <p style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700, color: "#111827" }}>Choose Route Type</p>
-                    <p style={{ margin: "0 0 24px", fontSize: 13, color: "#6B7280" }}>Select how this route will be managed</p>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-                      {(["allocation","managed"] as const).map((type) => {
-                        const selected = form.route_type === type;
-                        const title = type === "allocation" ? "Allocation" : "Managed Delivery";
-                        const sub   = type === "allocation" ? "Drivers assigned directly to your clients" : "You manage the full delivery fulfillment";
-                        const perks = type === "allocation"
-                          ? ["Best for recurring clients","Simple driver assignment","Client-controlled dispatch"]
-                          : ["Full delivery control","Route optimization","Real-time tracking"];
-                        return (
-                          <div key={type} onClick={() => setForm((f) => ({ ...f, route_type: type }))}
-                            style={{ border: selected ? "2px solid #10B981" : "2px solid #E5E7EB", borderRadius: 12, padding: 20, cursor: "pointer", backgroundColor: selected ? "#F0FDF4" : "#fff", position: "relative", transition: "all 0.15s" }}>
-                            {selected && (
-                              <div style={{ position: "absolute", top: 12, right: 12, width: 20, height: 20, borderRadius: "50%", backgroundColor: "#10B981", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                <CheckCircle className="h-3 w-3" style={{ color: "#fff" }} />
-                              </div>
-                            )}
-                            <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: selected ? "#DCFCE7" : "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
-                              {type === "allocation"
-                                ? <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={selected ? "#059669" : "#6B7280"} strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                                : <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={selected ? "#059669" : "#6B7280"} strokeWidth="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>}
-                            </div>
-                            <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: "#111827" }}>{title}</p>
-                            <p style={{ margin: "0 0 14px", fontSize: 12, color: "#6B7280" }}>{sub}</p>
-                            <ul style={{ margin: 0, padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 6 }}>
-                              {perks.map((p) => (
-                                <li key={p} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#374151" }}>
-                                  <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#10B981", flexShrink: 0 }} />{p}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
 
-                {/* STEP 2: INFO */}
-                {wizardStep === 2 && (
+                {/* STEP 1: INFO */}
+                {wizardStep === 1 && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                     <div>
-                      <p style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700, color: "#111827" }}>Route Information</p>
-                      <p style={{ margin: 0, fontSize: 13, color: "#6B7280" }}>Basic details for this route</p>
+                      <p style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 700, color: "#111827" }}>Route Information</p>
+                      <p style={{ margin: 0, fontSize: 13, color: "#6B7280" }}>Define route identity, coverage and schedule</p>
                     </div>
+
+                    {/* Row 1: Route Name + Assign Driver */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                          Route Name <span style={{ color: "#EF4444" }}>*</span>
+                        </label>
+                        <input
+                          type="text"
+                          list="route-names-datalist"
+                          value={form.name}
+                          onChange={(e) => {
+                            const typed = e.target.value;
+                            const matched = routeNamesList.find((r) => r.name === typed);
+                            setForm((f) => ({ ...f, name: typed, route_name_id: matched ? String(matched.id) : "" }));
+                          }}
+                          placeholder="Enter route name"
+                          style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box", backgroundColor: "#fff", color: "#111827" }}
+                        />
+                        <datalist id="route-names-datalist">
+                          {routeNamesList.map((r) => (
+                            <option key={r.id} value={r.name} />
+                          ))}
+                        </datalist>
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                          Assign Driver <span style={{ fontSize: 12, fontWeight: 400, color: "#9CA3AF" }}>(Optional)</span>
+                        </label>
+                        <select
+                          value={form.driver_id}
+                          onChange={(e) => setForm((f) => ({ ...f, driver_id: e.target.value }))}
+                          style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box", backgroundColor: "#fff", color: "#111827" }}
+                        >
+                          <option value="">Select a driver...</option>
+                          {drivers
+                            .filter((d) => {
+                              // Always include the currently assigned driver when editing
+                              if (editing && String(d.id) === form.driver_id) return true;
+                              return d.status === "active";
+                            })
+                            .filter((d) => {
+                              const assignedRouteId = routes.find(
+                                (r) => r.driver_id === d.id && r.id !== (editing?.id ?? -1)
+                              )?.id;
+                              return !assignedRouteId;
+                            })
+                            .map((d) => (
+                              <option key={d.id} value={String(d.id)}>{d.full_name}</option>
+                            ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Row 2: Start + End Location */}
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                          Start Location <span style={{ color: "#EF4444" }}>*</span>
+                        </label>
+                        <AddressSearch
+                          key={`start-${editing?.id ?? "new"}`}
+                          value={form.start_location}
+                          placeholder="Search for starting point"
+                          onSelect={(r) => setForm((f) => ({
+                            ...f,
+                            start_location: r.display_name,
+                            start_lat: r.coordinates ? String(r.coordinates[0]) : f.start_lat,
+                            start_lng: r.coordinates ? String(r.coordinates[1]) : f.start_lng,
+                          }))}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                          End Location <span style={{ color: "#EF4444" }}>*</span>
+                        </label>
+                        <AddressSearch
+                          key={`end-${editing?.id ?? "new"}`}
+                          value={form.end_location}
+                          placeholder="Search for ending point"
+                          onSelect={(r) => setForm((f) => ({
+                            ...f,
+                            end_location: r.display_name,
+                            end_lat: r.coordinates ? String(r.coordinates[0]) : f.end_lat,
+                            end_lng: r.coordinates ? String(r.coordinates[1]) : f.end_lng,
+                          }))}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Delivery Type */}
                     <div>
-                      <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Route Name <span style={{ color: "#EF4444" }}>*</span></label>
-                      <input type="text" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                        placeholder="e.g., Westlands Morning Run"
-                        style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                      <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9CA3AF" }}>Give this route a descriptive name</p>
+                      <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                        Delivery Type <span style={{ color: "#EF4444" }}>*</span>
+                      </label>
+                      <select
+                        value={form.route_type}
+                        onChange={(e) => setForm((f) => ({ ...f, route_type: e.target.value as "on_demand" | "planned" }))}
+                        style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box", backgroundColor: "#fff", color: "#111827" }}
+                      >
+                        <option value="on_demand">On-Demand Requests</option>
+                        <option value="planned">Planned Deliveries</option>
+                      </select>
                     </div>
+
+                    {/* Service Area */}
                     <div>
                       <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
-                        Service Area
+                        Service Area <span style={{ color: "#EF4444" }}>*</span>
                         <span title="Comma-separated areas this route covers" style={{ width: 16, height: 16, borderRadius: "50%", backgroundColor: "#E5E7EB", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#6B7280", cursor: "default" }}>i</span>
                       </label>
-                      <input type="text" value={form.service_area} onChange={(e) => setForm((f) => ({ ...f, service_area: e.target.value }))}
-                        placeholder="e.g., Westlands, Parklands, Lavington"
-                        style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                      <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9CA3AF" }}>Comma-separated areas</p>
+                      <input
+                        type="text"
+                        value={form.service_area}
+                        onChange={(e) => setForm((f) => ({ ...f, service_area: e.target.value }))}
+                        placeholder="e.g., Westlands, Parklands, Highridge"
+                        style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+                      />
+                      <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9CA3AF" }}>Comma-separated areas this route will cover</p>
                     </div>
+
+                    {/* Active Days */}
                     <div>
-                      <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 10 }}>Active Days</label>
+                      <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 10 }}>
+                        Active Days <span style={{ color: "#EF4444" }}>*</span>
+                      </label>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d) => {
                           const on = form.active_days.includes(d);
@@ -1214,50 +1463,25 @@ export default function RoutesPage() {
                         })}
                       </div>
                     </div>
-                  </div>
-                )}
 
-                {/* STEP 3: CAPACITY */}
-                {wizardStep === 3 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                    <div>
-                      <p style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700, color: "#111827" }}>Capacity Settings</p>
-                      <p style={{ margin: 0, fontSize: 13, color: "#6B7280" }}>Set time windows and delivery limits</p>
-                    </div>
+                    {/* Start + End Time */}
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                       <div>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Start Time</label>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Start Time <span style={{ color: "#EF4444" }}>*</span></label>
                         <input type="time" value={form.start_time} onChange={(e) => setForm((f) => ({ ...f, start_time: e.target.value }))}
                           style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
                       </div>
                       <div>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>End Time</label>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>End Time <span style={{ color: "#EF4444" }}>*</span></label>
                         <input type="time" value={form.end_time} onChange={(e) => setForm((f) => ({ ...f, end_time: e.target.value }))}
                           style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
                       </div>
-                      <div>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Min Deliveries / Day</label>
-                        <input type="number" min="0" value={form.min_deliveries} placeholder="0" onChange={(e) => setForm((f) => ({ ...f, min_deliveries: e.target.value }))}
-                          style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                      </div>
-                      <div>
-                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Max Deliveries / Day</label>
-                        <input type="number" min="0" value={form.max_deliveries} placeholder="50" onChange={(e) => setForm((f) => ({ ...f, max_deliveries: e.target.value }))}
-                          style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                      </div>
                     </div>
-                    <div style={{ borderLeft: "4px solid #10B981", paddingLeft: 16, paddingTop: 4, paddingBottom: 4 }}>
-                      <p style={{ margin: "0 0 14px", fontSize: 13, fontWeight: 700, color: "#065F46" }}>
-                        {form.route_type === "allocation" ? "Allocation Configuration" : "Managed Delivery Configuration"}
-                      </p>
-                      {form.route_type === "allocation" ? (
-                        <div>
-                          <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Driver Capacity</label>
-                          <input type="number" min="1" value={form.driver_capacity} placeholder="5" onChange={(e) => setForm((f) => ({ ...f, driver_capacity: e.target.value }))}
-                            style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
-                          <p style={{ margin: "4px 0 0", fontSize: 11, color: "#9CA3AF" }}>Max drivers assigned to this route at once</p>
-                        </div>
-                      ) : (
+
+                    {/* Planned Delivery Configuration — create only */}
+                    {!editing && form.route_type === "planned" && (
+                      <div style={{ borderLeft: "4px solid #10B981", paddingLeft: 16, paddingTop: 4, paddingBottom: 4 }}>
+                        <p style={{ margin: "0 0 14px", fontSize: 13, fontWeight: 700, color: "#065F46" }}>Planned Delivery Configuration</p>
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                           <div>
                             <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Max Orders</label>
@@ -1270,151 +1494,167 @@ export default function RoutesPage() {
                               style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }} />
                           </div>
                         </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
+
+                    {/* Status — edit only */}
+                    {editing && (
+                      <div>
+                        <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>Route Status</label>
+                        <select
+                          value={form.status}
+                          onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                          style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box", backgroundColor: "#fff", color: "#111827" }}
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="active">Active</option>
+                          <option value="completed">Completed</option>
+                          <option value="cancelled">Cancelled</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {formError && <p style={{ margin: 0, fontSize: 12, color: "#DC2626" }}>{formError}</p>}
                   </div>
                 )}
 
-                {/* STEP 4: REQUESTS / DELIVERIES */}
-                {wizardStep === 4 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {/* STEP 2: Select deliveries to add to the route */}
+                {wizardStep === 2 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
                     <div>
-                      <p style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700, color: "#111827" }}>
-                        {editing ? "Manage Deliveries" : "Attach Requests"}
+                      <p style={{ margin: "0 0 4px", fontSize: 18, fontWeight: 700, color: "#111827" }}>
+                        {editing ? "Manage Deliveries" : "Select Deliveries"}
                       </p>
                       <p style={{ margin: 0, fontSize: 13, color: "#6B7280" }}>
-                        {editing ? "Add or remove stops on this route" : "Link delivery requests to this route"}
+                        {editing
+                          ? "Remove deliveries from this route or add new ones."
+                          : "Choose which deliveries to include in this route. Manage deliveries on the Deliveries page."}
                       </p>
                     </div>
-                    {/* Tabs */}
-                    <div style={{ display: "flex", borderBottom: "2px solid #F3F4F6" }}>
-                      {(["ondemand","business"] as const).map((tab) => {
-                        const label = tab === "ondemand"
-                          ? "On-Demand Requests"
-                          : editing ? "Route Deliveries" : "Business Deliveries";
-                        const active = wizardRequestsTab === tab;
-                        return (
-                          <button key={tab} type="button" onClick={() => setWizardRequestsTab(tab)}
-                            style={{ padding: "10px 16px", fontSize: 13, fontWeight: 600, cursor: "pointer", border: "none", background: "none", color: active ? "#059669" : "#9CA3AF", borderBottom: active ? "2px solid #10B981" : "2px solid transparent", marginBottom: -2, transition: "all 0.12s" }}>
-                            {label}
-                          </button>
-                        );
-                      })}
-                    </div>
 
-                    {wizardRequestsTab === "ondemand" ? (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        {acceptedRequests.length === 0 ? (
-                          <div style={{ textAlign: "center", padding: "40px 0", color: "#9CA3AF" }}>
-                            <ClipboardList className="h-8 w-8 mx-auto mb-2" style={{ color: "#D1D5DB" }} />
-                            <p style={{ fontSize: 13, margin: 0 }}>No approved requests available</p>
-                          </div>
-                        ) : acceptedRequests.map((req) => {
-                          const checked = selectedRequestIds.has(req.id);
-                          const timeAgo = (() => {
-                            const days = Math.floor((Date.now() - new Date(req.start_date).getTime()) / 86400000);
-                            return days === 0 ? "Today" : `${days}d ago`;
-                          })();
-                          return (
-                            <div key={req.id}
-                              onClick={() => setSelectedRequestIds((prev) => { const s = new Set(prev); s.has(req.id) ? s.delete(req.id) : s.add(req.id); return s; })}
-                              style={{ border: checked ? "2px solid #10B981" : "1px solid #E5E7EB", borderRadius: 10, padding: 14, cursor: "pointer", backgroundColor: checked ? "#F0FDF4" : "#fff", transition: "all 0.12s" }}>
-                              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
-                                <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#111827" }}>{req.business_name}</p>
-                                <span style={{ fontSize: 11, color: "#9CA3AF", flexShrink: 0 }}>{timeAgo}</span>
-                              </div>
-                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                                {[["PICKUP", `${req.allocated_count} drivers`], ["DROPOFF", `${req.drivers_requested} needed`], ["VALUE", "KES —"]].map(([label, val]) => (
-                                  <div key={label} style={{ backgroundColor: "#F9FAFB", borderRadius: 8, padding: "8px 10px" }}>
-                                    <p style={{ margin: "0 0 2px", fontSize: 10, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase" }}>{label}</p>
-                                    <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: "#374151" }}>{val}</p>
+                    {/* Edit mode: currently assigned deliveries */}
+                    {editing && (
+                      <div>
+                        <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700, color: "#374151" }}>
+                          On this route ({routeDeliveries.length})
+                        </p>
+                        {routeDeliveries.length === 0 ? (
+                          <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>No deliveries assigned yet.</p>
+                        ) : (
+                          <div style={{ border: "1px solid #E5E7EB", borderRadius: 10, overflow: "hidden" }}>
+                            {routeDeliveries.map((d, i) => {
+                              let itemLabel = "";
+                              try {
+                                const parsed = typeof d.item === "string" ? JSON.parse(d.item) : d.item;
+                                itemLabel = Array.isArray(parsed)
+                                  ? parsed.map((it: { name?: string }) => it.name).filter(Boolean).join(", ")
+                                  : typeof parsed === "string" ? parsed : "";
+                              } catch { itemLabel = typeof d.item === "string" ? d.item : ""; }
+                              return (
+                                <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: i < routeDeliveries.length - 1 ? "1px solid #F3F4F6" : "none", backgroundColor: "#fff" }}>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p style={{ margin: "0 0 2px", fontSize: 13, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.customer_name}</p>
+                                    <p style={{ margin: 0, fontSize: 11, color: "#6B7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      DEL-{String(d.id).padStart(4, "0")} · {d.location.split(",")[0]}{itemLabel ? ` · ${itemLabel}` : ""}
+                                    </p>
                                   </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ) : editing ? (
-                      /* Edit mode — show route deliveries + unassigned */
-                      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                        {/* On this route */}
-                        <div>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                            <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>On this route ({routeDeliveries.length})</p>
-                            {loadingDeliveries && <RefreshCw className="h-3.5 w-3.5 animate-spin" style={{ color: "#9CA3AF" }} />}
-                          </div>
-                          {routeDeliveries.length === 0 ? (
-                            <p style={{ fontSize: 13, color: "#9CA3AF", textAlign: "center", padding: "16px 0" }}>No stops on this route yet</p>
-                          ) : (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                              {routeDeliveries.map((d) => (
-                                <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 14px", backgroundColor: "#fff" }}>
-                                  <div style={{ minWidth: 0, flex: 1 }}>
-                                    <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.customer_name}</p>
-                                    <p style={{ margin: 0, fontSize: 12, color: "#6B7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.location}</p>
-                                  </div>
-                                  <button onClick={() => handleRemoveFromRoute(d.id)}
-                                    style={{ marginLeft: 12, padding: 6, borderRadius: 6, border: "1px solid #FECACA", backgroundColor: "#FEF2F2", color: "#DC2626", cursor: "pointer", flexShrink: 0 }}>
+                                  <button type="button" onClick={() => handleRemoveFromRoute(d.id)}
+                                    style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid #FECACA", backgroundColor: "#FEF2F2", color: "#DC2626", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center" }}>
                                     <X className="h-3.5 w-3.5" />
                                   </button>
                                 </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        {/* Unassigned to add */}
-                        <div>
-                          <p style={{ margin: "0 0 8px", fontSize: 12, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: "0.05em" }}>Add Stops ({unassigned.length} available)</p>
-                          {unassigned.length === 0 ? (
-                            <p style={{ fontSize: 13, color: "#9CA3AF", textAlign: "center", padding: "16px 0" }}>No unassigned deliveries</p>
-                          ) : (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                              {unassigned.map((d) => (
-                                <div key={d.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", border: "1px solid #E5E7EB", borderRadius: 10, padding: "10px 14px", backgroundColor: "#F9FAFB" }}>
-                                  <div style={{ minWidth: 0, flex: 1 }}>
-                                    <p style={{ margin: "0 0 2px", fontSize: 14, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.customer_name}</p>
-                                    <p style={{ margin: 0, fontSize: 12, color: "#6B7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.location}</p>
-                                  </div>
-                                  <button onClick={() => handleAddToRoute(d.id)}
-                                    style={{ marginLeft: 12, padding: "5px 12px", borderRadius: 6, border: "1px solid #A7F3D0", backgroundColor: "#ECFDF5", color: "#059669", fontSize: 12, fontWeight: 600, cursor: "pointer", flexShrink: 0 }}>
-                                    + Add
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      /* Create mode — unassigned business deliveries */
-                      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        {unassigned.length === 0 ? (
-                          <div style={{ textAlign: "center", padding: "40px 0", color: "#9CA3AF" }}>
-                            <Package className="h-8 w-8 mx-auto mb-2" style={{ color: "#D1D5DB" }} />
-                            <p style={{ fontSize: 13, margin: 0 }}>No business deliveries available</p>
+                              );
+                            })}
                           </div>
-                        ) : unassigned.map((d) => {
-                          const sel = selectedExisting.has(d.id);
-                          return (
-                            <div key={d.id} onClick={() => toggleExisting(d.id)}
-                              style={{ border: sel ? "2px solid #10B981" : "1px solid #E5E7EB", borderRadius: 10, padding: 14, cursor: "pointer", backgroundColor: sel ? "#F0FDF4" : "#fff", transition: "all 0.12s" }}>
-                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                                <div>
-                                  <p style={{ margin: "0 0 3px", fontSize: 14, fontWeight: 700, color: "#111827" }}>{d.customer_name}</p>
-                                  <p style={{ margin: 0, fontSize: 12, color: "#6B7280" }}>{d.location}</p>
-                                </div>
-                                {sel && <CheckCircle className="h-4 w-4" style={{ color: "#10B981" }} />}
-                              </div>
-                            </div>
-                          );
-                        })}
-                        <button type="button" onClick={addNewDelivery}
-                          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 0", border: "2px dashed #E5E7EB", borderRadius: 10, fontSize: 13, fontWeight: 600, color: "#9CA3AF", backgroundColor: "transparent", cursor: "pointer" }}>
-                          <Plus className="h-4 w-4" /> Add Delivery
-                        </button>
+                        )}
                       </div>
                     )}
+
+                    {/* Route name filter notice */}
+                    {form.route_name_id && (
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", backgroundColor: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 8 }}>
+                        <AlertCircle className="h-4 w-4 shrink-0" style={{ color: "#3B82F6" }} />
+                        <p style={{ margin: 0, fontSize: 12, color: "#1E40AF" }}>
+                          Filtered to deliveries assigned to the selected route name.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Delivery list */}
+                    {(() => {
+                      const selectedRouteNameId = form.route_name_id ? parseInt(form.route_name_id) : null;
+                      const visibleDeliveries = selectedRouteNameId != null
+                        ? unassigned.filter((d) => d.route_name_id === selectedRouteNameId)
+                        : unassigned;
+                      return (
+                        <div style={{ border: "1px solid #E5E7EB", borderRadius: 12, overflow: "hidden", maxHeight: 400, overflowY: "auto" }}>
+                          {visibleDeliveries.length === 0 ? (
+                            <div style={{ padding: "48px 0", textAlign: "center" }}>
+                              <Package className="h-8 w-8 mx-auto mb-2" style={{ color: "#D1D5DB" }} />
+                              <p style={{ fontSize: 13, margin: "0 0 4px", color: "#9CA3AF" }}>
+                                {selectedRouteNameId != null ? "No deliveries for this route name" : "No unassigned deliveries"}
+                              </p>
+                              <p style={{ fontSize: 12, margin: 0, color: "#D1D5DB" }}>
+                                Go to the Deliveries page to create or manage deliveries
+                              </p>
+                            </div>
+                          ) : visibleDeliveries.map((d, i) => {
+                            const sel = selectedExisting.has(d.id);
+                            const statusBadge = d.status === "out_for_delivery"
+                              ? { label: "OUT FOR DELIVERY", bg: "#EDE9FE", color: "#5B21B6" }
+                              : d.status === "pending"
+                              ? { label: "APPROVED", bg: "#ECFDF5", color: "#065F46" }
+                              : d.status === "awaiting_approval"
+                              ? { label: "AWAITING APPROVAL", bg: "#EFF6FF", color: "#1D4ED8" }
+                              : { label: d.status.toUpperCase().replace(/_/g, " "), bg: "#F3F4F6", color: "#374151" };
+                            const area = d.location.split(",")[0] ?? d.location;
+                            let itemLabel = "";
+                            try {
+                              const parsed = typeof d.item === "string" ? JSON.parse(d.item) : d.item;
+                              if (Array.isArray(parsed)) {
+                                itemLabel = parsed.map((it: { name?: string }) => it.name).filter(Boolean).join(", ");
+                              } else if (typeof parsed === "string") {
+                                itemLabel = parsed;
+                              }
+                            } catch {
+                              itemLabel = typeof d.item === "string" ? d.item : "";
+                            }
+                            return (
+                              <div key={d.id}
+                                onClick={() => toggleExisting(d.id)}
+                                style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", cursor: "pointer", transition: "background 0.12s", backgroundColor: sel ? "#F0FDF4" : "#fff", borderLeft: `3px solid ${sel ? "#10B981" : "transparent"}`, borderBottom: i < visibleDeliveries.length - 1 ? "1px solid #F3F4F6" : "none" }}>
+                                {/* Checkbox */}
+                                <div style={{ width: 18, height: 18, borderRadius: 4, border: sel ? "none" : "1.5px solid #D1D5DB", backgroundColor: sel ? "#10B981" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                  {sel && <CheckCircle className="h-3.5 w-3.5" style={{ color: "#fff" }} />}
+                                </div>
+                                {/* Info */}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.customer_name}</p>
+                                    <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 4, backgroundColor: statusBadge.bg, color: statusBadge.color, flexShrink: 0 }}>
+                                      {statusBadge.label}
+                                    </span>
+                                  </div>
+                                  <p style={{ margin: 0, fontSize: 12, color: "#6B7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                    DEL-{String(d.id).padStart(4, "0")} &bull; {area}
+                                    {itemLabel ? ` · ${itemLabel}` : ""}
+                                    {d.drop_time ? ` · ${d.drop_time}` : ""}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+
+                    {selectedExisting.size > 0 && (
+                      <p style={{ margin: 0, fontSize: 12, color: "#059669", fontWeight: 600 }}>
+                        {selectedExisting.size} deliver{selectedExisting.size === 1 ? "y" : "ies"} selected
+                      </p>
+                    )}
+
                     {formError && <p style={{ margin: 0, fontSize: 12, color: "#DC2626" }}>{formError}</p>}
                   </div>
                 )}
@@ -1434,10 +1674,12 @@ export default function RoutesPage() {
                     Cancel
                   </button>
                 </div>
-                {wizardStep < 4 ? (
+                {wizardStep < 2 ? (
                   <button type="button"
                     onClick={() => {
-                      if (wizardStep === 2 && !form.name.trim()) { setFormError("Route name is required."); return; }
+                      if (!form.name.trim()) { setFormError("Route name is required."); return; }
+                      if (!form.start_location.trim()) { setFormError("Start location is required."); return; }
+                      if (!form.end_location.trim()) { setFormError("End location is required."); return; }
                       setFormError(null);
                       setWizardStep((s) => s + 1);
                     }}
@@ -1452,6 +1694,280 @@ export default function RoutesPage() {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm Modal ────────────────────────────────────────────────────── */}
+      {confirmModal.open && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-sm"
+            style={{ animation: "fadeInUp 0.18s ease forwards" }}
+          >
+            {/* Icon + title */}
+            <div style={{ padding: "28px 28px 0", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 12 }}>
+              <div style={{
+                width: 52, height: 52, borderRadius: "50%",
+                backgroundColor: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <Trash2 className="h-6 w-6" style={{ color: "#EF4444" }} />
+              </div>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#111827" }}>
+                {confirmModal.title}
+              </h3>
+              <p style={{ margin: 0, fontSize: 14, color: "#6B7280", lineHeight: 1.5 }}>
+                {confirmModal.message}
+              </p>
+            </div>
+
+            {/* Buttons */}
+            <div style={{ padding: "24px 28px 28px", display: "flex", gap: 12 }}>
+              <button
+                onClick={closeConfirm}
+                style={{
+                  flex: 1, padding: "11px 0", fontSize: 14, fontWeight: 600,
+                  color: "#374151", backgroundColor: "#F9FAFB",
+                  border: "1px solid #E5E7EB", borderRadius: 10, cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                style={{
+                  flex: 1, padding: "11px 0", fontSize: 14, fontWeight: 600,
+                  color: "#fff", backgroundColor: "#EF4444",
+                  border: "none", borderRadius: 10, cursor: "pointer",
+                }}
+              >
+                {confirmModal.confirmLabel ?? "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Create / Edit Group Modal ─────────────────────────────────────── */}
+      {groupModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col" style={{ maxHeight: "85vh" }}>
+
+            {/* Header */}
+            <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b shrink-0">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {editingGroup ? "Edit Route Group" : "Create Route Group"}
+                </h3>
+                <p className="text-sm text-gray-500 mt-0.5">Name your group and add routes to it</p>
+              </div>
+              <button onClick={() => setGroupModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+
+                {/* Group Name */}
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}>
+                    Group Name <span style={{ color: "#EF4444" }}>*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={groupForm.name}
+                    onChange={(e) => setGroupForm((f) => ({ ...f, name: e.target.value }))}
+                    placeholder="e.g., Nairobi North, CBD Routes..."
+                    style={{ width: "100%", border: "1px solid #E5E7EB", borderRadius: 8, padding: "10px 12px", fontSize: 14, outline: "none", boxSizing: "border-box" }}
+                    autoFocus
+                  />
+                </div>
+
+                {/* Color */}
+                <div>
+                  <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 10 }}>Color</label>
+
+                  {/* All swatches: presets + any custom ones added this session */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    {[...GROUP_COLORS, ...customColors].map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => { setGroupForm((f) => ({ ...f, color: c })); setShowColorWheel(false); }}
+                        style={{
+                          width: 36, height: 36, borderRadius: "50%", backgroundColor: c,
+                          border: "none", cursor: "pointer", flexShrink: 0,
+                          boxShadow: groupForm.color === c ? `0 0 0 2px #fff, 0 0 0 4px ${c}` : "none",
+                          transition: "box-shadow 0.15s",
+                        }}
+                      />
+                    ))}
+
+                    {/* Custom colour toggle — always last */}
+                    <button
+                      type="button"
+                      onClick={() => setShowColorWheel((v) => !v)}
+                      title="Pick custom colour"
+                      style={{
+                        width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
+                        cursor: "pointer", border: "2px dashed #D1D5DB",
+                        background: "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        opacity: showColorWheel ? 1 : 0.7,
+                        outline: showColorWheel ? "2px solid #6B7280" : "none",
+                        outlineOffset: 2,
+                      }}
+                    />
+                  </div>
+
+                  {/* Inline colour wheel */}
+                  {showColorWheel && (
+                    <div style={{ marginTop: 14, padding: 16, border: "1px solid #E5E7EB", borderRadius: 12, backgroundColor: "#FAFAFA", display: "flex", flexDirection: "column", gap: 14 }}>
+                      <HexColorPicker
+                        color={groupForm.color}
+                        onChange={(c) => setGroupForm((f) => ({ ...f, color: c }))}
+                        style={{ width: "100%", height: 180 }}
+                      />
+
+                      {/* Live preview + hex input + Apply */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <div style={{
+                          width: 40, height: 40, borderRadius: 8, flexShrink: 0,
+                          backgroundColor: groupForm.color,
+                          border: "1px solid #E5E7EB",
+                          boxShadow: "inset 0 0 0 1px rgba(0,0,0,0.06)",
+                        }} />
+                        <div style={{ flex: 1, position: "relative" }}>
+                          <span style={{
+                            position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+                            fontSize: 13, color: "#9CA3AF", fontFamily: "monospace", pointerEvents: "none",
+                          }}>#</span>
+                          <input
+                            value={groupForm.color.replace("#", "")}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/[^0-9a-fA-F]/g, "").slice(0, 6);
+                              if (raw.length === 6) setGroupForm((f) => ({ ...f, color: "#" + raw }));
+                            }}
+                            placeholder="10B981"
+                            maxLength={6}
+                            style={{
+                              width: "100%", border: "1px solid #E5E7EB", borderRadius: 8,
+                              padding: "10px 10px 10px 26px", fontSize: 14,
+                              fontFamily: "monospace", outline: "none", boxSizing: "border-box",
+                              letterSpacing: "0.08em",
+                            }}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const c = groupForm.color;
+                            if (!GROUP_COLORS.includes(c) && !customColors.includes(c)) {
+                              setCustomColors((prev) => [...prev, c]);
+                            }
+                            setShowColorWheel(false);
+                          }}
+                          style={{
+                            padding: "10px 16px", fontSize: 13, fontWeight: 600,
+                            color: "#fff", backgroundColor: "#14532D",
+                            border: "none", borderRadius: 8, cursor: "pointer", flexShrink: 0,
+                          }}
+                        >
+                          Apply
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Routes */}
+                {(() => {
+                  // Show ungrouped routes + (when editing) routes already in this group
+                  const availableRoutes = routes.filter((r) =>
+                    !r.group_id || (editingGroup && r.group_id === editingGroup.id)
+                  );
+                  const hiddenCount = routes.length - availableRoutes.length;
+                  return (
+                    <div>
+                      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 6 }}>
+                        <label style={{ fontSize: 13, fontWeight: 600, color: "#374151" }}>
+                          Routes <span style={{ fontSize: 12, fontWeight: 400, color: "#9CA3AF" }}>({groupForm.route_ids.length} selected)</span>
+                        </label>
+                        {hiddenCount > 0 && (
+                          <span style={{ fontSize: 11, color: "#9CA3AF" }}>
+                            {hiddenCount} already in another group
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ border: "1px solid #E5E7EB", borderRadius: 8, overflow: "hidden", maxHeight: 260, overflowY: "auto" }}>
+                        {availableRoutes.length === 0 ? (
+                          <p style={{ padding: 20, fontSize: 13, color: "#9CA3AF", textAlign: "center", margin: 0 }}>
+                            {routes.length === 0 ? "No routes created yet" : "All routes are already in a group"}
+                          </p>
+                        ) : (
+                          availableRoutes.map((route) => {
+                            const checked = groupForm.route_ids.includes(route.id);
+                            const statusDisplay = getStatusDisplay(route.status);
+                            return (
+                              <div
+                                key={route.id}
+                                onClick={() => toggleGroupRoute(route.id)}
+                                style={{
+                                  display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
+                                  borderBottom: "1px solid #F3F4F6", cursor: "pointer",
+                                  backgroundColor: checked ? "#F0FDF4" : "#fff",
+                                }}
+                              >
+                                <div style={{
+                                  width: 18, height: 18, borderRadius: 4, flexShrink: 0,
+                                  border: checked ? "none" : "2px solid #D1D5DB",
+                                  backgroundColor: checked ? "#10B981" : "transparent",
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                }}>
+                                  {checked && <CheckCircle className="h-3 w-3" style={{ color: "#fff" }} />}
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{route.name}</div>
+                                  <div style={{ fontSize: 12, color: "#9CA3AF" }}>
+                                    {route.start_location ? route.start_location.split(",")[0] : "No location"} · {routeIdLabel(route.id)}
+                                  </div>
+                                </div>
+                                <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 999, backgroundColor: statusDisplay.bgColor, color: statusDisplay.textColor }}>
+                                  {statusDisplay.label.toUpperCase()}
+                                </span>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {groupFormError && <p style={{ margin: 0, fontSize: 12, color: "#DC2626" }}>{groupFormError}</p>}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t shrink-0">
+              <button
+                type="button"
+                onClick={() => setGroupModalOpen(false)}
+                style={{ padding: "10px 16px", fontSize: 13, fontWeight: 600, color: "#6B7280", backgroundColor: "#fff", border: "1px solid #E5E7EB", borderRadius: 8, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={savingGroup}
+                onClick={handleSaveGroup}
+                style={{ padding: "10px 20px", fontSize: 13, fontWeight: 600, color: "#fff", backgroundColor: "#14532D", border: "none", borderRadius: 8, cursor: savingGroup ? "not-allowed" : "pointer", opacity: savingGroup ? 0.7 : 1 }}
+              >
+                {savingGroup ? "Saving…" : editingGroup ? "Save Changes" : "Create Group"}
+              </button>
             </div>
           </div>
         </div>
