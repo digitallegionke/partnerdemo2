@@ -31,6 +31,7 @@ export type ViewableDelivery = PartnerDelivery & {
   displayStatus: DisplayStatus;
   driverName: string;
   distanceKm: number | null;
+  routeNameLabel: string | null;
 };
 
 const STATUS_BADGE: Record<DisplayStatus, { label: string; cls: string; dot: string }> = {
@@ -316,6 +317,15 @@ export default function DeliveryViewModal({
                       <div className="flex items-baseline gap-2">
                         <span className="text-sm text-gray-500 w-24 shrink-0">Weight:</span>
                         <span className="text-sm font-medium text-gray-800">{delivery.weight} kg</span>
+                      </div>
+                    )}
+                    {delivery.routeNameLabel && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-gray-500 w-24 shrink-0">Route:</span>
+                        <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-md px-2 py-0.5">
+                          <MapPin className="h-3 w-3 shrink-0" />
+                          {delivery.routeNameLabel}
+                        </span>
                       </div>
                     )}
                   </div>

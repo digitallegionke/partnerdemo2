@@ -63,7 +63,7 @@ export async function PATCH(
       total_distance, estimated_duration, efficiency_score,
       route_type, service_area, active_days,
       start_time, end_time, min_deliveries, max_deliveries,
-      driver_capacity, max_orders, cutoff_time,
+      driver_capacity, max_orders, cutoff_time, route_name_id,
     } = body;
 
     const updates: any = {};
@@ -71,6 +71,7 @@ export async function PATCH(
     if (start_location !== undefined) updates.start_location = start_location;
     if (end_location !== undefined) updates.end_location = end_location;
     if (status !== undefined) updates.status = status;
+    if (route_name_id !== undefined) updates.route_name_id = route_name_id;
     if (total_distance !== undefined) updates.total_distance = total_distance;
     if (estimated_duration !== undefined) updates.estimated_duration = estimated_duration;
     if (efficiency_score !== undefined) updates.efficiency_score = efficiency_score;

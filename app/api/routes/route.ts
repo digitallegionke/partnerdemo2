@@ -95,6 +95,7 @@ export async function POST(req: NextRequest) {
       name, start_location, end_location, driver_id, status, lat, lng,
       route_type, service_area, active_days, start_time, end_time,
       min_deliveries, max_deliveries, driver_capacity, max_orders, cutoff_time,
+      route_name_id,
     } = body;
 
     const supabase = makeClient(token!);
@@ -118,10 +119,11 @@ export async function POST(req: NextRequest) {
         start_location: start_location ?? null,
         end_location: end_location ?? null,
         driver_id: driver_id ?? null,
+        route_name_id: route_name_id ?? null,
         status: status ?? "pending",
         lat: lat ?? "0",
         lng: lng ?? "0",
-        route_type: route_type ?? "allocation",
+        route_type: route_type ?? "on_demand",
         service_area: service_area ?? null,
         active_days: active_days ?? ["Mon","Tue","Wed","Thu","Fri"],
         start_time: start_time ?? "08:00",

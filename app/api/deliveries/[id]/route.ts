@@ -69,13 +69,14 @@ export async function PATCH(
     if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
 
     const {
-      route_id, status, order_index, customer_name,
+      route_id, route_name_id, status, order_index, customer_name,
       pickup_location, pickup_coordinates, location, coordinates,
       item, phone, drop_time, estimated_value, weight, delivery_notes,
     } = body;
 
     const updates: any = {};
     if (route_id !== undefined) updates.route_id = route_id;
+    if (route_name_id !== undefined) updates.route_name_id = route_name_id;
     if (status !== undefined) updates.status = status;
     if (order_index !== undefined) updates.order_index = order_index;
     if (customer_name !== undefined) updates.customer_name = customer_name;

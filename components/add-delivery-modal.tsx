@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   X,
   Plus,
@@ -13,6 +13,7 @@ import {
   Ruler,
   Pencil,
   Trash2,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +35,11 @@ type ClientOption = {
   status: string;
 };
 
+type RouteNameOption = {
+  id: number;
+  name: string;
+};
+
 async function fetchActiveClients(): Promise<ClientOption[]> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
@@ -42,6 +48,18 @@ async function fetchActiveClients(): Promise<ClientOption[]> {
     if (!res.ok) return [];
     const data: ClientOption[] = await res.json();
     return data.filter((c) => c.status === "active");
+  } catch {
+    return [];
+  }
+}
+
+async function fetchRouteNames(): Promise<RouteNameOption[]> {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token ? `Bearer ${session.access_token}` : "";
+    const res = await fetch("/api/route-names", { headers: { Authorization: token } });
+    if (!res.ok) return [];
+    return await res.json();
   } catch {
     return [];
   }
@@ -65,25 +83,42 @@ export type CreateDeliveryPayload = {
   estimated_value: string | null;
   weight: string | null;
   delivery_notes: string | null;
+  route_name_id?: number | null;
 };
 
+// Parcel sizes — dimensions of the individual item being shipped
+const PARCEL_SIZES: { key: DeliverySizeKey; label: string; dims: string }[] = [
+  { key: "S",  label: "Small",   dims: "Up to 20 × 7 × 15 cm" },
+  { key: "M",  label: "Medium",  dims: "Up to 37 × 18 × 30 cm" },
+  { key: "L",  label: "Large",   dims: "Up to 48 × 23 × 38 cm" },
+  { key: "XL", label: "X-Large", dims: "Over 40 × 40 × 40 cm" },
+];
+
+const PARCEL_SIZE_VOLUMES: Record<DeliverySizeKey, number> = {
+  S:  20 * 7 * 15,
+  M:  37 * 18 * 30,
+  L:  48 * 23 * 38,
+  XL: 40 * 40 * 40,
+};
+
+// Delivery sizes — vehicle capacity needed for the shipment
 const DELIVERY_SIZES: {
   key: DeliverySizeKey;
   dims: string;
   vehicle: string;
   Icon: typeof Bike;
 }[] = [
-  { key: "S", dims: "Up to 20 × 7 × 15 cm", vehicle: "Motorbike", Icon: Bike },
-  { key: "M", dims: "Up to 37 × 18 × 30 cm", vehicle: "Motorbike", Icon: Bike },
-  { key: "L", dims: "Up to 48 × 23 × 38 cm", vehicle: "Car / Van", Icon: Car },
-  { key: "XL", dims: "Over 40 × 40 × 40 cm", vehicle: "Pickup Truck", Icon: Truck },
+  { key: "S",  dims: "Up to 47 × 32 × 25 cm",              vehicle: "Motorbike",          Icon: Bike  },
+  { key: "M",  dims: "Up to 56 × 38 × 46 cm",              vehicle: "Motorbike",          Icon: Bike  },
+  { key: "L",  dims: "Up to 250 × 165 × 160 cm (≈ 6.6 m³)", vehicle: "Car / Van",          Icon: Car   },
+  { key: "XL", dims: "Up to 430 × 200 × 200 cm (≈ 17 m³)", vehicle: "Pickup Truck / Lorry", Icon: Truck },
 ];
 
 const DELIVERY_SIZE_VOLUMES: Record<DeliverySizeKey, number> = {
-  S: 20 * 7 * 15,
-  M: 37 * 18 * 30,
-  L: 48 * 23 * 38,
-  XL: 40 * 40 * 40,
+  S:  47 * 32 * 25,
+  M:  56 * 38 * 46,
+  L:  250 * 165 * 160,
+  XL: 430 * 200 * 200,
 };
 
 function getDeliverySizeFromVolume(volume: number): DeliverySizeKey {
@@ -109,6 +144,7 @@ const EMPTY_FORM = {
   items: [] as DeliveryItem[],
   drop_time: "",
   priority: "standard" as DeliveryPriority,
+  routeNameId: null as number | null,
 };
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -194,10 +230,15 @@ export default function AddDeliveryModal({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editForm, setEditForm] = useState<DeliveryItem>({ name: "", value: "", weight: "", size: "" });
   const [clients, setClients] = useState<ClientOption[]>([]);
+  const [routeNames, setRouteNames] = useState<RouteNameOption[]>([]);
+  const scrollBodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
       fetchActiveClients().then(setClients);
+      fetchRouteNames().then(setRouteNames);
+      // Reset scroll to top whenever the modal opens
+      setTimeout(() => { if (scrollBodyRef.current) scrollBodyRef.current.scrollTop = 0; }, 0);
     } else {
       setForm(EMPTY_FORM);
       setFormError(null);
@@ -237,7 +278,7 @@ export default function AddDeliveryModal({
   const totalVolume = useMemo(
     () => form.items.reduce((sum, item) => {
       if (!item.size) return sum;
-      return sum + DELIVERY_SIZE_VOLUMES[item.size];
+      return sum + PARCEL_SIZE_VOLUMES[item.size];
     }, 0),
     [form.items]
   );
@@ -396,6 +437,7 @@ export default function AddDeliveryModal({
         estimated_value: estimatedValue,
         weight: weightValue,
         delivery_notes: notesParts.length ? notesParts.join(" | ") : null,
+        route_name_id: form.routeNameId,
       });
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to create delivery");
@@ -425,7 +467,7 @@ export default function AddDeliveryModal({
         </div>
 
         <form onSubmit={handleSubmit} autoComplete="new-password" className="flex flex-col min-h-0 flex-1">
-          <div className="overflow-y-auto px-6 py-5 space-y-5">
+          <div ref={scrollBodyRef} className="overflow-y-auto px-6 py-5 space-y-5">
 
             {/* ── Client ─────────────────────────────── */}
               <div className="relative">
@@ -741,28 +783,33 @@ export default function AddDeliveryModal({
                     {editingIndex === -1 ? "New item" : "Edit item"}
                   </p>
                   <input
-                    autoFocus
                     autoComplete="new-password"
                     placeholder="What's being delivered?"
                     value={editForm.name}
                     onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
                     className={inputCls}
                   />
-                  <div className="flex gap-1.5">
-                    {DELIVERY_SIZES.map(({ key, dims, Icon }) => (
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {PARCEL_SIZES.map(({ key, label, dims }) => (
                       <button
                         key={key}
                         type="button"
-                        title={`${key}: ${dims}`}
                         onClick={() => setEditForm((f) => ({ ...f, size: key }))}
-                        className={`flex-1 rounded-lg border-2 py-1.5 flex flex-col items-center gap-0.5 text-[11px] font-bold transition-all ${
+                        className={`rounded-lg border-2 px-2 py-2 flex flex-col items-start gap-0.5 text-left transition-all ${
                           editForm.size === key
-                            ? "border-emerald-500 bg-emerald-50 text-emerald-700"
-                            : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                            ? "border-emerald-500 bg-emerald-50"
+                            : "border-gray-200 bg-white hover:border-gray-300"
                         }`}
                       >
-                        <Icon className="h-3 w-3" />
-                        {key}
+                        <span className={`inline-flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold ${
+                          editForm.size === key ? "bg-emerald-600 text-white" : "bg-emerald-100 text-emerald-800"
+                        }`}>
+                          {key}
+                        </span>
+                        <span className={`text-[11px] font-semibold mt-0.5 ${editForm.size === key ? "text-emerald-700" : "text-gray-700"}`}>
+                          {label}
+                        </span>
+                        <span className="text-[10px] text-gray-400 leading-tight">{dims}</span>
                       </button>
                     ))}
                   </div>
@@ -876,6 +923,32 @@ export default function AddDeliveryModal({
                     <SelectContent>
                       <SelectItem value="standard">Standard</SelectItem>
                       <SelectItem value="express">Express</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+            {/* ── Route Name ─────────────────────────── */}
+              <div>
+                <FieldLabel>Route Name</FieldLabel>
+                <div className="relative mt-1.5">
+                  <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none z-10" />
+                  <Select
+                    value={form.routeNameId != null ? String(form.routeNameId) : "none"}
+                    onValueChange={(v) =>
+                      setForm((f) => ({ ...f, routeNameId: v === "none" ? null : Number(v) }))
+                    }
+                  >
+                    <SelectTrigger className="h-[42px] rounded-lg border-gray-200 pl-9">
+                      <SelectValue placeholder="Select a route name (optional)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {routeNames.map((r) => (
+                        <SelectItem key={r.id} value={String(r.id)}>
+                          {r.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

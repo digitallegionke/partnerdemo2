@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   LayoutDashboard,
   Route,
+  Navigation,
   Grid2X2,
   Users,
   UserSquare2,
@@ -49,7 +50,8 @@ const NAV_SECTIONS = [
     label: "Operations",
     items: [
       { href: "/dashboard/analytics", label: "Dashboard",  icon: LayoutDashboard },
-      { href: "/dashboard/routes",    label: "Routes",     icon: Route },
+      { href: "/dashboard/routes",      label: "Routes",      icon: Route },
+      { href: "/dashboard/route-names", label: "Route Names", icon: Navigation },
     ],
   },
   {

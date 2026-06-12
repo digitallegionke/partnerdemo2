@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
 
     const {
       customer_name, location, coordinates, pickup_location, pickup_coordinates,
-      item, phone, drop_time, route_id, delivery_notes, estimated_value, weight,
+      item, phone, drop_time, route_id, route_name_id, delivery_notes, estimated_value, weight,
       status, order_index,
     } = body;
 
@@ -143,6 +143,7 @@ export async function POST(req: NextRequest) {
         phone,
         drop_time,
         route_id: route_id ?? null,
+        route_name_id: route_name_id ?? null,
         delivery_notes: delivery_notes ?? null,
         estimated_value: estimated_value ?? null,
         weight: weight ?? null,

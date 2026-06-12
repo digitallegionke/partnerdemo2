@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Package,
@@ -47,6 +47,7 @@ type EnrichedDelivery = PartnerDelivery & {
   displayStatus: DisplayStatus;
   driverName: string;
   routeName: string | null;
+  routeNameLabel: string | null;
   distanceKm: number | null;
 };
 
@@ -204,7 +205,8 @@ function computeDistanceKm(d: PartnerDelivery): number | null {
 
 function enrichDeliveries(
   deliveries: PartnerDelivery[],
-  routeById: Map<number, PartnerRoute>
+  routeById: Map<number, PartnerRoute>,
+  routeNameById: Map<number, string>
 ): EnrichedDelivery[] {
   return deliveries.map((d) => {
     const route = d.route_id ? routeById.get(d.route_id) : undefined;
@@ -213,6 +215,7 @@ function enrichDeliveries(
       displayStatus: getDisplayStatus(d.status),
       driverName: route?.driver?.name ?? "Unassigned",
       routeName: route?.name ?? null,
+      routeNameLabel: d.route_name_id ? (routeNameById.get(d.route_name_id) ?? null) : null,
       distanceKm: computeDistanceKm(d),
     };
   });
@@ -230,7 +233,15 @@ function StatCard({ label, value }: { label: string; value: number }) {
 }
 
 const TH =
-  "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400";
+  "px-4 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 bg-gray-50/80";
+const TH_STICKY_LEFT =
+  `${TH} sticky left-0 z-20 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.08)]`;
+const TH_STICKY_RIGHT =
+  `${TH} sticky right-0 z-20 text-right shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.08)]`;
+const TD_STICKY_LEFT =
+  "px-4 py-4 align-top sticky left-0 z-10 bg-white shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)]";
+const TD_STICKY_RIGHT =
+  "px-4 py-4 align-top sticky right-0 z-10 bg-white shadow-[-2px_0_6px_-2px_rgba(0,0,0,0.06)]";
 
 function DeliveriesTable({
   rows,
@@ -255,6 +266,46 @@ function DeliveriesTable({
   onCancel: (id: number) => void;
   onDeliver: (id: number) => void;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const startX = useRef(0);
+  const scrollLeft = useRef(0);
+  const [dragging, setDragging] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+
+  const updateScrollState = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 0);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 1);
+  }, []);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    updateScrollState();
+    el.addEventListener("scroll", updateScrollState);
+    const ro = new ResizeObserver(updateScrollState);
+    ro.observe(el);
+    return () => { el.removeEventListener("scroll", updateScrollState); ro.disconnect(); };
+  }, [updateScrollState, rows]);
+
+  const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if ((e.target as HTMLElement).closest("button, a, input")) return;
+    isDragging.current = true;
+    startX.current = e.pageX - (scrollRef.current?.offsetLeft ?? 0);
+    scrollLeft.current = scrollRef.current?.scrollLeft ?? 0;
+    setDragging(true);
+  };
+  const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDragging.current || !scrollRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - scrollRef.current.offsetLeft;
+    scrollRef.current.scrollLeft = scrollLeft.current - (x - startX.current);
+  };
+  const stopDrag = () => { isDragging.current = false; setDragging(false); };
+
   const awaitingRows = rows.filter((d) => d.displayStatus === "awaiting_approval");
   const otherRows = rows.filter((d) => d.displayStatus !== "awaiting_approval");
   const hasBothGroups = awaitingRows.length > 0 && otherRows.length > 0;
@@ -267,21 +318,21 @@ function DeliveriesTable({
 
     return (
       <tr key={d.id} className="hover:bg-gray-50/60 transition-colors">
-        <td className="px-4 py-4 align-top">
-          <p className="font-semibold text-gray-900">{deliveryIdLabel(d.id)}</p>
+        <td className={TD_STICKY_LEFT}>
+          <p className="font-semibold text-gray-900 whitespace-nowrap">{deliveryIdLabel(d.id)}</p>
           <p className="text-xs text-gray-400 mt-0.5">
             {itemCount(d.item)} {itemCount(d.item) === 1 ? "item" : "items"}
           </p>
         </td>
         <td className="px-4 py-4 align-top">
-          <p className="font-medium text-gray-900">{d.customer_name}</p>
+          <p className="font-medium text-gray-900 whitespace-nowrap">{d.customer_name}</p>
           <p className="text-xs text-gray-500 mt-0.5">{d.phone}</p>
         </td>
         <td className="px-4 py-4 align-top max-w-[200px]">
           <p className="text-gray-700 truncate" title={d.location}>{d.location}</p>
         </td>
         <td className="px-4 py-4 align-top">
-          <p className={d.driverName === "Unassigned" ? "text-gray-400 italic" : "text-gray-800"}>
+          <p className={`whitespace-nowrap ${d.driverName === "Unassigned" ? "text-gray-400 italic" : "text-gray-800"}`}>
             {d.driverName}
           </p>
         </td>
@@ -293,7 +344,7 @@ function DeliveriesTable({
         </td>
         <td className="px-4 py-4 align-top">
           {priority.express ? (
-            <span className="inline-flex items-center gap-1 text-xs font-semibold text-violet-600">
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-violet-600 whitespace-nowrap">
               <Zap className="h-3.5 w-3.5" />Express
             </span>
           ) : (
@@ -312,15 +363,13 @@ function DeliveriesTable({
         <td className="px-4 py-4 align-top whitespace-nowrap">
           <p className="font-medium text-gray-900">{formatValue(d.estimated_value)}</p>
         </td>
-        <td className="px-4 py-4 align-top">
+        <td className={TD_STICKY_RIGHT}>
           <div className="flex items-center justify-end divide-x divide-gray-200">
-            {/* View — always visible */}
             <button type="button" onClick={() => onView(d)}
               className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-gray-800 transition-colors">
               <Eye className="h-3.5 w-3.5" />View
             </button>
 
-            {/* Status-specific actions */}
             {d.displayStatus === "awaiting_approval" && (
               <button type="button" disabled={busy} onClick={() => onApprove(d.id)}
                 className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-emerald-600 hover:text-emerald-800 transition-colors disabled:opacity-40">
@@ -355,16 +404,12 @@ function DeliveriesTable({
                 <CheckCircle2 className="h-3.5 w-3.5" />Accept
               </button>
             )}
-
-            {/* Edit — only for early statuses */}
             {editable && (
               <button type="button" onClick={() => onEdit(d)}
                 className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-gray-800 transition-colors">
                 <Pencil className="h-3.5 w-3.5" />Edit
               </button>
             )}
-
-            {/* Delete — always visible */}
             <button type="button" disabled={busy} onClick={() => onDelete(d.id)}
               className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-500 hover:text-red-700 transition-colors disabled:opacity-40">
               <Trash2 className="h-3.5 w-3.5" />Delete
@@ -376,52 +421,66 @@ function DeliveriesTable({
   };
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[1100px] text-sm">
-        <thead>
-          <tr className="border-b border-gray-100 bg-gray-50/80">
-            <th className={TH}>Order</th>
-            <th className={TH}>Customer</th>
-            <th className={TH}>Drop Off</th>
-            <th className={TH}>Driver</th>
-            <th className={TH}>Status</th>
-            <th className={TH}>Priority</th>
-            <th className={TH}>ETA</th>
-            <th className={TH}>Distance</th>
-            <th className={TH}>Value</th>
-            <th className={`${TH} text-right`}>Actions</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {awaitingRows.length > 0 && (
-            <>
-              <tr className="bg-amber-50 border-b border-amber-100">
-                <td colSpan={10} className="px-4 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[11px] font-bold uppercase tracking-widest text-amber-700">Awaiting Approval</span>
-                    <span className="inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded bg-amber-200 text-amber-800 text-[10px] font-bold">
-                      {awaitingRows.length}
-                    </span>
-                  </div>
-                </td>
-              </tr>
-              {awaitingRows.map(renderRow)}
-            </>
-          )}
-          {otherRows.length > 0 && (
-            <>
-              {hasBothGroups && (
-                <tr className="bg-gray-50/80 border-b border-gray-100">
+    <div className="relative">
+      {/* Left scroll shadow */}
+      <div className={`pointer-events-none absolute left-0 top-0 bottom-0 w-8 z-30 bg-gradient-to-r from-white to-transparent transition-opacity duration-200 ${canScrollLeft ? "opacity-100" : "opacity-0"}`} />
+      {/* Right scroll shadow */}
+      <div className={`pointer-events-none absolute right-0 top-0 bottom-0 w-12 z-30 bg-gradient-to-l from-white to-transparent transition-opacity duration-200 ${canScrollRight ? "opacity-100" : "opacity-0"}`} />
+
+      <div
+        ref={scrollRef}
+        className={`overflow-x-auto select-none ${dragging ? "cursor-grabbing" : "cursor-grab"}`}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={stopDrag}
+        onMouseLeave={stopDrag}
+      >
+        <table className="w-full min-w-[1100px] text-sm">
+          <thead>
+            <tr className="border-b border-gray-100">
+              <th className={TH_STICKY_LEFT}>Order</th>
+              <th className={TH}>Customer</th>
+              <th className={TH}>Drop Off</th>
+              <th className={TH}>Driver</th>
+              <th className={TH}>Status</th>
+              <th className={TH}>Priority</th>
+              <th className={TH}>ETA</th>
+              <th className={TH}>Distance</th>
+              <th className={TH}>Value</th>
+              <th className={TH_STICKY_RIGHT}>Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {awaitingRows.length > 0 && (
+              <>
+                <tr className="bg-amber-50 border-b border-amber-100">
                   <td colSpan={10} className="px-4 py-2.5">
-                    <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">All Deliveries</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold uppercase tracking-widest text-amber-700">Awaiting Approval</span>
+                      <span className="inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded bg-amber-200 text-amber-800 text-[10px] font-bold">
+                        {awaitingRows.length}
+                      </span>
+                    </div>
                   </td>
                 </tr>
-              )}
-              {otherRows.map(renderRow)}
-            </>
-          )}
-        </tbody>
-      </table>
+                {awaitingRows.map(renderRow)}
+              </>
+            )}
+            {otherRows.length > 0 && (
+              <>
+                {hasBothGroups && (
+                  <tr className="bg-gray-50/80 border-b border-gray-100">
+                    <td colSpan={10} className="px-4 py-2.5">
+                      <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">All Deliveries</span>
+                    </td>
+                  </tr>
+                )}
+                {otherRows.map(renderRow)}
+              </>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -429,6 +488,7 @@ function DeliveriesTable({
 export default function DeliveriesPage() {
   const [deliveries, setDeliveries] = useState<PartnerDelivery[]>([]);
   const [routes, setRoutes] = useState<PartnerRoute[]>([]);
+  const [routeNameMap, setRouteNameMap] = useState<Map<number, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -447,8 +507,8 @@ export default function DeliveriesPage() {
   );
 
   const enriched = useMemo(
-    () => enrichDeliveries(deliveries, routeById),
-    [deliveries, routeById]
+    () => enrichDeliveries(deliveries, routeById, routeNameMap),
+    [deliveries, routeById, routeNameMap]
   );
 
   const routePoints = useMemo(
@@ -470,12 +530,17 @@ export default function DeliveriesPage() {
   const fetchData = useCallback(async () => {
     try {
       setError(null);
-      const [deliveriesData, routesData] = await Promise.all([
+      const [deliveriesData, routesData, routeNamesData] = await Promise.all([
         apiFetch("/api/deliveries"),
         apiFetch("/api/routes"),
+        apiFetch("/api/route-names"),
       ]);
       setDeliveries(deliveriesData ?? []);
       setRoutes(routesData ?? []);
+      const map = new Map<number, string>(
+        (routeNamesData ?? []).map((r: { id: number; name: string }) => [r.id, r.name])
+      );
+      setRouteNameMap(map);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load deliveries");
     } finally {

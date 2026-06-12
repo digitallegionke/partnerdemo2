@@ -38,25 +38,49 @@ export async function GET(req: NextRequest) {
     if (!providerId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const supabase = makeClient(token!);
-
-    const { data, error } = await supabase
-      .from("partner_deliveries")
+    const { data: groups, error } = await supabase
+      .from("partner_route_groups")
       .select("*")
       .eq("provider_id", providerId)
-      .is("route_id", null)
-      .in("status", ["pending", "out_for_delivery"])
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: true });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(groups ?? []);
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Server error" }, { status: 500 });
+  }
+}
 
-    const deliveries = (data ?? []).map((d) => ({
-      ...d,
-      priority_score: 0,
-      distance_to_route_km: null,
-      estimated_detour_km: null,
-    }));
+export async function POST(req: NextRequest) {
+  try {
+    const token = getToken(req);
+    const providerId = await getProviderId(token);
+    if (!providerId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    return NextResponse.json({ deliveries });
+    const body = await req.json().catch(() => null);
+    if (!body?.name?.trim()) return NextResponse.json({ error: "name is required" }, { status: 400 });
+
+    const { name, color, route_ids } = body;
+
+    const supabase = makeClient(token!);
+
+    const { data: group, error: groupErr } = await supabase
+      .from("partner_route_groups")
+      .insert({ provider_id: providerId, name: name.trim(), color: color ?? "#10B981" })
+      .select()
+      .single();
+
+    if (groupErr) return NextResponse.json({ error: groupErr.message }, { status: 500 });
+
+    if (Array.isArray(route_ids) && route_ids.length > 0) {
+      await supabase
+        .from("partner_routes")
+        .update({ group_id: group.id })
+        .in("id", route_ids)
+        .eq("provider_id", providerId);
+    }
+
+    return NextResponse.json(group, { status: 201 });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Server error" }, { status: 500 });
   }
