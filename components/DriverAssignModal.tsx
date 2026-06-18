@@ -33,6 +33,7 @@ export default function DriverAssignModal({ driver, isOpen, onClose, onSaved }: 
   const [vehicles, setVehicles]           = useState<FleetVehicle[]>([]);
   const [currentVehicleId, setCurrentVehicleId] = useState<number | null>(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
+  const [hasIncompatibleVehicles, setHasIncompatibleVehicles] = useState(false);
   const [name, setName]                   = useState("");
   const [phone, setPhone]                 = useState("");
   const [licenseNumber, setLicenseNumber] = useState("");
@@ -68,11 +69,28 @@ export default function DriverAssignModal({ driver, isOpen, onClose, onSaved }: 
         setCurrentVehicleId(currentVehicle?.id ?? null);
         setSelectedVehicleId(currentVehicle?.id ?? null);
 
-        // Show available vehicles + the currently assigned one (if any)
-        const available = vehicleData.filter(
+        const driverLicenses = (driver.license_type ?? "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+        const isLicenseCompatible = (v: FleetVehicle) => {
+          if (!v.allowed_license) return true;
+          const required = v.allowed_license.split(",").map((s) => s.trim()).filter(Boolean);
+          if (required.length === 0) return true;
+          return driverLicenses.some((dl) => required.includes(dl));
+        };
+
+        // Available vehicles the driver can be assigned to
+        const availablePool = vehicleData.filter(
           (v) => v.status === "available" || v.id === currentVehicle?.id
         );
-        setVehicles(available);
+        const compatible = availablePool.filter(
+          (v) => v.id === currentVehicle?.id || isLicenseCompatible(v)
+        );
+
+        setHasIncompatibleVehicles(availablePool.length > compatible.length);
+        setVehicles(compatible);
       } catch {
         setError("Failed to load vehicles.");
       } finally {
@@ -253,14 +271,23 @@ export default function DriverAssignModal({ driver, isOpen, onClose, onSaved }: 
               </select>
             )}
             {!loading && vehicles.length === 0 && (
-              <p className="text-xs text-amber-600 mt-1">No available vehicles. Add vehicles in Fleet Registry first.</p>
+              <p className="text-xs text-amber-600 mt-1">
+                {hasIncompatibleVehicles
+                  ? "No vehicles match this driver's license class(es). Update the driver's licenses or the vehicle's required license in Fleet Registry."
+                  : "No available vehicles. Add vehicles in Fleet Registry first."}
+              </p>
+            )}
+            {!loading && vehicles.length === 0 && hasIncompatibleVehicles && (
+              <p className="text-xs text-gray-400 mt-0.5">
+                Driver licenses: {(driver.license_type ?? "").split(",").map(s => s.trim()).filter(Boolean).join(", ") || "none"}
+              </p>
             )}
           </div>
 
           {/* Info note */}
           <div className="flex items-start gap-2.5 rounded-lg bg-emerald-50 border border-emerald-100 px-3 py-2.5 text-xs text-emerald-800">
             <Info className="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
-            Assign a vehicle to this driver or leave unassigned. The driver status will update automatically.
+            Only vehicles whose required license class matches this driver&apos;s license(s) are shown. The driver status will update automatically.
           </div>
 
           {error && <p className="text-xs text-red-600">{error}</p>}
