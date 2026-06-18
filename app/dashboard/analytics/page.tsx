@@ -4,12 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
-  Download,
-  Plus,
   UserPlus,
   Layers,
   ClipboardList,
 } from "lucide-react";
+import type { ActivityType, ActivityItem } from "@/app/api/dashboard/stats/route";
 
 interface DashboardStats {
   totalDrivers: number;
@@ -20,16 +19,7 @@ interface DashboardStats {
   runsToday: number;
   runsCompleted: number;
   avgCapacity: number;
-  recentRequests: RecentRequest[];
-}
-
-interface RecentRequest {
-  id: number;
-  status: string;
-  drivers_requested: number;
-  business_id: number;
-  created_at: string;
-  notes: string | null;
+  recentActivity: ActivityItem[];
 }
 
 function greeting() {
@@ -49,33 +39,25 @@ function timeAgo(iso: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-const STATUS_DOT: Record<string, string> = {
-  pending: "bg-blue-500",
-  accepted: "bg-emerald-500",
-  partially_allocated: "bg-amber-400",
-  fully_allocated: "bg-emerald-600",
-  completed: "bg-emerald-500",
-  rejected: "bg-red-400",
-  cancelled: "bg-gray-400",
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  pending: "received",
-  accepted: "approved",
-  partially_allocated: "partially allocated",
-  fully_allocated: "fully allocated",
-  completed: "completed",
-  rejected: "rejected",
-  cancelled: "cancelled",
+const ACTIVITY_TYPE_CONFIG: Record<
+  ActivityType,
+  { dot: string; badge: string; label: string }
+> = {
+  request: { dot: "bg-blue-500", badge: "bg-blue-50 text-blue-600", label: "Request" },
+  delivery: { dot: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700", label: "Delivery" },
+  driver: { dot: "bg-violet-500", badge: "bg-violet-50 text-violet-600", label: "Driver" },
+  route: { dot: "bg-amber-500", badge: "bg-amber-50 text-amber-700", label: "Route" },
+  vehicle: { dot: "bg-orange-500", badge: "bg-orange-50 text-orange-600", label: "Vehicle" },
+  client: { dot: "bg-gray-500", badge: "bg-gray-100 text-gray-600", label: "Client" },
 };
 
 function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-6">
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">
+    <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6">
+      <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-widest text-gray-400">
         {label}
       </p>
-      <p className="mt-2 text-4xl font-bold text-gray-900">{value}</p>
+      <p className="mt-2 text-2xl sm:text-3xl xl:text-4xl font-bold text-gray-900">{value}</p>
     </div>
   );
 }
@@ -137,67 +119,56 @@ export default function ProviderDashboardPage() {
   return (
     <div className="flex flex-col min-h-full bg-gray-50">
       {/* Breadcrumb */}
-      <div className="px-8 py-3 border-b bg-white">
+      <div className="px-4 sm:px-6 md:px-8 py-3 border-b bg-white">
         <p className="text-sm text-gray-400">Dashboard</p>
       </div>
 
-      <div className="flex-1 px-8 py-8 space-y-8">
+      <div className="flex-1 px-4 sm:px-6 md:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Provider Dashboard</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              {greeting()} — here is your operations overview
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Provider Dashboard</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            {greeting()} — here is your operations overview
+          </p>
         </div>
 
         {/* Stats */}
         {loading ? (
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="rounded-xl border border-gray-200 bg-white p-6 animate-pulse"
+                className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 animate-pulse"
               >
-                <div className="h-3 w-24 bg-gray-200 rounded mb-4" />
-                <div className="h-9 w-16 bg-gray-100 rounded" />
+                <div className="h-3 w-20 bg-gray-200 rounded mb-4" />
+                <div className="h-8 w-14 bg-gray-100 rounded" />
               </div>
             ))}
           </div>
         ) : error ? (
-          <div className="rounded-xl border border-red-100 bg-red-50 px-6 py-4 text-sm text-red-600">
+          <div className="rounded-xl border border-red-100 bg-red-50 px-4 sm:px-6 py-4 text-sm text-red-600">
             {error}
           </div>
         ) : stats ? (
-          <>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-              <StatCard label="Total Drivers" value={stats.totalDrivers} />
-              <StatCard label="Active" value={stats.activeDrivers} />
-              <StatCard label="Allocated" value={stats.allocatedDrivers} />
-              <StatCard label="On Run" value={stats.onRunDrivers} />
-              <StatCard label="Pending Requests" value={stats.pendingRequests} />
-              <StatCard label="Runs Today" value={stats.runsToday} />
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-              <StatCard label="Runs Completed" value={stats.runsCompleted} />
-              <StatCard label="Avg Capacity" value={`${stats.avgCapacity}%`} />
-            </div>
-          </>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            <StatCard label="Total Drivers" value={stats.totalDrivers} />
+            <StatCard label="Active" value={stats.activeDrivers} />
+            <StatCard label="Allocated" value={stats.allocatedDrivers} />
+            <StatCard label="On Run" value={stats.onRunDrivers} />
+            <StatCard label="Pending Requests" value={stats.pendingRequests} />
+            <StatCard label="Runs Today" value={stats.runsToday} />
+            <StatCard label="Runs Completed" value={stats.runsCompleted} />
+            <StatCard label="Avg Capacity" value={`${stats.avgCapacity}%`} />
+          </div>
         ) : null}
 
         {/* Bottom section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Recent Activity */}
-          <div className="rounded-xl border border-gray-200 bg-white p-6">
-            <div className="flex items-center justify-between mb-5">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6 flex flex-col">
+            <div className="mb-4 shrink-0">
               <h2 className="text-base font-semibold text-gray-900">Recent Activity</h2>
-              <button
-                onClick={() => router.push("/dashboard/requests")}
-                className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
-              >
-                View all
-              </button>
+              <p className="text-xs text-gray-400 mt-0.5">Latest events across all operations</p>
             </div>
 
             {loading ? (
@@ -212,52 +183,63 @@ export default function ProviderDashboardPage() {
                   </div>
                 ))}
               </div>
-            ) : stats?.recentRequests.length === 0 ? (
+            ) : !stats?.recentActivity.length ? (
               <p className="text-sm text-gray-400 py-4 text-center">No recent activity</p>
             ) : (
-              <ul className="space-y-4">
-                {stats?.recentRequests.map((req) => (
-                  <li key={req.id} className="flex items-start gap-3">
-                    <span
-                      className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${STATUS_DOT[req.status] ?? "bg-gray-400"}`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-gray-800 truncate">
-                          ARQ-{String(req.id).padStart(4, "0")}{" "}
-                          {STATUS_LABEL[req.status] ?? req.status}
-                        </p>
-                        <span className="text-xs text-gray-400 shrink-0">
-                          {timeAgo(req.created_at)}
-                        </span>
+              <ul className="space-y-4 overflow-y-auto max-h-[360px] pr-1 -mr-1 scrollbar-thin">
+                {stats.recentActivity.map((item) => {
+                  const config =
+                    ACTIVITY_TYPE_CONFIG[item.type] ?? {
+                      dot: "bg-gray-400",
+                      badge: "bg-gray-100 text-gray-500",
+                      label: item.type,
+                    };
+                  return (
+                    <li key={item.key} className="flex items-start gap-3">
+                      <span
+                        className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${config.dot}`}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-sm font-medium text-gray-800 truncate">
+                            {item.title}
+                          </p>
+                          <span className="text-xs text-gray-400 shrink-0">
+                            {timeAgo(item.created_at)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <p className="text-xs text-gray-400 truncate">{item.subtitle}</p>
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded-full font-semibold shrink-0 ${config.badge}`}
+                          >
+                            {config.label}
+                          </span>
+                        </div>
                       </div>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {req.drivers_requested} driver{req.drivers_requested !== 1 ? "s" : ""} requested
-                        {req.notes ? ` • ${req.notes}` : ""}
-                      </p>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
 
           {/* Quick Actions */}
-          <div className="rounded-xl border border-gray-200 bg-white p-6">
-            <h2 className="text-base font-semibold text-gray-900 mb-5">Quick Actions</h2>
-            <div className="grid grid-cols-2 gap-4">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 sm:p-6">
+            <h2 className="text-base font-semibold text-gray-900 mb-4 sm:mb-5">Quick Actions</h2>
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               {QUICK_ACTIONS.map((action) => (
                 <button
                   key={action.label}
                   onClick={() => router.push(action.href)}
-                  className="flex flex-col items-center gap-3 rounded-xl border border-gray-200 p-5 text-center hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                  className="flex flex-col items-center gap-2 sm:gap-3 rounded-xl border border-gray-200 p-4 sm:p-5 text-center hover:bg-gray-50 hover:border-gray-300 transition-colors"
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-700">
-                    <action.icon className="h-5 w-5 text-white" />
+                  <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-emerald-700">
+                    <action.icon className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-gray-900">{action.label}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{action.description}</p>
+                    <p className="text-xs text-gray-400 mt-0.5 hidden sm:block">{action.description}</p>
                   </div>
                 </button>
               ))}
