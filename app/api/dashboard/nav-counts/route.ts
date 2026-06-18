@@ -56,13 +56,13 @@ export async function GET(req: NextRequest) {
         .from("partner_allocation_requests")
         .select("id", { count: "exact", head: true })
         .eq("service_provider_id", providerId)
-        .eq("status", "pending"),
+        .eq("status", "completed"),
 
       supabase
         .from("partner_deliveries")
         .select("id", { count: "exact", head: true })
         .eq("provider_id", providerId)
-        .eq("status", "delivered"),
+        .in("status", ["awaiting_approval", "pending", "out_for_delivery", "in_transit"]),
 
       supabase
         .from("partner_routes")

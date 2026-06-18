@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 import {
   ClipboardList, Search, X, User, Calendar, CheckCircle2,
-  XCircle, ChevronRight, Car, Users, Clock, AlertCircle,
+  XCircle, ChevronRight, Users, AlertCircle,
   Plus, Trash2, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -340,107 +341,139 @@ export default function AllocationRequestsPage() {
   // ─── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <section className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold">Allocation Requests</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Review business requests and assign available partner drivers and vehicles here.
-          </p>
+    <div className="flex flex-col min-h-screen bg-gray-50/40">
+      {/* Page header */}
+      <div className="bg-white border-b px-8 pt-5 pb-0">
+        <p className="text-xs text-gray-400 mb-3 flex items-center gap-1">
+          <Link href="/dashboard/analytics" className="hover:text-gray-600 transition-colors">Dashboard</Link>
+          <span>/</span>
+          <span className="text-gray-600">Business Delivery Requests</span>
+        </p>
+        <div className="flex items-end justify-between gap-4 pb-5">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Business Delivery Requests</h1>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Review requests and assign available partner drivers and vehicles.
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setLoading(true); fetchRequests(); }}
+            className="gap-2 shrink-0"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Refresh
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => { setLoading(true); fetchRequests(); }}
-          className="gap-2"
-        >
-          <RefreshCw className="h-3.5 w-3.5" /> Refresh
-        </Button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 flex-wrap border-b border-gray-200 pb-0">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === tab.key
-                ? "border-gray-900 text-gray-900"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            {tab.label}
-            {tabCounts[tab.key] > 0 && (
-              <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                activeTab === tab.key
-                  ? "bg-gray-900 text-white"
-                  : "bg-gray-100 text-gray-600"
-              }`}>
-                {tabCounts[tab.key]}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Search */}
-      <div className="relative max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input
-          className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
-          placeholder="Search by business name…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-        {search && (
-          <button
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            onClick={() => setSearch("")}
-          >
-            <X className="h-4 w-4" />
-          </button>
+      <div className="px-8 py-6 space-y-6">
+        {/* Stat cards */}
+        {!loading && !error && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+            {[
+              { label: "Total",          value: requests.length },
+              { label: "Pending",        value: tabCounts["pending"] },
+              { label: "Accepted",       value: tabCounts["accepted"] },
+              { label: "In Progress",    value: tabCounts["partially_allocated"] },
+              { label: "Fully Allocated",value: tabCounts["fully_allocated"] },
+              { label: "Completed",      value: tabCounts["completed"] },
+              { label: "Rejected",       value: tabCounts["rejected"] },
+            ].map(({ label, value }) => (
+              <div key={label} className="bg-white rounded-xl border border-gray-200 px-4 py-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-400">{label}</p>
+                <p className="mt-2 text-3xl font-bold leading-none text-gray-900">{value}</p>
+              </div>
+            ))}
+          </div>
         )}
-      </div>
 
-      {/* Content */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-52 bg-gray-100 rounded-2xl animate-pulse" />
-          ))}
+        {/* Cards area */}
+        <div className="bg-white rounded-xl border border-gray-200">
+          {/* Tabs + search */}
+          <div className="flex items-center gap-3 px-4 py-3 border-b flex-wrap">
+            <div className="flex items-center gap-1 overflow-x-auto">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`px-3.5 py-1.5 rounded-full text-sm font-semibold transition-colors whitespace-nowrap ${
+                    activeTab === tab.key
+                      ? "bg-gray-900 text-white"
+                      : "border border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50"
+                  }`}
+                >
+                  {tab.label}
+                  {tabCounts[tab.key] > 0 && (
+                    <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                      activeTab === tab.key ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"
+                    }`}>
+                      {tabCounts[tab.key]}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+            <div className="relative ml-auto min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+                placeholder="Search by business name…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              {search && (
+                <button
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  onClick={() => setSearch("")}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Content */}
+          <div className="p-4">
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-52 bg-gray-100 rounded-2xl animate-pulse" />
+                ))}
+              </div>
+            ) : error ? (
+              <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl p-4">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                {error}
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center text-gray-500">
+                <ClipboardList className="h-12 w-12 mb-4 text-gray-300" />
+                <p className="text-base font-medium">No requests found</p>
+                <p className="text-sm mt-1">
+                  {search
+                    ? "Try a different search term."
+                    : activeTab === "all"
+                    ? "Businesses will send allocation requests here."
+                    : `No ${STATUS_LABEL[activeTab]?.toLowerCase()} requests.`}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filtered.map((req) => (
+                  <RequestCard
+                    key={req.id}
+                    req={req}
+                    onAccept={() => openReview(req, "accept")}
+                    onReject={() => openReview(req, "reject")}
+                    onAllocate={() => openAllocate(req)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      ) : error ? (
-        <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-xl p-4">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {error}
-        </div>
-      ) : filtered.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-center text-gray-500">
-          <ClipboardList className="h-12 w-12 mb-4 text-gray-300" />
-          <p className="text-base font-medium">No requests found</p>
-          <p className="text-sm mt-1">
-            {search
-              ? "Try a different search term."
-              : activeTab === "all"
-              ? "Businesses will send allocation requests here."
-              : `No ${STATUS_LABEL[activeTab]?.toLowerCase()} requests.`}
-          </p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((req) => (
-            <RequestCard
-              key={req.id}
-              req={req}
-              onAccept={() => openReview(req, "accept")}
-              onReject={() => openReview(req, "reject")}
-              onAllocate={() => openAllocate(req)}
-            />
-          ))}
-        </div>
-      )}
+      </div>
 
       {/* ── Review Modal ──────────────────────────────────────────────────────── */}
       {reviewRequest && reviewAction && (
@@ -693,7 +726,7 @@ export default function AllocationRequestsPage() {
           </div>
         </div>
       )}
-    </section>
+    </div>
   );
 }
 

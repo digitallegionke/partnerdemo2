@@ -13,7 +13,7 @@ import {
   UserSquare2,
   Package,
   CalendarDays,
-  Zap,
+  Truck,
   Settings,
   HelpCircle,
   LogOut,
@@ -22,6 +22,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Building2,
+  ClipboardList,
 } from "lucide-react";
 import {
   getProviderAccessProfile,
@@ -42,51 +43,46 @@ interface NavCounts {
 
 // href → which count key to use (null = no badge)
 const BADGE_KEY: Record<string, keyof NavCounts | null> = {
-  "/dashboard/drivers":     "drivers",
-  "/dashboard/fleet":       "fleet",
-  "/dashboard/requests":    "pendingRequests",
-  "/dashboard/deliveries":  "deliveries",
-  "/dashboard/routes":      "routes",
-  "/dashboard/route-names": "routeNames",
-  "/dashboard/clients":     "clients",
+  "/dashboard/drivers":           "drivers",
+  "/dashboard/fleet":             "fleet",
+  "/dashboard/requests":          "pendingRequests",
+  "/dashboard/deliveries":        "deliveries",
+  "/dashboard/routes":            "routes",
+  "/dashboard/route-names":       "routeNames",
+  "/dashboard/clients":           "clients",
+  "/dashboard/delivery-bookings": null,
 };
 
 const NAV_SECTIONS = [
   {
     label: "Operations",
     items: [
-      { href: "/dashboard/analytics", label: "Dashboard",  icon: LayoutDashboard },
+      { href: "/dashboard/analytics", label: "Dashboard", icon: LayoutDashboard },
+    ],
+  },
+  {
+    label: "Routes Management",
+    items: [
       { href: "/dashboard/routes",      label: "Routes",      icon: Route },
       { href: "/dashboard/route-names", label: "Route Names", icon: Navigation },
     ],
   },
   {
-    label: "Fleet Management",
+    label: "Fleet & Drivers Management",
     items: [
       { href: "/dashboard/fleet",   label: "Fleet Registry", icon: Grid2X2 },
       { href: "/dashboard/drivers", label: "Drivers",        icon: Users },
     ],
   },
   {
-    label: "Driver Allocation",
+    label: "Deliveries Management",
     items: [
-      { href: "/dashboard/requests", label: "Allocation Requests", icon: UserSquare2 },
+      { href: "/dashboard/requests",          label: "Business Requests", icon: ClipboardList },
+      { href: "/dashboard/delivery-bookings", label: "Business Deliveries",        icon: Truck },
+      { href: "/dashboard/deliveries",        label: "Partners Deliveries",        icon: Package },
+      { href: "/dashboard/clients",           label: "Clients",                    icon: Building2 },
     ],
   },
-  {
-    label: "Deliveries",
-    items: [
-      { href: "/dashboard/deliveries", label: "Deliveries", icon: Package },
-      { href: "/dashboard/clients",    label: "Clients",    icon: Building2 },
-    ],
-  },
-  // {
-  //   label: "Managed Delivery",
-  //   items: [
-  //     { href: "/dashboard/delivery-bookings",  label: "Delivery Bookings",  icon: CalendarDays },
-  //     { href: "/dashboard/on-demand-delivery", label: "On-Demand Delivery", icon: Zap },
-  //   ],
-  // },
   {
     label: "Account",
     items: [
@@ -227,13 +223,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     onClick={() => toggleSection(section.label)}
                     className="w-full flex items-center justify-between px-2 pt-3 pb-1.5 group"
                   >
-                    <span className="text-[10.5px] font-bold text-gray-400 uppercase tracking-widest group-hover:text-gray-500 transition-colors">
+                    <span className="text-[11px] font-semibold text-gray-600 uppercase tracking-wider group-hover:text-gray-800 transition-colors">
                       {section.label}
                     </span>
                     {isSectionCollapsed ? (
-                      <ChevronDown className="h-3 w-3 text-gray-300 group-hover:text-gray-400 transition-colors" />
+                      <ChevronDown className="h-3 w-3 text-gray-400 group-hover:text-gray-600 transition-colors" />
                     ) : (
-                      <ChevronUp className="h-3 w-3 text-gray-300 group-hover:text-gray-400 transition-colors" />
+                      <ChevronUp className="h-3 w-3 text-gray-400 group-hover:text-gray-600 transition-colors" />
                     )}
                   </button>
                 )}
