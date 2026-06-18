@@ -4,11 +4,15 @@ import { useEffect, useState, useMemo } from "react";
 import {
   Truck, Plus, Pencil, Search, X, Eye,
   Bike, Package, CheckCircle2, User,
-  Fuel, ShieldCheck,
+  Fuel, ShieldCheck, CalendarIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FleetService, type FleetVehicle } from "@/lib/services/fleet";
 import FleetViewModal from "@/components/FleetViewModal";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { parse, format, isValid } from "date-fns";
+import "react-day-picker/style.css";
 
 type VehicleType = "motorbike" | "bicycle" | "car" | "van" | "truck" | "other";
 type FleetStatus = "available" | "assigned" | "in_maintenance";
@@ -98,6 +102,58 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("en-KE", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function isoToDisplay(iso: string): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  if (!y || !m || !d) return "";
+  return `${d}/${m}/${y}`;
+}
+
+function displayToIso(display: string): string {
+  if (!display) return "";
+  const [d, m, y] = display.split("/");
+  if (!d || !m || !y || y.length !== 4) return "";
+  return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
+}
+
+function DatePickerInput({ value, onChange, className }: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  const selected = useMemo(() => {
+    if (!value) return undefined;
+    const parsed = parse(value, "dd/MM/yyyy", new Date());
+    return isValid(parsed) ? parsed : undefined;
+  }, [value]);
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={`${className} flex items-center justify-between w-full text-left ${!value ? "text-gray-400" : "text-gray-900"}`}
+        >
+          <span>{value || "dd/mm/yyyy"}</span>
+          <CalendarIcon size={15} className="text-gray-400 shrink-0" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={selected}
+          captionLayout="dropdown"
+          startMonth={new Date(1990, 0)}
+          endMonth={new Date(2100, 11)}
+          onSelect={(date) => {
+            if (date) onChange(format(date, "dd/MM/yyyy"));
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 type FormState = {
   plate_number: string;
   vehicle_type: VehicleType;
@@ -185,9 +241,9 @@ export default function FleetRegistryPage() {
       capacity_kg:       v.capacity_kg != null ? String(v.capacity_kg) : "",
       odometer_km:       v.odometer_km != null ? String(v.odometer_km) : "",
       status:            v.status ?? "available",
-      last_service_date: v.last_service_date ?? "",
-      insurance_expiry:  v.insurance_expiry ?? "",
-      inspection_expiry: v.inspection_expiry ?? "",
+      last_service_date: isoToDisplay(v.last_service_date ?? ""),
+      insurance_expiry:  isoToDisplay(v.insurance_expiry ?? ""),
+      inspection_expiry: isoToDisplay(v.inspection_expiry ?? ""),
       allowed_license:   v.allowed_license
         ? v.allowed_license.split(",").map((s) => s.trim()).filter(Boolean)
         : [],
@@ -222,9 +278,9 @@ export default function FleetRegistryPage() {
       capacity_kg:       form.capacity_kg ? Number(form.capacity_kg) : null,
       odometer_km:       form.odometer_km ? Number(form.odometer_km) : null,
       status:            form.status || "available",
-      last_service_date: form.last_service_date || null,
-      insurance_expiry:  form.insurance_expiry || null,
-      inspection_expiry: form.inspection_expiry || null,
+      last_service_date: displayToIso(form.last_service_date) || null,
+      insurance_expiry:  displayToIso(form.insurance_expiry) || null,
+      inspection_expiry: displayToIso(form.inspection_expiry) || null,
       allowed_license:   form.allowed_license.length > 0 ? form.allowed_license.join(",") : null,
       notes:             form.notes || null,
     };
@@ -629,11 +685,10 @@ export default function FleetRegistryPage() {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1.5 block">Last Service Date</label>
-                  <input
-                    type="date"
+                  <DatePickerInput
                     value={form.last_service_date}
-                    onChange={(e) => setForm((f) => ({ ...f, last_service_date: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                    onChange={(v) => setForm((f) => ({ ...f, last_service_date: v }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                   />
                 </div>
               </div>
@@ -642,20 +697,18 @@ export default function FleetRegistryPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1.5 block">Insurance Expiry</label>
-                  <input
-                    type="date"
+                  <DatePickerInput
                     value={form.insurance_expiry}
-                    onChange={(e) => setForm((f) => ({ ...f, insurance_expiry: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                    onChange={(v) => setForm((f) => ({ ...f, insurance_expiry: v }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                   />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1.5 block">Inspection Expiry</label>
-                  <input
-                    type="date"
+                  <DatePickerInput
                     value={form.inspection_expiry}
-                    onChange={(e) => setForm((f) => ({ ...f, inspection_expiry: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                    onChange={(v) => setForm((f) => ({ ...f, inspection_expiry: v }))}
+                    className="w-full rounded-lg border border-gray-200 px-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                   />
                 </div>
               </div>
