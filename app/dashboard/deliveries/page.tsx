@@ -852,14 +852,20 @@ export default function DeliveriesPage() {
               <Link2 className="h-4 w-4" />
               Client Order Link
             </Button>
-            <Button
-              size="sm"
-              className="gap-1.5 bg-emerald-700 hover:bg-emerald-800"
+            <button
               onClick={() => setAddOpen(true)}
+              style={{
+                padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                color: "#162318", backgroundColor: "#CDF782",
+                border: "none", borderRadius: 8, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5" />
               Add Delivery
-            </Button>
+            </button>
           </div>
         </div>
       </div>

@@ -644,16 +644,16 @@ export default function EditDeliveryModal({
                         onClick={() => setForm((f) => ({ ...f, deliverySize: key }))}
                         className={`rounded-xl border-2 p-3 text-left transition-all ${
                           selected
-                            ? "border-emerald-500 bg-emerald-50/80 ring-1 ring-emerald-500/30"
-                            : "border-gray-200 bg-white hover:border-gray-300"
+                            ? "border-[#a8d44f] ring-1 ring-[#CDF782]/60"
+                            : "border-gray-200 bg-white hover:border-[#CDF782]"
                         }`}
+                        style={selected ? { backgroundColor: "#f5ffd6" } : {}}
                       >
                         <span
-                          className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold ${
-                            selected
-                              ? "bg-emerald-600 text-white"
-                              : "bg-emerald-100 text-emerald-800"
-                          }`}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold"
+                          style={selected
+                            ? { backgroundColor: "#CDF782", color: "#162318" }
+                            : { backgroundColor: "#f0fdf4", color: "#166534" }}
                         >
                           {key}
                         </span>
@@ -1071,13 +1071,20 @@ export default function EditDeliveryModal({
             <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
-            <Button
+            <button
               type="submit"
               disabled={saving}
-              className="bg-emerald-400 hover:bg-emerald-500 text-gray-900 font-semibold min-w-[140px]"
+              style={{
+                padding: "10px 20px", fontSize: 14, fontWeight: 600, minWidth: 140,
+                color: "#162318", backgroundColor: saving ? "#bfe96f" : "#CDF782",
+                border: "none", borderRadius: 8, cursor: saving ? "not-allowed" : "pointer",
+                opacity: saving ? 0.7 : 1, transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => { if (!saving) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f"; }}
+              onMouseLeave={(e) => { if (!saving) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782"; }}
             >
               {saving ? "Saving..." : "Save Changes"}
-            </Button>
+            </button>
           </div>
         </form>
       </div>

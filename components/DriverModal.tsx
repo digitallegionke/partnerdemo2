@@ -377,7 +377,13 @@ export default function DriverModal({
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-emerald-700 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-800"
+              style={{
+                padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                color: "#162318", backgroundColor: "#CDF782",
+                border: "none", borderRadius: 8, cursor: "pointer", transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
             >
               {isEditMode ? "Update Driver" : "Add Driver"}
             </button>

@@ -1683,13 +1683,19 @@ export default function RoutesPage() {
                       setFormError(null);
                       setWizardStep((s) => s + 1);
                     }}
-                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", fontSize: 13, fontWeight: 600, color: "#fff", backgroundColor: "#10B981", border: "none", borderRadius: 8, cursor: "pointer" }}>
+                    style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", fontSize: 13, fontWeight: 600, color: "#162318", backgroundColor: "#CDF782", border: "none", borderRadius: 8, cursor: "pointer", transition: "all 0.15s" }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
+                  >
                     Continue →
                   </button>
                 ) : (
                   <button type="button" disabled={saving}
                     onClick={() => handleSave()}
-                    style={{ padding: "10px 20px", fontSize: 13, fontWeight: 600, color: "#fff", backgroundColor: "#14532D", border: "none", borderRadius: 8, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1 }}>
+                    style={{ padding: "10px 20px", fontSize: 13, fontWeight: 600, color: "#162318", backgroundColor: saving ? "#bfe96f" : "#CDF782", border: "none", borderRadius: 8, cursor: saving ? "not-allowed" : "pointer", opacity: saving ? 0.7 : 1, transition: "all 0.15s" }}
+                    onMouseEnter={(e) => { if (!saving) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f"; }}
+                    onMouseLeave={(e) => { if (!saving) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782"; }}
+                  >
                     {saving ? (editing ? "Saving…" : "Creating…") : (editing ? "Save Changes" : "Create Route")}
                   </button>
                 )}
@@ -1964,7 +1970,9 @@ export default function RoutesPage() {
                 type="button"
                 disabled={savingGroup}
                 onClick={handleSaveGroup}
-                style={{ padding: "10px 20px", fontSize: 13, fontWeight: 600, color: "#fff", backgroundColor: "#14532D", border: "none", borderRadius: 8, cursor: savingGroup ? "not-allowed" : "pointer", opacity: savingGroup ? 0.7 : 1 }}
+                style={{ padding: "10px 20px", fontSize: 13, fontWeight: 600, color: "#162318", backgroundColor: savingGroup ? "#bfe96f" : "#CDF782", border: "none", borderRadius: 8, cursor: savingGroup ? "not-allowed" : "pointer", opacity: savingGroup ? 0.7 : 1, transition: "all 0.15s" }}
+                onMouseEnter={(e) => { if (!savingGroup) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f"; }}
+                onMouseLeave={(e) => { if (!savingGroup) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782"; }}
               >
                 {savingGroup ? "Saving…" : editingGroup ? "Save Changes" : "Create Group"}
               </button>
