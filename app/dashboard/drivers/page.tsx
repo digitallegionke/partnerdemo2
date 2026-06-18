@@ -128,6 +128,7 @@ export default function ProviderDriversPage() {
         });
         setDrivers((prev) => [created, ...prev]);
       }
+      window.dispatchEvent(new Event("navcount:refresh"));
       setModalOpen(false);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to save driver");
@@ -163,10 +164,20 @@ export default function ProviderDriversPage() {
               Manage your fleet drivers, their vehicle details, and availability status.
             </p>
           </div>
-          <Button onClick={handleAddDriver} className="shrink-0 gap-2 bg-emerald-700 hover:bg-emerald-800">
-            <Plus className="h-4 w-4" />
+          <button
+            onClick={handleAddDriver}
+            style={{
+              padding: "10px 20px", fontSize: 14, fontWeight: 600,
+              color: "#162318", backgroundColor: "#CDF782",
+              border: "none", borderRadius: 8, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
+          >
+            <Plus className="h-3.5 w-3.5" />
             Add Driver
-          </Button>
+          </button>
         </div>
 
 
@@ -249,7 +260,7 @@ export default function ProviderDriversPage() {
 
         ) : (
           /* Driver cards */
-          <div className="px-8 pb-8 grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div className="px-8 pb-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
             {filtered.map((driver) => (
               <div
                 key={driver.id}

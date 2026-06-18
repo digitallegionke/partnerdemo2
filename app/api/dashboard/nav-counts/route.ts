@@ -39,16 +39,18 @@ export async function GET(req: NextRequest) {
 
     const supabase = makeClient(token!);
 
-    const [driversRes, fleetRes, requestsRes, deliveriesRes] = await Promise.all([
+    const [driversRes, fleetRes, requestsRes, deliveriesRes, routesRes, routeNamesRes, clientsRes] = await Promise.all([
       supabase
         .from("partner_drivers")
         .select("id", { count: "exact", head: true })
-        .eq("provider_id", providerId),
+        .eq("provider_id", providerId)
+        .eq("status", "active"),
 
       supabase
         .from("partner_vehicles")
         .select("id", { count: "exact", head: true })
-        .eq("provider_id", providerId),
+        .eq("provider_id", providerId)
+        .eq("status", "available"),
 
       supabase
         .from("partner_allocation_requests")
@@ -60,15 +62,34 @@ export async function GET(req: NextRequest) {
         .from("partner_deliveries")
         .select("id", { count: "exact", head: true })
         .eq("provider_id", providerId)
-        .eq("status", "pending")
-        .is("route_id", null),
+        .eq("status", "delivered"),
+
+      supabase
+        .from("partner_routes")
+        .select("id", { count: "exact", head: true })
+        .eq("provider_id", providerId)
+        .in("status", ["active", "pending"]),
+
+      supabase
+        .from("partner_route_names")
+        .select("id", { count: "exact", head: true })
+        .eq("provider_id", providerId),
+
+      supabase
+        .from("partner_clients")
+        .select("id", { count: "exact", head: true })
+        .eq("provider_id", providerId)
+        .eq("status", "active"),
     ]);
 
     return NextResponse.json({
-      drivers:         driversRes.count ?? 0,
-      fleet:           fleetRes.count   ?? 0,
-      pendingRequests: requestsRes.count ?? 0,
+      drivers:         driversRes.count    ?? 0,
+      fleet:           fleetRes.count      ?? 0,
+      pendingRequests: requestsRes.count   ?? 0,
       deliveries:      deliveriesRes.count ?? 0,
+      routes:          routesRes.count     ?? 0,
+      routeNames:      routeNamesRes.count ?? 0,
+      clients:         clientsRes.count    ?? 0,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Server error";

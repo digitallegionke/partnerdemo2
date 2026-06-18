@@ -292,6 +292,7 @@ export default function FleetRegistryPage() {
         const created = await FleetService.create(payload) as FleetVehicleEnriched;
         setVehicles((prev) => [created, ...prev]);
       }
+      window.dispatchEvent(new Event("navcount:refresh"));
       setModalOpen(false);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to save vehicle");
@@ -306,6 +307,7 @@ export default function FleetRegistryPage() {
     try {
       await FleetService.delete(v.id);
       setVehicles((prev) => prev.filter((x) => x.id !== v.id));
+      window.dispatchEvent(new Event("navcount:refresh"));
       setViewing(null);
     } catch (err) {
       alert(err instanceof Error ? err.message : "Failed to delete vehicle");
@@ -347,10 +349,20 @@ export default function FleetRegistryPage() {
               {tabCounts.in_maintenance} in maintenance
             </p>
           </div>
-          <Button onClick={openAdd} className="shrink-0 gap-2 bg-emerald-700 hover:bg-emerald-800">
-            <Plus className="h-4 w-4" />
+          <button
+            onClick={openAdd}
+            style={{
+              padding: "10px 20px", fontSize: 14, fontWeight: 600,
+              color: "#162318", backgroundColor: "#CDF782",
+              border: "none", borderRadius: 8, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
+          >
+            <Plus className="h-3.5 w-3.5" />
             Add Vehicle
-          </Button>
+          </button>
         </div>
 
         {/* Search + tabs */}
@@ -767,9 +779,20 @@ export default function FleetRegistryPage() {
             {/* Modal footer */}
             <div className="flex items-center justify-end gap-3 px-6 py-4 border-t shrink-0">
               <Button variant="outline" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</Button>
-              <Button onClick={handleSave} disabled={saving} className="bg-emerald-700 hover:bg-emerald-800">
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                style={{
+                  padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                  color: "#162318", backgroundColor: saving ? "#bfe96f" : "#CDF782",
+                  border: "none", borderRadius: 8, cursor: saving ? "not-allowed" : "pointer",
+                  opacity: saving ? 0.7 : 1, transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => { if (!saving) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f"; }}
+                onMouseLeave={(e) => { if (!saving) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782"; }}
+              >
                 {saving ? "Saving…" : editing ? "Save Changes" : "Add Vehicle"}
-              </Button>
+              </button>
             </div>
           </div>
         </div>

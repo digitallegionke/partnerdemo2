@@ -35,6 +35,9 @@ interface NavCounts {
   fleet: number;
   pendingRequests: number;
   deliveries: number;
+  routes: number;
+  routeNames: number;
+  clients: number;
 }
 
 // href → which count key to use (null = no badge)
@@ -43,6 +46,9 @@ const BADGE_KEY: Record<string, keyof NavCounts | null> = {
   "/dashboard/fleet":       "fleet",
   "/dashboard/requests":    "pendingRequests",
   "/dashboard/deliveries":  "deliveries",
+  "/dashboard/routes":      "routes",
+  "/dashboard/route-names": "routeNames",
+  "/dashboard/clients":     "clients",
 };
 
 const NAV_SECTIONS = [
@@ -74,16 +80,17 @@ const NAV_SECTIONS = [
       { href: "/dashboard/clients",    label: "Clients",    icon: Building2 },
     ],
   },
-  {
-    label: "Managed Delivery",
-    items: [
-      { href: "/dashboard/delivery-bookings",  label: "Delivery Bookings",  icon: CalendarDays },
-      { href: "/dashboard/on-demand-delivery", label: "On-Demand Delivery", icon: Zap },
-    ],
-  },
+  // {
+  //   label: "Managed Delivery",
+  //   items: [
+  //     { href: "/dashboard/delivery-bookings",  label: "Delivery Bookings",  icon: CalendarDays },
+  //     { href: "/dashboard/on-demand-delivery", label: "On-Demand Delivery", icon: Zap },
+  //   ],
+  // },
   {
     label: "Account",
     items: [
+      { href: "/dashboard/support",  label: "Support",  icon: HelpCircle },
       { href: "/dashboard/settings", label: "Settings", icon: Settings },
     ],
   },
@@ -113,6 +120,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [navCounts, setNavCounts] = useState<NavCounts | null>(null);
 
+  const refreshCounts = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? "";
+      const res = await fetch("/api/dashboard/nav-counts", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setNavCounts(await res.json());
+    } catch {
+      // counts remain null — badges simply won't show
+    }
+  };
+
+  // Auth check — runs once on mount and on navigation
   useEffect(() => {
     const checkAccess = async () => {
       const access = await getProviderAccessProfile();
@@ -122,21 +143,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       }
       setProfile(access);
       setLoading(false);
-
-      // Fetch nav counts after confirming access
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token ?? "";
-        const res = await fetch("/api/dashboard/nav-counts", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (res.ok) setNavCounts(await res.json());
-      } catch {
-        // counts remain null — badges simply won't show
-      }
     };
     checkAccess();
   }, [pathname, router]);
+
+  // Count fetch — runs on navigation and on explicit refresh events from child pages
+  useEffect(() => {
+    refreshCounts();
+    window.addEventListener("navcount:refresh", refreshCounts);
+    return () => window.removeEventListener("navcount:refresh", refreshCounts);
+  }, [pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const activePath = useMemo(() => pathname, [pathname]);
 
@@ -200,24 +216,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         {/* Scrollable nav */}
-        <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-1">
+        <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
           {NAV_SECTIONS.map((section) => {
             const isSectionCollapsed = collapsedSections.has(section.label);
             return (
-              <div key={section.label} className="mb-1">
+              <div key={section.label} className="mb-2">
                 {/* Section header — only visible when sidebar is expanded */}
                 {expanded && (
                   <button
                     onClick={() => toggleSection(section.label)}
-                    className="w-full flex items-center justify-between px-2 py-1.5 mb-1 rounded hover:bg-gray-50 transition-colors group"
+                    className="w-full flex items-center justify-between px-2 pt-3 pb-1.5 group"
                   >
-                    <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider group-hover:text-gray-500">
+                    <span className="text-[10.5px] font-bold text-gray-400 uppercase tracking-widest group-hover:text-gray-500 transition-colors">
                       {section.label}
                     </span>
                     {isSectionCollapsed ? (
-                      <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+                      <ChevronDown className="h-3 w-3 text-gray-300 group-hover:text-gray-400 transition-colors" />
                     ) : (
-                      <ChevronUp className="h-3.5 w-3.5 text-gray-400" />
+                      <ChevronUp className="h-3 w-3 text-gray-300 group-hover:text-gray-400 transition-colors" />
                     )}
                   </button>
                 )}
@@ -236,26 +252,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           key={item.href}
                           href={item.href}
                           title={!expanded ? item.label : undefined}
-                          className={`flex items-center rounded-md px-3 py-2 text-sm transition-colors ${
-                            expanded ? "justify-between gap-2" : "justify-center"
+                          className={`relative flex items-center rounded-lg py-2 text-sm transition-all duration-150 ${
+                            expanded ? "justify-between gap-2 px-3" : "justify-center px-2"
                           } ${
                             isActive
-                              ? "bg-gray-100 text-gray-900 font-medium"
+                              ? "font-semibold"
                               : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
                           }`}
+                          style={isActive ? { backgroundColor: "#e8fca0", color: "#162318" } : {}}
                         >
-                          <span
-                            className={`flex items-center min-w-0 ${
-                              expanded ? "gap-3" : ""
-                            }`}
-                          >
-                            <item.icon className="h-[15px] w-[15px] shrink-0" />
+                          {/* Active left-border accent */}
+                          {isActive && (
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full" style={{ backgroundColor: "#a8d44f" }} />
+                          )}
+                          <span className={`flex items-center min-w-0 ${expanded ? "gap-2.5" : ""}`}>
+                            <item.icon
+                              className="h-[15px] w-[15px] shrink-0 transition-colors"
+                              style={isActive ? { color: "#4a7c10" } : {}}
+                            />
                             {expanded && (
                               <span className="truncate">{item.label}</span>
                             )}
                           </span>
                           {expanded && badge !== null && badge !== undefined && (
-                            <span className="ml-auto text-[11px] font-medium text-gray-500 shrink-0">
+                            <span
+                              className={`ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
+                                isActive ? "bg-gray-100 text-gray-500" : "bg-gray-100 text-gray-500"
+                              }`}
+                              style={isActive ? { backgroundColor: "#CDF782", color: "#162318" } : {}}
+                            >
                               {badge}
                             </span>
                           )}
@@ -268,30 +293,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             );
           })}
         </nav>
-
-        {/* Bottom fixed section */}
-        <div className="border-t px-2 py-2 space-y-0.5 shrink-0">
-          <Link
-            href="/dashboard/support"
-            title={!expanded ? "Support" : undefined}
-            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors ${
-              !expanded ? "justify-center" : ""
-            }`}
-          >
-            <HelpCircle className="h-[15px] w-[15px] shrink-0" />
-            {expanded && "Support"}
-          </Link>
-          <Link
-            href="/dashboard/settings"
-            title={!expanded ? "Settings" : undefined}
-            className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm text-gray-500 hover:bg-gray-50 hover:text-gray-800 transition-colors ${
-              !expanded ? "justify-center" : ""
-            }`}
-          >
-            <Settings className="h-[15px] w-[15px] shrink-0" />
-            {expanded && "Settings"}
-          </Link>
-        </div>
 
         {/* User profile */}
         <div className="border-t px-3 py-3 shrink-0">

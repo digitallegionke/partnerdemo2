@@ -120,13 +120,20 @@ export default function RouteNamesPage() {
               Manage the names used for your delivery routes
             </p>
           </div>
-          <Button
+          <button
             onClick={handleAdd}
-            className="shrink-0 gap-2 bg-emerald-700 hover:bg-emerald-800"
+            style={{
+              padding: "10px 20px", fontSize: 14, fontWeight: 600,
+              color: "#162318", backgroundColor: "#CDF782",
+              border: "none", borderRadius: 8, cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-3.5 w-3.5" />
             New Route Name
-          </Button>
+          </button>
         </div>
 
         {/* Search */}
@@ -380,7 +387,16 @@ function RouteNameModal({
             <button
               type="submit"
               disabled={!name.trim() || saving}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold py-3 transition-colors"
+              style={{
+                width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                gap: 8, padding: "12px 20px", fontSize: 14, fontWeight: 600,
+                color: (!name.trim() || saving) ? "#162318" : "#162318",
+                backgroundColor: (!name.trim() || saving) ? "#e5f7a0" : "#CDF782",
+                border: "none", borderRadius: 12, cursor: (!name.trim() || saving) ? "not-allowed" : "pointer",
+                opacity: (!name.trim() || saving) ? 0.5 : 1, transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => { if (name.trim() && !saving) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f"; }}
+              onMouseLeave={(e) => { if (name.trim() && !saving) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782"; }}
             >
               {saving ? (
                 "Saving..."
