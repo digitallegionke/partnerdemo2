@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
+import { PhoneInput } from "react-international-phone";
+import "react-international-phone/style.css";
 
 type DriverLike = {
   full_name?: string | null;
@@ -187,14 +189,14 @@ export default function DriverModal({
                 <label className="mb-2 block text-sm font-semibold text-gray-700">
                   Phone Number <span className="text-red-600">*</span>
                 </label>
-                <input
-                  type="tel"
-                  name="phone"
+                <PhoneInput
+                  placeholder="+254 7XX XXX XXX"
+                  defaultCountry="ke"
                   value={formData.phone}
-                  onChange={handleChange}
-                  placeholder="+254 712 345 678"
+                  onChange={(value) =>
+                    setFormData((prev) => ({ ...prev, phone: value }))
+                  }
                   required
-                  className="w-full rounded-lg border border-gray-200 px-4 py-3 text-sm text-gray-800 outline-none focus:border-emerald-700"
                 />
               </div>
             </div>

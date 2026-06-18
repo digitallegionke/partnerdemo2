@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { PhoneInput } from "react-international-phone";
+import "react-international-phone/style.css";
 import {
   X,
   Plus,
@@ -598,14 +600,12 @@ export default function AddDeliveryModal({
                 </div>
                 <div>
                   <FieldLabel required>Phone Number</FieldLabel>
-                  <input
-                    required
-                    type="tel"
-                    autoComplete="new-password"
-                    placeholder="+254 712 345 678"
+                  <PhoneInput
+                    placeholder="+254 7XX XXX XXX"
+                    defaultCountry="ke"
                     value={form.phone}
-                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                    className={inputCls}
+                    onChange={(value) => setForm((f) => ({ ...f, phone: value }))}
+                    required
                   />
                 </div>
               </div>
