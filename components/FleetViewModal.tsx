@@ -9,7 +9,8 @@ type FleetVehicle = {
   id: number;
   plate_number: string;
   vehicle_type: string;
-  status: string;
+  availability: string;
+  is_active?: boolean;
   vin?: string | null;
   fuel_type?: string | null;
   capacity_kg?: number | null;
@@ -120,11 +121,17 @@ export default function FleetViewModal({ vehicle, isOpen, onClose, onEdit, onDel
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_STYLE[vehicle.status] ?? "bg-gray-100 text-gray-500"}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[vehicle.status] ?? "bg-gray-400"}`} />
-              {STATUS_LABEL[vehicle.status] ?? vehicle.status}
+          <div className="flex items-center gap-2">
+            <span className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${vehicle.is_active !== false ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${vehicle.is_active !== false ? "bg-emerald-500" : "bg-gray-400"}`} />
+              {vehicle.is_active !== false ? "Active" : "Inactive"}
             </span>
+            {vehicle.is_active !== false && (
+              <span className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_STYLE[vehicle.availability] ?? "bg-gray-100 text-gray-500"}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[vehicle.availability] ?? "bg-gray-400"}`} />
+                {STATUS_LABEL[vehicle.availability] ?? vehicle.availability}
+              </span>
+            )}
             <button
               onClick={onClose}
               className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"

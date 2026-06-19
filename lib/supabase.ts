@@ -698,8 +698,10 @@ export interface Database {
           email: string | null;
           license_number: string;
           license_type: string;
+          license_expiry: string | null;
           primary_zone: string | null;
-          status: "active" | "inactive" | "on_trip" | "off_duty";
+          is_active: boolean;
+          availability: "available" | "on_duty" | "off_duty";
           is_online: boolean;
           last_known_lat: number | null;
           last_known_lng: number | null;
@@ -714,8 +716,10 @@ export interface Database {
           email?: string | null;
           license_number: string;
           license_type: string;
+          license_expiry?: string | null;
           primary_zone?: string | null;
-          status?: "active" | "inactive" | "on_trip" | "off_duty";
+          is_active?: boolean;
+          availability?: "available" | "on_duty" | "off_duty";
           is_online?: boolean;
           last_known_lat?: number | null;
           last_known_lng?: number | null;
@@ -730,8 +734,10 @@ export interface Database {
           email?: string | null;
           license_number?: string;
           license_type?: string;
+          license_expiry?: string | null;
           primary_zone?: string | null;
-          status?: "active" | "inactive" | "on_trip" | "off_duty";
+          is_active?: boolean;
+          availability?: "available" | "on_duty" | "off_duty";
           is_online?: boolean;
           last_known_lat?: number | null;
           last_known_lng?: number | null;
@@ -901,7 +907,8 @@ export interface Database {
           plate_number: string;
           color: string | null;
           capacity_kg: number | null;
-          status: string;
+          availability: string;
+          is_active: boolean;
           vin: string | null;
           fuel_type: string | null;
           odometer_km: number | null;
@@ -923,7 +930,8 @@ export interface Database {
           plate_number: string;
           color?: string | null;
           capacity_kg?: number | null;
-          status?: string;
+          availability?: string;
+          is_active?: boolean;
           vin?: string | null;
           fuel_type?: string | null;
           odometer_km?: number | null;
@@ -945,7 +953,8 @@ export interface Database {
           plate_number?: string;
           color?: string | null;
           capacity_kg?: number | null;
-          status?: string;
+          availability?: string;
+          is_active?: boolean;
           vin?: string | null;
           fuel_type?: string | null;
           odometer_km?: number | null;
@@ -999,16 +1008,19 @@ export interface Database {
           provider_id: number;
           name: string;
           notes: string | null;
+          is_active: boolean;
           created_at: string;
         };
         Insert: {
           provider_id: number;
           name: string;
           notes?: string | null;
+          is_active?: boolean;
         };
         Update: {
           name?: string;
           notes?: string | null;
+          is_active?: boolean;
         };
       };
       partner_driver_vehicle_assignments: {

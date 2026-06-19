@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Package,
@@ -223,11 +223,11 @@ function enrichDeliveries(
 
 function StatCard({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-white px-4 py-4">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 leading-tight">
+    <div className="rounded-xl border border-gray-100 bg-white px-3 sm:px-4 py-3 sm:py-4">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 leading-tight truncate">
         {label}
       </p>
-      <p className="mt-2 text-3xl font-bold leading-none text-emerald-600">{value}</p>
+      <p className="mt-1.5 sm:mt-2 text-2xl font-bold leading-none text-emerald-600">{value}</p>
     </div>
   );
 }
@@ -356,63 +356,58 @@ function DeliveriesTable({
           <p className="text-xs text-gray-400 mt-0.5">{formatEtaDate(d.drop_time)}</p>
         </td>
         <td className="px-4 py-4 align-top whitespace-nowrap">
-          {d.distanceKm != null
-            ? <p className="text-sm font-medium text-gray-800">{d.distanceKm} km</p>
-            : <p className="text-sm text-gray-400">—</p>}
-        </td>
-        <td className="px-4 py-4 align-top whitespace-nowrap">
           <p className="font-medium text-gray-900">{formatValue(d.estimated_value)}</p>
         </td>
         <td className={TD_STICKY_RIGHT}>
-          <div className="flex items-center justify-end divide-x divide-gray-200">
-            <button type="button" onClick={() => onView(d)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-gray-800 transition-colors">
-              <Eye className="h-3.5 w-3.5" />View
+          <div className="flex items-center justify-end gap-0.5">
+            <button type="button" onClick={() => onView(d)} title="View"
+              className="p-1.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+              <Eye className="h-4 w-4" />
             </button>
 
             {d.displayStatus === "awaiting_approval" && (
-              <button type="button" disabled={busy} onClick={() => onApprove(d.id)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-emerald-600 hover:text-emerald-800 transition-colors disabled:opacity-40">
-                <CheckCircle2 className="h-3.5 w-3.5" />Approve
+              <button type="button" disabled={busy} onClick={() => onApprove(d.id)} title="Approve"
+                className="p-1.5 rounded text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-40">
+                <CheckCircle2 className="h-4 w-4" />
               </button>
             )}
             {d.displayStatus === "pending" && (<>
-              <button type="button" disabled={busy} onClick={() => onAccept(d.id)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-emerald-600 hover:text-emerald-800 transition-colors disabled:opacity-40">
-                <CheckCircle2 className="h-3.5 w-3.5" />Accept
+              <button type="button" disabled={busy} onClick={() => onAccept(d.id)} title="Accept"
+                className="p-1.5 rounded text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-40">
+                <CheckCircle2 className="h-4 w-4" />
               </button>
-              <button type="button" disabled={busy} onClick={() => onReject(d.id)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-rose-500 hover:text-rose-700 transition-colors disabled:opacity-40">
-                <XCircle className="h-3.5 w-3.5" />Reject
+              <button type="button" disabled={busy} onClick={() => onReject(d.id)} title="Reject"
+                className="p-1.5 rounded text-rose-400 hover:text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-40">
+                <XCircle className="h-4 w-4" />
               </button>
             </>)}
             {d.displayStatus === "out_for_delivery" && (
-              <button type="button" disabled={busy} onClick={() => onCancel(d.id)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-40">
-                <XCircle className="h-3.5 w-3.5" />Cancel
+              <button type="button" disabled={busy} onClick={() => onCancel(d.id)} title="Cancel"
+                className="p-1.5 rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-40">
+                <XCircle className="h-4 w-4" />
               </button>
             )}
             {d.displayStatus === "in_transit" && (
-              <button type="button" disabled={busy} onClick={() => onDeliver(d.id)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-emerald-600 hover:text-emerald-800 transition-colors disabled:opacity-40">
-                <MapPin className="h-3.5 w-3.5" />Delivered
+              <button type="button" disabled={busy} onClick={() => onDeliver(d.id)} title="Mark Delivered"
+                className="p-1.5 rounded text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-40">
+                <MapPin className="h-4 w-4" />
               </button>
             )}
             {(d.displayStatus === "cancelled" || d.displayStatus === "rejected") && (
-              <button type="button" disabled={busy} onClick={() => onAccept(d.id)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-emerald-600 hover:text-emerald-800 transition-colors disabled:opacity-40">
-                <CheckCircle2 className="h-3.5 w-3.5" />Accept
+              <button type="button" disabled={busy} onClick={() => onAccept(d.id)} title="Accept"
+                className="p-1.5 rounded text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-40">
+                <CheckCircle2 className="h-4 w-4" />
               </button>
             )}
             {editable && (
-              <button type="button" onClick={() => onEdit(d)}
-                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-gray-500 hover:text-gray-800 transition-colors">
-                <Pencil className="h-3.5 w-3.5" />Edit
+              <button type="button" onClick={() => onEdit(d)} title="Edit"
+                className="p-1.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                <Pencil className="h-4 w-4" />
               </button>
             )}
-            <button type="button" disabled={busy} onClick={() => onDelete(d.id)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-red-500 hover:text-red-700 transition-colors disabled:opacity-40">
-              <Trash2 className="h-3.5 w-3.5" />Delete
+            <button type="button" disabled={busy} onClick={() => onDelete(d.id)} title="Delete"
+              className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40">
+              <Trash2 className="h-4 w-4" />
             </button>
           </div>
         </td>
@@ -435,7 +430,7 @@ function DeliveriesTable({
         onMouseUp={stopDrag}
         onMouseLeave={stopDrag}
       >
-        <table className="w-full min-w-[1100px] text-sm">
+        <table className="w-full min-w-[900px] text-sm">
           <thead>
             <tr className="border-b border-gray-100">
               <th className={TH_STICKY_LEFT}>Order</th>
@@ -445,7 +440,6 @@ function DeliveriesTable({
               <th className={TH}>Status</th>
               <th className={TH}>Priority</th>
               <th className={TH}>ETA</th>
-              <th className={TH}>Distance</th>
               <th className={TH}>Value</th>
               <th className={TH_STICKY_RIGHT}>Actions</th>
             </tr>
@@ -454,7 +448,7 @@ function DeliveriesTable({
             {awaitingRows.length > 0 && (
               <>
                 <tr className="bg-amber-50 border-b border-amber-100">
-                  <td colSpan={10} className="px-4 py-2.5">
+                  <td colSpan={9} className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
                       <span className="text-[11px] font-bold uppercase tracking-widest text-amber-700">Awaiting Approval</span>
                       <span className="inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded bg-amber-200 text-amber-800 text-[10px] font-bold">
@@ -470,7 +464,7 @@ function DeliveriesTable({
               <>
                 {hasBothGroups && (
                   <tr className="bg-gray-50/80 border-b border-gray-100">
-                    <td colSpan={10} className="px-4 py-2.5">
+                    <td colSpan={9} className="px-4 py-2.5">
                       <span className="text-[11px] font-bold uppercase tracking-widest text-gray-400">All Deliveries</span>
                     </td>
                   </tr>
@@ -727,86 +721,117 @@ export default function DeliveriesPage() {
     }
   };
 
-  const renderCard = (d: EnrichedDelivery, showApprovalActions = false) => {
+  const renderCard = (d: EnrichedDelivery) => {
     const badge = STATUS_BADGE[d.displayStatus];
     const priority = getPriority(d);
     const clientLabel = d.routeName ?? d.item ?? "—";
+    const busy = actionId === d.id;
+    const editable = ["awaiting_approval", "pending", "out_for_delivery", "cancelled", "rejected"].includes(d.displayStatus);
 
     return (
-      <div
-        key={d.id}
-        className={`bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col ${
-          viewMode === "list" ? "md:flex-row md:items-stretch" : ""
-        }`}
-      >
-        <div className={`flex-1 flex flex-col ${viewMode === "list" ? "min-w-0" : ""}`}>
-          <div className="px-5 pt-4 pb-3 flex items-start justify-between gap-2">
-            <span className="text-xs font-semibold text-gray-400 tracking-wide">
-              {deliveryIdLabel(d.id)}
-            </span>
-            <span
-              className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${badge.cls}`}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${badge.dot}`} />
+      <div key={d.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col">
+        {/* Card header: ID top-left, pencil top-right, name full-width, badge below */}
+        <div className="relative px-5 pt-4 pb-3">
+          <button
+            type="button"
+            onClick={() => setEditDelivery(d)}
+            className="absolute top-3 right-3 p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            title="Edit"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+          <span className="text-xs font-semibold text-gray-400 tracking-wide pr-8 block">
+            {deliveryIdLabel(d.id)}
+          </span>
+          <p className="text-base font-bold text-gray-900 leading-snug mt-0.5 pr-8 truncate">
+            {d.customer_name}
+          </p>
+          <p className="text-sm text-gray-500 mt-0.5 truncate">{d.location}</p>
+          {/* Status badge on its own row */}
+          <div className="mt-2.5">
+            <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${badge.cls}`}>
+              <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${badge.dot}`} />
               {badge.label}
             </span>
-          </div>
-
-          <div className="px-5 pb-4">
-            <p className="text-lg font-bold text-gray-900 leading-tight">{d.customer_name}</p>
-            <p className="text-sm text-gray-500 mt-0.5">{d.location}</p>
-            {d.displayStatus === "failed" && d.delivery_notes && (
-              <p className="text-xs text-red-500 mt-1">{d.delivery_notes}</p>
+            {priority.express && (
+              <span className="ml-1.5 inline-flex items-center gap-1 text-xs font-semibold text-violet-600 px-2.5 py-1 rounded-full bg-violet-50">
+                <Zap className="h-3 w-3" />Express
+              </span>
             )}
           </div>
+        </div>
 
-          <div className="border-t px-5 py-3 grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
-            {[
+        {/* Details grid */}
+        <div className="border-t px-5 py-3 grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
+          {(
+            [
               ["DRIVER", d.driverName],
               ["ETA", formatEta(d.drop_time)],
               ["VALUE", formatValue(d.estimated_value)],
-              [
-                "PRIORITY",
-                priority.express ? (
-                  <span className="inline-flex items-center gap-1 text-amber-600 font-medium">
-                    <Zap className="h-3.5 w-3.5" />
-                    {priority.label}
-                  </span>
-                ) : (
-                  priority.label
-                ),
-              ],
               ["CLIENT", clientLabel],
-            ].map(([label, value]) => (
-              <div key={String(label)}>
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">
-                  {label}
-                </p>
-                <div className="text-sm font-medium text-gray-800 mt-0.5">{value}</div>
-              </div>
-            ))}
-          </div>
-
-          {showApprovalActions && (
-            <div className="border-t px-5 py-3 flex gap-2">
-              <button
-                type="button"
-                disabled={actionId === d.id}
-                onClick={() => handleApprove(d.id)}
-                className="flex-1 py-2 text-xs font-bold tracking-wide rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50"
-              >
-                APPROVE
-              </button>
-              <button
-                type="button"
-                disabled={actionId === d.id}
-                onClick={() => handleDelete(d.id)}
-                className="flex-1 py-2 text-xs font-bold tracking-wide rounded-lg border border-red-200 text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50"
-              >
-                DELETE
-              </button>
+            ] as [string, React.ReactNode][]
+          ).map(([label, value]) => (
+            <div key={label}>
+              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{label}</p>
+              <div className="text-sm font-medium text-gray-800 mt-0.5 truncate">{value}</div>
             </div>
+          ))}
+        </div>
+
+        {/* Action buttons */}
+        <div className="border-t px-5 py-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => handleView(d)}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+          >
+            <Eye className="h-3.5 w-3.5" />View
+          </button>
+
+          {d.displayStatus === "awaiting_approval" && (
+            <button type="button" disabled={busy} onClick={() => handleApprove(d.id)}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50">
+              <CheckCircle2 className="h-3.5 w-3.5" />Approve
+            </button>
           )}
+          {d.displayStatus === "pending" && (<>
+            <button type="button" disabled={busy} onClick={() => handleAccept(d.id)}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50">
+              <CheckCircle2 className="h-3.5 w-3.5" />Accept
+            </button>
+            <button type="button" disabled={busy} onClick={() => handleReject(d.id)}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-50">
+              <XCircle className="h-3.5 w-3.5" />Reject
+            </button>
+          </>)}
+          {d.displayStatus === "out_for_delivery" && (
+            <button type="button" disabled={busy} onClick={() => handleCancelDelivery(d.id)}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50">
+              <XCircle className="h-3.5 w-3.5" />Cancel
+            </button>
+          )}
+          {d.displayStatus === "in_transit" && (
+            <button type="button" disabled={busy} onClick={() => handleDeliver(d.id)}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50">
+              <MapPin className="h-3.5 w-3.5" />Delivered
+            </button>
+          )}
+          {(d.displayStatus === "cancelled" || d.displayStatus === "rejected") && (
+            <button type="button" disabled={busy} onClick={() => handleAccept(d.id)}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50">
+              <CheckCircle2 className="h-3.5 w-3.5" />Accept
+            </button>
+          )}
+          {editable && (
+            <button type="button" onClick={() => setEditDelivery(d)}
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+              <Pencil className="h-3.5 w-3.5" />Edit
+            </button>
+          )}
+          <button type="button" disabled={busy} onClick={() => handleDelete(d.id)}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-100 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 ml-auto">
+            <Trash2 className="h-3.5 w-3.5" />Delete
+          </button>
         </div>
       </div>
     );
@@ -814,7 +839,7 @@ export default function DeliveriesPage() {
 
   return (
     <div className="flex flex-col min-h-full bg-gray-50">
-      <div className="border-b bg-white px-8 pt-4 pb-0">
+      <div className="border-b bg-white px-4 sm:px-8 pt-4 pb-0">
         <p className="text-xs text-gray-400 mb-4">
           <Link href="/dashboard/analytics" className="hover:text-gray-600 transition-colors">
             Dashboard
@@ -822,14 +847,14 @@ export default function DeliveriesPage() {
           <span className="mx-1.5">/</span>
           <span className="text-gray-600">Deliveries</span>
         </p>
-        <div className="flex items-end justify-between gap-4 pb-5">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-5">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Deliveries</h1>
             <p className="mt-0.5 text-sm text-gray-500">
               Track and manage all active and past deliveries.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExport}>
               <Download className="h-4 w-4" />
               Export
@@ -870,9 +895,9 @@ export default function DeliveriesPage() {
         </div>
       </div>
 
-      <div className="px-8 py-6 space-y-6 flex-1">
+      <div className="px-4 sm:px-8 py-6 space-y-6 flex-1">
         {!loading && !error && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4">
             <StatCard label="Total Today"      value={stats.totalToday} />
             <StatCard label="Awaiting Approval" value={stats.awaitingApproval} />
             <StatCard label="Out for Delivery" value={stats.outForDelivery} />
@@ -884,79 +909,89 @@ export default function DeliveriesPage() {
         )}
 
         <div className="rounded-xl border border-gray-200 bg-white">
-          {/* Single control row: page tabs · search · filter chips · view toggle */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b overflow-x-auto">
-            {/* Page tabs as pill buttons */}
-            <div className="flex items-center gap-1 shrink-0">
-              {(["deliveries", "pickups"] as PageTab[]).map((tab) => (
+          {/* Controls: stacked rows for responsiveness */}
+          <div className="px-4 py-3 border-b space-y-2.5">
+            {/* Row 1: Page tabs + View toggle */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1">
+                {(["deliveries", "pickups"] as PageTab[]).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setPageTab(tab)}
+                    className="px-3.5 py-1.5 rounded-full text-sm font-semibold transition-colors border"
+                    style={
+                      pageTab === tab
+                        ? { backgroundColor: "#CDF782", color: "#162318", borderColor: "#CDF782" }
+                        : { backgroundColor: "transparent", color: "#6b7280", borderColor: "#e5e7eb" }
+                    }
+                  >
+                    {tab === "deliveries" ? "Deliveries" : "Pickups"}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
                 <button
-                  key={tab}
                   type="button"
-                  onClick={() => setPageTab(tab)}
-                  className={`px-3.5 py-1.5 rounded-full text-sm font-semibold transition-colors ${
-                    pageTab === tab
-                      ? "bg-gray-900 text-white"
-                      : "border border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50"
-                  }`}
+                  onClick={() => setViewMode("grid")}
+                  className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+                  title="Grid view"
                 >
-                  {tab === "deliveries" ? "Deliveries" : "Pickups"}
+                  <LayoutGrid className="h-4 w-4" />
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setViewMode("list")}
+                  className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+                  title="Table view"
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
-            {/* Search */}
-            <div className="relative shrink-0">
+            {/* Row 2: Search */}
+            <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Search deliveries, customers, drivers..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-60 rounded-lg border border-gray-200 bg-white pl-8 pr-3 py-1.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                className="w-full rounded-lg border border-gray-200 bg-white pl-8 pr-3 py-1.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
               />
             </div>
 
-            {/* Filter chips */}
-            <div className="flex items-center gap-1 flex-1 min-w-0">
+            {/* Row 3: Filter chips — horizontally scrollable */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
               {FILTER_TABS.map((tab) => (
                 <button
                   key={tab.key}
                   type="button"
                   onClick={() => setActiveFilter(tab.key)}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                  className="px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors shrink-0"
+                  style={
                     activeFilter === tab.key
-                      ? "bg-gray-900 text-white"
-                      : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-                  }`}
+                      ? { backgroundColor: "#CDF782", color: "#162318" }
+                      : { color: "#6b7280" }
+                  }
+                  onMouseEnter={(e) => {
+                    if (activeFilter !== tab.key)
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f3f4f6";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (activeFilter !== tab.key)
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
+                  }}
                 >
                   {tab.label}
                   {filterCounts[tab.key] > 0 && (
-                    <span className={`ml-1 text-xs ${activeFilter === tab.key ? "text-white/70" : "text-gray-400"}`}>
+                    <span className="ml-1 text-xs opacity-60">
                       ({filterCounts[tab.key]})
                     </span>
                   )}
                 </button>
               ))}
-            </div>
-
-            {/* View toggle */}
-            <div className="flex items-center gap-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => setViewMode("grid")}
-                className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
-                title="Grid view"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode("list")}
-                className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
-                title="Table view"
-              >
-                <List className="h-4 w-4" />
-              </button>
             </div>
           </div>
 
@@ -1023,8 +1058,8 @@ export default function DeliveriesPage() {
             )}
           </div>
         ) : viewMode === "grid" && filtered.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 pb-8">
-            {filtered.map((d) => renderCard(d, d.displayStatus === "awaiting_approval"))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 pb-8">
+            {filtered.map((d) => renderCard(d))}
           </div>
         ) : null}
       </div>

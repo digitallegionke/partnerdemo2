@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
     const {
       plate_number, vehicle_type, capacity_kg, make, model, year, color,
       vin, fuel_type, odometer_km, allowed_license, last_service_date, notes,
+      availability, is_active, insurance_expiry, inspection_expiry,
     } = body;
     if (!plate_number || !vehicle_type) {
       return NextResponse.json({ error: "plate_number and vehicle_type are required" }, { status: 400 });
@@ -93,18 +94,21 @@ export async function POST(req: NextRequest) {
         provider_id: providerId,
         plate_number: plate_number.toUpperCase().trim(),
         vehicle_type,
-        capacity_kg:      capacity_kg      ?? null,
-        make:             make             ?? null,
-        model:            model            ?? null,
-        year:             year             ?? null,
-        color:            color            ?? null,
-        vin:              vin              ?? null,
-        fuel_type:        fuel_type        ?? null,
-        odometer_km:      odometer_km      ?? null,
-        allowed_license:  allowed_license  ?? null,
+        capacity_kg:       capacity_kg       ?? null,
+        make:              make              ?? null,
+        model:             model             ?? null,
+        year:              year              ?? null,
+        color:             color             ?? null,
+        vin:               vin               ?? null,
+        fuel_type:         fuel_type         ?? null,
+        odometer_km:       odometer_km       ?? null,
+        allowed_license:   allowed_license   ?? null,
         last_service_date: last_service_date ?? null,
-        status: "available",
-        notes: notes ?? null,
+        insurance_expiry:  insurance_expiry  ?? null,
+        inspection_expiry: inspection_expiry ?? null,
+        availability:      availability      ?? "available",
+        is_active:         is_active !== undefined ? Boolean(is_active) : true,
+        notes:             notes             ?? null,
       })
       .select()
       .single();

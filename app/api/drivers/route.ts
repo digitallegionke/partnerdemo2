@@ -113,7 +113,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
 
-    const { full_name, phone_number, license_type, license_number, status, email } = body;
+    const { full_name, phone_number, license_type, license_number, license_expiry,
+            primary_zone, is_active, availability, email } = body;
     if (!full_name || !phone_number || !license_type || !license_number) {
       return NextResponse.json(
         { error: "full_name, phone_number, license_type, and license_number are required" },
@@ -129,7 +130,10 @@ export async function POST(req: NextRequest) {
         phone_number,
         license_type,
         license_number,
-        status: status ?? "active",
+        license_expiry:  license_expiry  ?? null,
+        primary_zone:    primary_zone    ?? null,
+        is_active:       is_active !== undefined ? Boolean(is_active) : true,
+        availability:    availability    ?? "available",
         provider_id: providerId,
         email: email ?? null,
       })
