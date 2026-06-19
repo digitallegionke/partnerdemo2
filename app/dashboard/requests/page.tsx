@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ClipboardList, Search, X, User, Calendar, CheckCircle2,
   XCircle, ChevronRight, Users, AlertCircle,
-  Plus, Trash2, RefreshCw,
+  Plus, Trash2, RefreshCw, LayoutGrid, List,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
@@ -127,6 +127,21 @@ async function apiFetch(url: string, options: RequestInit = {}) {
   return data;
 }
 
+function parseNotes(notes: string | null): { isJson: true; entries: [string, string][] } | { isJson: false; text: string } | null {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return { isJson: true, entries: Object.entries(parsed).map(([k, v]) => [k, String(v)]) };
+    }
+  } catch {}
+  return { isJson: false, text: notes };
+}
+
+function fmtKey(key: string) {
+  return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleDateString("en-GB", {
     day: "numeric",
@@ -153,6 +168,7 @@ export default function AllocationRequestsPage() {
   const [error, setError]         = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("all");
   const [search, setSearch]       = useState("");
+  const [viewMode, setViewMode]   = useState<"grid" | "list">("grid");
 
   // Review modal (accept / reject)
   const [reviewRequest, setReviewRequest]     = useState<AllocationRequest | null>(null);
@@ -349,9 +365,9 @@ export default function AllocationRequestsPage() {
           <span>/</span>
           <span className="text-gray-600">Business Delivery Requests</span>
         </p>
-        <div className="flex items-end justify-between gap-4 pb-5">
+        <div className="flex flex-wrap items-start justify-between gap-3 pb-5">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Business Delivery Requests</h1>
+            <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">Business Delivery Requests</h1>
             <p className="mt-0.5 text-sm text-gray-500">
               Review requests and assign available partner drivers and vehicles.
             </p>
@@ -370,19 +386,19 @@ export default function AllocationRequestsPage() {
       <div className="px-8 py-6 space-y-6">
         {/* Stat cards */}
         {!loading && !error && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
             {[
-              { label: "Total",          value: requests.length },
-              { label: "Pending",        value: tabCounts["pending"] },
-              { label: "Accepted",       value: tabCounts["accepted"] },
-              { label: "In Progress",    value: tabCounts["partially_allocated"] },
-              { label: "Fully Allocated",value: tabCounts["fully_allocated"] },
-              { label: "Completed",      value: tabCounts["completed"] },
-              { label: "Rejected",       value: tabCounts["rejected"] },
+              { label: "Total",           value: requests.length },
+              { label: "Pending",         value: tabCounts["pending"] },
+              { label: "Accepted",        value: tabCounts["accepted"] },
+              { label: "In Progress",     value: tabCounts["partially_allocated"] },
+              { label: "Fully Allocated", value: tabCounts["fully_allocated"] },
+              { label: "Completed",       value: tabCounts["completed"] },
+              { label: "Rejected",        value: tabCounts["rejected"] },
             ].map(({ label, value }) => (
               <div key={label} className="bg-white rounded-xl border border-gray-200 px-4 py-4">
-                <p className="text-xs font-medium uppercase tracking-wide text-gray-400">{label}</p>
-                <p className="mt-2 text-3xl font-bold leading-none text-gray-900">{value}</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-gray-400 truncate">{label}</p>
+                <p className="mt-2 text-2xl font-bold leading-none text-gray-900">{value}</p>
               </div>
             ))}
           </div>
@@ -391,33 +407,12 @@ export default function AllocationRequestsPage() {
         {/* Cards area */}
         <div className="bg-white rounded-xl border border-gray-200">
           {/* Tabs + search */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b flex-wrap">
-            <div className="flex items-center gap-1 overflow-x-auto">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`px-3.5 py-1.5 rounded-full text-sm font-semibold transition-colors whitespace-nowrap ${
-                    activeTab === tab.key
-                      ? "bg-gray-900 text-white"
-                      : "border border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50"
-                  }`}
-                >
-                  {tab.label}
-                  {tabCounts[tab.key] > 0 && (
-                    <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                      activeTab === tab.key ? "bg-white/20 text-white" : "bg-gray-100 text-gray-600"
-                    }`}>
-                      {tabCounts[tab.key]}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-            <div className="relative ml-auto min-w-[200px]">
+          <div className="px-4 py-3 border-b space-y-3">
+            {/* Search — full width on its own row */}
+            <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
-                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900"
+                className="w-full pl-9 pr-8 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                 placeholder="Search by business name…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -430,6 +425,49 @@ export default function AllocationRequestsPage() {
                   <X className="h-4 w-4" />
                 </button>
               )}
+            </div>
+            {/* Tabs + view toggle */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none flex-1">
+                {TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    style={activeTab === tab.key ? { backgroundColor: "#CDF782", color: "#162318" } : {}}
+                    className={`px-3.5 py-1.5 rounded-full text-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                      activeTab === tab.key
+                        ? ""
+                        : "border border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50"
+                    }`}
+                  >
+                    {tab.label}
+                    {tabCounts[tab.key] > 0 && (
+                      <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full font-medium ${
+                        activeTab === tab.key ? "opacity-60" : "bg-gray-100 text-gray-600"
+                      }`}>
+                        {tabCounts[tab.key]}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {/* View toggle */}
+              <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5 shrink-0">
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={`rounded-md p-1.5 transition-colors ${viewMode === "grid" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+                  title="Card view"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`rounded-md p-1.5 transition-colors ${viewMode === "list" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+                  title="Table view"
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
 
@@ -458,7 +496,7 @@ export default function AllocationRequestsPage() {
                     : `No ${STATUS_LABEL[activeTab]?.toLowerCase()} requests.`}
                 </p>
               </div>
-            ) : (
+            ) : viewMode === "grid" ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filtered.map((req) => (
                   <RequestCard
@@ -469,6 +507,124 @@ export default function AllocationRequestsPage() {
                     onAllocate={() => openAllocate(req)}
                   />
                 ))}
+              </div>
+            ) : (
+              /* ── Table view ── */
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse min-w-[700px]">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      {["Business", "Status", "Drivers", "Period", "Notes", "Actions"].map((h, i) => (
+                        <th key={h} className={`pb-3 pt-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide pr-4 ${i === 5 ? "text-right pr-0" : "text-left"}`}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filtered.map((req) => {
+                      const isPending     = req.status === "pending";
+                      const isAllocatable = ["accepted", "partially_allocated"].includes(req.status);
+                      const progress      = req.drivers_requested > 0
+                        ? Math.min((req.allocated_count / req.drivers_requested) * 100, 100)
+                        : 0;
+                      return (
+                        <tr key={req.id} className="hover:bg-gray-50/50 transition-colors">
+                          {/* Business */}
+                          <td className="py-3.5 pr-4">
+                            <div className="flex items-center gap-3">
+                              <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                                <ClipboardList className="h-4 w-4 text-indigo-600" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-gray-900 truncate max-w-[160px]">{req.business_name}</p>
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  Received {new Date(req.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          {/* Status */}
+                          <td className="py-3.5 pr-4">
+                            <StatusBadge status={req.status} />
+                          </td>
+                          {/* Drivers + progress */}
+                          <td className="py-3.5 pr-4">
+                            <p className="text-sm text-gray-700 font-medium whitespace-nowrap">
+                              {req.allocated_count} / {req.drivers_requested}
+                            </p>
+                            {["partially_allocated", "fully_allocated", "accepted"].includes(req.status) && (
+                              <div className="mt-1 h-1.5 w-20 bg-gray-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                              </div>
+                            )}
+                          </td>
+                          {/* Period */}
+                          <td className="py-3.5 pr-4 text-sm text-gray-600 whitespace-nowrap">
+                            {formatDate(req.start_date)}
+                            {req.end_date
+                              ? <span> → {formatDate(req.end_date)}</span>
+                              : <span className="text-gray-400 ml-1">(open)</span>}
+                          </td>
+                          {/* Notes */}
+                          <td className="py-3.5 pr-4 max-w-[200px]">
+                            {(() => {
+                              const parsed = parseNotes(req.business_notes);
+                              if (!parsed) return <span className="text-gray-300 text-sm">—</span>;
+                              if (parsed.isJson) {
+                                return (
+                                  <div className="space-y-0.5">
+                                    {parsed.entries.slice(0, 2).map(([k, v]) => (
+                                      <p key={k} className="text-xs text-gray-500 truncate">
+                                        <span className="font-medium text-gray-600">{fmtKey(k)}:</span> {v}
+                                      </p>
+                                    ))}
+                                    {parsed.entries.length > 2 && (
+                                      <p className="text-xs text-gray-400">+{parsed.entries.length - 2} more</p>
+                                    )}
+                                  </div>
+                                );
+                              }
+                              return <p className="text-xs text-gray-500 italic truncate">{parsed.text}</p>;
+                            })()}
+                          </td>
+                          {/* Actions */}
+                          <td className="py-3.5">
+                            <div className="flex items-center justify-end gap-1.5">
+                              {isPending && (
+                                <>
+                                  <button onClick={() => openReview(req, "reject")} title="Reject"
+                                    className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                                    <XCircle className="h-4 w-4" />
+                                  </button>
+                                  <button onClick={() => openReview(req, "accept")} title="Accept"
+                                    className="p-1.5 rounded text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors">
+                                    <CheckCircle2 className="h-4 w-4" />
+                                  </button>
+                                </>
+                              )}
+                              {isAllocatable && (
+                                <button onClick={() => openAllocate(req)} title="Assign Drivers"
+                                  className="p-1.5 rounded text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 transition-colors">
+                                  <User className="h-4 w-4" />
+                                </button>
+                              )}
+                              {req.status === "fully_allocated" && (
+                                <button onClick={() => openAllocate(req)} title="View Allocations"
+                                  className="p-1.5 rounded text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
+                                  <Users className="h-4 w-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p className="mt-4 text-xs text-gray-400">
+                  {filtered.length} request{filtered.length !== 1 ? "s" : ""}
+                </p>
               </div>
             )}
           </div>
@@ -752,7 +908,7 @@ function RequestCard({
   return (
     <div className="bg-white rounded-2xl border border-gray-200 hover:shadow-md transition-shadow flex flex-col overflow-hidden">
       {/* Card header */}
-      <div className="px-5 py-4 flex items-start justify-between gap-2">
+      <div className="px-5 py-4">
         <div className="flex items-center gap-3 min-w-0">
           <div className="h-10 w-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
             <ClipboardList className="h-5 w-5 text-indigo-600" />
@@ -764,7 +920,10 @@ function RequestCard({
             </p>
           </div>
         </div>
-        <StatusBadge status={req.status} />
+        {/* Badge — on its own row, never overlaps */}
+        <div className="mt-2.5">
+          <StatusBadge status={req.status} />
+        </div>
       </div>
 
       {/* Details */}
@@ -780,11 +939,29 @@ function RequestCard({
             {req.end_date ? ` to ${formatDate(req.end_date)}` : " (open-ended)"}
           </span>
         </div>
-        {req.business_notes && (
-          <p className="text-xs text-gray-500 italic border-l-2 border-gray-200 pl-2 line-clamp-2">
-            &ldquo;{req.business_notes}&rdquo;
-          </p>
-        )}
+        {(() => {
+          const parsed = parseNotes(req.business_notes);
+          if (!parsed) return null;
+          if (parsed.isJson) {
+            return (
+              <div className="border-l-2 border-gray-200 pl-2 space-y-0.5">
+                {parsed.entries.slice(0, 3).map(([k, v]) => (
+                  <p key={k} className="text-xs text-gray-500">
+                    <span className="font-medium text-gray-600">{fmtKey(k)}:</span> {v}
+                  </p>
+                ))}
+                {parsed.entries.length > 3 && (
+                  <p className="text-xs text-gray-400">+{parsed.entries.length - 3} more</p>
+                )}
+              </div>
+            );
+          }
+          return (
+            <p className="text-xs text-gray-500 italic border-l-2 border-gray-200 pl-2 line-clamp-2">
+              &ldquo;{parsed.text}&rdquo;
+            </p>
+          );
+        })()}
       </div>
 
       {/* Allocation progress bar (for in-progress states) */}

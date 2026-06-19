@@ -67,7 +67,7 @@ export class DriverService {
 
   static async getActiveDrivers(): Promise<Driver[]> {
     const all = await this.getAllDrivers()
-    return (all || []).filter((d) => d.status === 'active')
+    return (all || []).filter((d) => d.is_active)
   }
 
   /**
@@ -104,11 +104,11 @@ export class DriverService {
     }
   }
 
-  static async updateDriverStatus(
+  static async updateDriverAvailability(
     id: number,
-    status: "active" | "inactive" | "on_trip" | "off_duty"
+    availability: "available" | "on_duty" | "off_duty"
   ): Promise<Driver> {
-    return this.updateDriver(id, { status });
+    return this.updateDriver(id, { availability });
   }
 
   static async deleteDriver(id: number): Promise<void> {
@@ -126,11 +126,12 @@ export class DriverService {
   static async getDriverStats() {
     const drivers = await this.getAllDrivers()
     const stats = {
-      total: drivers.length,
-      active: drivers.filter((d) => d.status === 'active').length,
-      inactive: drivers.filter((d) => d.status === 'inactive').length,
-      on_trip: drivers.filter((d) => d.status === 'on_trip').length,
-      off_duty: drivers.filter((d) => d.status === 'off_duty').length,
+      total:     drivers.length,
+      active:    drivers.filter((d) => d.is_active).length,
+      inactive:  drivers.filter((d) => !d.is_active).length,
+      available: drivers.filter((d) => d.is_active && d.availability === 'available').length,
+      on_duty:   drivers.filter((d) => d.is_active && d.availability === 'on_duty').length,
+      off_duty:  drivers.filter((d) => d.is_active && d.availability === 'off_duty').length,
     }
     return stats
   }

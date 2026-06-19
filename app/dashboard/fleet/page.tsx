@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import {
   Truck, Plus, Pencil, Search, X, Eye,
   Bike, Package, CheckCircle2, User,
   Fuel, ShieldCheck, CalendarIcon,
+  Upload, Download, ChevronDown,
+  LayoutGrid, List, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FleetService, type FleetVehicle } from "@/lib/services/fleet";
@@ -13,16 +15,25 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { parse, format, isValid } from "date-fns";
 import "react-day-picker/style.css";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
+import type { Database } from "@/lib/supabase";
 
 type VehicleType = "motorbike" | "bicycle" | "car" | "van" | "truck" | "other";
 type FleetStatus = "available" | "assigned" | "in_maintenance";
-type FilterTab = "all" | FleetStatus;
+type FleetAvailability = FleetStatus;
+type FilterTab = "all" | "active" | "inactive" | FleetStatus;
 
 // Extend FleetVehicle with enriched driver name from GET
 type FleetVehicleEnriched = FleetVehicle & { assigned_driver_name?: string | null };
 
 const TABS: { key: FilterTab; label: string }[] = [
   { key: "all",            label: "All" },
+  { key: "active",         label: "Active" },
+  { key: "inactive",       label: "Inactive" },
   { key: "available",      label: "Available" },
   { key: "assigned",       label: "Assigned" },
   { key: "in_maintenance", label: "In Maintenance" },
@@ -165,7 +176,8 @@ type FormState = {
   fuel_type: string;
   capacity_kg: string;
   odometer_km: string;
-  status: string;
+  is_active: boolean;
+  availability: string;
   last_service_date: string;
   insurance_expiry: string;
   inspection_expiry: string;
@@ -184,7 +196,8 @@ const EMPTY_FORM: FormState = {
   fuel_type: "",
   capacity_kg: "",
   odometer_km: "",
-  status: "available",
+  is_active: true,
+  availability: "available",
   last_service_date: "",
   insurance_expiry: "",
   inspection_expiry: "",
@@ -193,6 +206,7 @@ const EMPTY_FORM: FormState = {
 };
 
 export default function FleetRegistryPage() {
+  const { toast } = useToast();
   const [vehicles, setVehicles]     = useState<FleetVehicleEnriched[]>([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
@@ -205,6 +219,226 @@ export default function FleetRegistryPage() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [formError, setFormError]   = useState<string | null>(null);
   const [viewing, setViewing]       = useState<FleetVehicleEnriched | null>(null);
+  const [provider, setProvider]     = useState<Database["public"]["Tables"]["partner_providers"]["Row"] | null>(null);
+  const [viewMode, setViewMode]                 = useState<"grid" | "list">("grid");
+  const [exportOpen, setExportOpen]             = useState(false);
+  const [importing, setImporting]               = useState(false);
+  const [importGuideOpen, setImportGuideOpen]   = useState(false);
+  const [importError, setImportError]           = useState<{ title: string; rows: string[] } | null>(null);
+  const [importProgress, setImportProgress]     = useState<{ current: number; total: number } | null>(null);
+  const importRef                               = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: membership } = await supabase
+        .from("partner_provider_users").select("provider_id")
+        .eq("user_id", user.id).eq("is_active", true).maybeSingle();
+      if (!membership) return;
+      const { data: prov } = await supabase
+        .from("partner_providers").select("*")
+        .eq("id", (membership as { provider_id: number }).provider_id).single();
+      if (prov) setProvider(prov as Database["public"]["Tables"]["partner_providers"]["Row"]);
+    })();
+  }, []);
+
+  const exportExcel = () => {
+    const rows = filtered.map((v) => ({
+      "Registration Plate":    v.plate_number,
+      "Vehicle Type":          VEHICLE_TYPE_LABEL[v.vehicle_type] ?? v.vehicle_type,
+      "Status":                v.is_active ? "Active" : "Inactive",
+      "Vehicle Availability":  STATUS_LABEL[v.availability] ?? v.availability,
+      "Make":                  v.make ?? "",
+      "Model":                 v.model ?? "",
+      "Year":                  v.year ?? "",
+      "Color":                 v.color ?? "",
+      "VIN":                   v.vin ?? "",
+      "Fuel Type":             v.fuel_type ?? "",
+      "Capacity (kg)":         v.capacity_kg ?? "",
+      "Odometer Reading (km)": v.odometer_km ?? "",
+      "Last Service Date":     v.last_service_date ?? "",
+      "Insurance Expiry":      v.insurance_expiry ?? "",
+      "Inspection Expiry":     v.inspection_expiry ?? "",
+      "Allowed Driving License": v.allowed_license ?? "",
+      "Notes":                 v.notes ?? "",
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Fleet");
+    XLSX.writeFile(wb, "fleet-registry.xlsx");
+    setExportOpen(false);
+  };
+
+  const exportPDF = () => {
+    const doc = new jsPDF({ orientation: "landscape" });
+    let y = 14;
+
+    const orgName = provider?.provider_name ?? "Fleet Registry";
+    doc.setFontSize(16); doc.setTextColor(22, 35, 24); doc.setFont("helvetica", "bold");
+    doc.text(orgName, 14, y); y += 7;
+
+    if (provider?.legal_name && provider.legal_name !== provider.provider_name) {
+      doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(100);
+      doc.text(provider.legal_name, 14, y); y += 5;
+    }
+    const infoParts: string[] = [];
+    if (provider?.contact_email) infoParts.push(provider.contact_email);
+    if (provider?.contact_phone) infoParts.push(provider.contact_phone);
+    if (provider?.city)          infoParts.push(provider.city);
+    if (provider?.country)       infoParts.push(provider.country);
+    if (infoParts.length) {
+      doc.setFontSize(8); doc.setTextColor(120); doc.setFont("helvetica", "normal");
+      doc.text(infoParts.join("  ·  "), 14, y); y += 5;
+    }
+    doc.setDrawColor(220); doc.line(14, y, 283, y); y += 5;
+
+    const tabLabel = activeTab === "active" ? "Active Vehicles" : activeTab === "inactive" ? "Inactive Vehicles" : activeTab === "available" ? "Available Vehicles" : activeTab === "assigned" ? "Assigned Vehicles" : activeTab === "in_maintenance" ? "In Maintenance Vehicles" : "All Vehicles";
+    doc.setFontSize(11); doc.setTextColor(22, 35, 24); doc.setFont("helvetica", "bold");
+    doc.text(tabLabel, 14, y);
+    doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(150);
+    doc.text(`Exported ${format(new Date(), "d MMM yyyy")}`, 283, y, { align: "right" }); y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Plate", "Type", "Status", "Availability", "Make", "Model", "Year", "Color", "Fuel", "Capacity (kg)", "Odometer (km)", "License Classes"]],
+      body: filtered.map((v) => [
+        v.plate_number,
+        VEHICLE_TYPE_LABEL[v.vehicle_type] ?? v.vehicle_type,
+        v.is_active ? "Active" : "Inactive",
+        STATUS_LABEL[v.availability] ?? v.availability,
+        v.make ?? "—",
+        v.model ?? "—",
+        v.year ?? "—",
+        v.color ?? "—",
+        v.fuel_type ?? "—",
+        v.capacity_kg ?? "—",
+        v.odometer_km ?? "—",
+        v.allowed_license ?? "—",
+      ]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [22, 35, 24] },
+    });
+
+    const slug = (provider?.provider_name ?? "fleet").toLowerCase().replace(/\s+/g, "-");
+    doc.save(`${slug}-fleet-registry.pdf`);
+    setExportOpen(false);
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setImporting(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws);
+
+      const VEHICLE_TYPE_MAP: Record<string, string> = {
+        motorbike: "motorbike", bicycle: "bicycle", car: "car",
+        van: "van", truck: "truck", other: "other",
+      };
+      const STATUS_MAP: Record<string, string> = {
+        available: "available", assigned: "assigned",
+        "in maintenance": "in_maintenance", in_maintenance: "in_maintenance",
+      };
+
+      const parsed = rows.map((r, i) => {
+        const plate        = (r["Registration Plate"] ?? r["plate_number"] ?? "").toString().trim().toUpperCase();
+        const vtype        = (r["Vehicle Type"] ?? r["vehicle_type"] ?? "").toString().trim().toLowerCase();
+        const activeRaw    = (r["Status"] ?? r["status"] ?? "").toString().trim().toLowerCase();
+        const availRaw     = (r["Vehicle Availability"] ?? r["vehicle_availability"] ?? "").toString().trim().toLowerCase();
+        const isActiveVal  = activeRaw === "active" ? true : activeRaw === "inactive" ? false : null;
+        return {
+          row:            i + 2,
+          plate_number:   plate,
+          vehicle_type:   VEHICLE_TYPE_MAP[vtype] ?? null,
+          status:         STATUS_MAP[availRaw] ?? null,
+          is_active:      isActiveVal,
+          make:           (r["Make"] ?? "").toString().trim() || null,
+          model:          (r["Model"] ?? "").toString().trim() || null,
+          year:           r["Year"] ? Number(r["Year"]) || null : null,
+          color:          (r["Color"] ?? "").toString().trim() || null,
+          vin:            (r["VIN"] ?? "").toString().trim() || null,
+          fuel_type:      (r["Fuel Type"] ?? r["fuel_type"] ?? "").toString().trim().toLowerCase() || null,
+          capacity_kg:    r["Capacity (kg)"] ? Number(r["Capacity (kg)"]) || null : null,
+          odometer_km:    r["Odometer Reading (km)"] ? Number(r["Odometer Reading (km)"]) || null : null,
+          last_service_date: (r["Last Service Date"] ?? "").toString().trim() || null,
+          insurance_expiry:  (r["Insurance Expiry"] ?? "").toString().trim() || null,
+          inspection_expiry: (r["Inspection Expiry"] ?? "").toString().trim() || null,
+          allowed_license:   (r["Allowed Driving License"] ?? r["allowed_license"] ?? "").toString().trim() || null,
+          notes:             (r["Notes"] ?? "").toString().trim() || null,
+          missingPlate:       !plate,
+          missingType:        !VEHICLE_TYPE_MAP[vtype],
+          missingStatus:      isActiveVal === null,
+          missingAvailability: !STATUS_MAP[availRaw],
+        };
+      });
+
+      const invalidRows = parsed.filter((r) => r.missingPlate || r.missingType || r.missingStatus || r.missingAvailability);
+      if (invalidRows.length) {
+        const lines = invalidRows.map((r) => {
+          const missing = [
+            r.missingPlate        && "Registration Plate",
+            r.missingType         && "Vehicle Type",
+            r.missingStatus       && "Status",
+            r.missingAvailability && "Vehicle Availability",
+          ].filter(Boolean).join(", ");
+          return `Row ${r.row}: missing ${missing}`;
+        });
+        setImportError({
+          title: `Upload failed — ${invalidRows.length} row${invalidRows.length > 1 ? "s are" : " is"} missing required fields`,
+          rows: lines,
+        });
+        return;
+      }
+
+      if (!parsed.length) {
+        toast({ variant: "destructive", title: "No data found", description: "Make sure the sheet has data and a 'Registration Plate' column." });
+        return;
+      }
+
+      let created = 0;
+      setImportProgress({ current: 0, total: parsed.length });
+      for (let i = 0; i < parsed.length; i++) {
+        const row = parsed[i];
+        try {
+          const result = await FleetService.create({
+            plate_number:     row.plate_number,
+            vehicle_type:     row.vehicle_type as VehicleType,
+            availability:     row.status as FleetStatus,
+            is_active:        row.is_active as boolean,
+            make:             row.make,
+            model:            row.model,
+            year:             row.year,
+            color:            row.color,
+            vin:              row.vin,
+            fuel_type:        row.fuel_type,
+            capacity_kg:      row.capacity_kg,
+            odometer_km:      row.odometer_km,
+            last_service_date: row.last_service_date,
+            insurance_expiry:  row.insurance_expiry,
+            inspection_expiry: row.inspection_expiry,
+            allowed_license:   row.allowed_license,
+            notes:             row.notes,
+          }) as FleetVehicleEnriched;
+          setVehicles((prev) => [result, ...prev]);
+          created++;
+        } catch { /* skip */ }
+        setImportProgress({ current: i + 1, total: parsed.length });
+      }
+      setImportProgress(null);
+      window.dispatchEvent(new Event("navcount:refresh"));
+      toast({ title: "Import successful", description: `${created} of ${parsed.length} vehicle${parsed.length !== 1 ? "s" : ""} imported successfully.` });
+    } catch {
+      setImportProgress(null);
+      toast({ variant: "destructive", title: "Import failed", description: "Failed to read the file. Please use a valid Excel file." });
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const fetchVehicles = async () => {
     try {
@@ -240,7 +474,8 @@ export default function FleetRegistryPage() {
       fuel_type:         v.fuel_type ?? "",
       capacity_kg:       v.capacity_kg != null ? String(v.capacity_kg) : "",
       odometer_km:       v.odometer_km != null ? String(v.odometer_km) : "",
-      status:            v.status ?? "available",
+      is_active:         v.is_active ?? true,
+      availability:      v.availability ?? "available",
       last_service_date: isoToDisplay(v.last_service_date ?? ""),
       insurance_expiry:  isoToDisplay(v.insurance_expiry ?? ""),
       inspection_expiry: isoToDisplay(v.inspection_expiry ?? ""),
@@ -277,7 +512,8 @@ export default function FleetRegistryPage() {
       fuel_type:         form.fuel_type || null,
       capacity_kg:       form.capacity_kg ? Number(form.capacity_kg) : null,
       odometer_km:       form.odometer_km ? Number(form.odometer_km) : null,
-      status:            form.status || "available",
+      is_active:         form.is_active,
+      availability:      form.availability || "available",
       last_service_date: displayToIso(form.last_service_date) || null,
       insurance_expiry:  displayToIso(form.insurance_expiry) || null,
       inspection_expiry: displayToIso(form.inspection_expiry) || null,
@@ -317,13 +553,24 @@ export default function FleetRegistryPage() {
   };
 
   const tabCounts = useMemo(() => {
-    const c: Record<FilterTab, number> = { all: vehicles.length, available: 0, assigned: 0, in_maintenance: 0 };
-    vehicles.forEach((v) => { if (v.status in c) c[v.status as FleetStatus]++; });
+    const c: Record<FilterTab, number> = { all: vehicles.length, active: 0, inactive: 0, available: 0, assigned: 0, in_maintenance: 0 };
+    vehicles.forEach((v) => {
+      if (v.is_active) {
+        c.active++;
+        if (v.availability in c) c[v.availability as FleetStatus]++;
+      } else {
+        c.inactive++;
+      }
+    });
     return c;
   }, [vehicles]);
 
   const filtered = useMemo(() => {
-    let list = activeTab === "all" ? vehicles : vehicles.filter((v) => v.status === activeTab);
+    let list =
+      activeTab === "all"      ? vehicles :
+      activeTab === "active"   ? vehicles.filter((v) => v.is_active) :
+      activeTab === "inactive" ? vehicles.filter((v) => !v.is_active) :
+      vehicles.filter((v) => v.is_active && v.availability === activeTab);
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter((v) =>
@@ -343,32 +590,89 @@ export default function FleetRegistryPage() {
         <div className="flex items-center justify-between gap-4 border-b px-8 py-5">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Fleet Registry</h2>
-            <p className="mt-0.5 text-sm text-muted-foreground">
-              {vehicles.length} vehicle{vehicles.length !== 1 ? "s" : ""} ·{" "}
-              {tabCounts.available} available · {tabCounts.assigned} assigned ·{" "}
-              {tabCounts.in_maintenance} in maintenance
-            </p>
           </div>
-          <button
-            onClick={openAdd}
-            style={{
-              padding: "10px 20px", fontSize: 14, fontWeight: 600,
-              color: "#162318", backgroundColor: "#CDF782",
-              border: "none", borderRadius: 8, cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
-            }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add Vehicle
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Hidden file input */}
+            <input ref={importRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImport} />
+
+            {/* Import */}
+            <button
+              onClick={() => setImportGuideOpen(true)}
+              disabled={importing}
+              className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-50"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {importing ? "Importing…" : "Import"}
+            </button>
+
+            {/* Export */}
+            <div className="relative">
+              <button
+                onClick={() => setExportOpen((o) => !o)}
+                disabled={filtered.length === 0}
+                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export
+                <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+              </button>
+              {exportOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1.5 z-20 w-44 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+                    <button onClick={exportExcel} className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2.5">
+                      <span className="text-base">📊</span> Excel (.xlsx)
+                    </button>
+                    <button onClick={exportPDF} className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2.5 border-t border-gray-100">
+                      <span className="text-base">📄</span> PDF
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Add Vehicle */}
+            <button
+              onClick={openAdd}
+              style={{
+                padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                color: "#162318", backgroundColor: "#CDF782",
+                border: "none", borderRadius: 8, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Vehicle
+            </button>
+          </div>
         </div>
 
-        {/* Search + tabs */}
+        {/* Stat cards */}
         {!loading && !error && (
-          <div className="px-8 pt-5 pb-4 space-y-4">
-            <div className="relative max-w-sm">
+          <div className="px-8 pt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            {[
+              { label: "Total Vehicles",  value: vehicles.length          },
+              { label: "Active",          value: tabCounts.active         },
+              { label: "Inactive",        value: tabCounts.inactive       },
+              { label: "Available",       value: tabCounts.available      },
+              { label: "Assigned",        value: tabCounts.assigned       },
+              { label: "In Maintenance",  value: tabCounts.in_maintenance },
+            ].map((card) => (
+              <div key={card.label} className="rounded-xl border border-gray-100 bg-white px-4 py-3 flex flex-col gap-1 shadow-sm">
+                <span className="text-2xl font-bold text-gray-900">{card.value}</span>
+                <span className="text-xs text-gray-500">{card.label}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Search + tabs + view toggle */}
+        {!loading && !error && (
+          <div className="px-4 sm:px-8 pt-5 pb-4 space-y-2.5">
+            {/* Row 1: search */}
+            <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
               <input
                 type="text"
@@ -378,25 +682,46 @@ export default function FleetRegistryPage() {
                 className="w-full rounded-lg border border-gray-200 bg-white pl-9 pr-4 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
               />
             </div>
-            <div className="flex items-center gap-1">
-              {TABS.map((tab) => (
+            {/* Row 2: tabs + view toggle */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-0.5">
+                {TABS.map((tab, i) => (
+                  <React.Fragment key={tab.key}>
+                    {i === 3 && <span className="mx-1 h-4 w-px bg-gray-200 hidden sm:block shrink-0" />}
+                    <button
+                      onClick={() => setActiveTab(tab.key)}
+                      style={activeTab === tab.key ? { backgroundColor: "#CDF782", color: "#162318" } : {}}
+                      className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${
+                        activeTab === tab.key ? "" : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
+                      }`}
+                    >
+                      {tab.label}
+                      {tabCounts[tab.key] > 0 && (
+                        <span className={`ml-1.5 text-xs ${activeTab === tab.key ? "opacity-60" : "text-gray-400"}`}>
+                          {tabCounts[tab.key]}
+                        </span>
+                      )}
+                    </button>
+                  </React.Fragment>
+                ))}
+              </div>
+              {/* View toggle */}
+              <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5 shrink-0">
                 <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                    activeTab === tab.key
-                      ? "bg-gray-900 text-white"
-                      : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-                  }`}
+                  onClick={() => setViewMode("grid")}
+                  className={`rounded-md p-1.5 transition-colors ${viewMode === "grid" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+                  title="Card view"
                 >
-                  {tab.label}
-                  {tabCounts[tab.key] > 0 && (
-                    <span className={`ml-1.5 text-xs ${activeTab === tab.key ? "text-white/70" : "text-gray-400"}`}>
-                      {tabCounts[tab.key]}
-                    </span>
-                  )}
+                  <LayoutGrid className="h-4 w-4" />
                 </button>
-              ))}
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`rounded-md p-1.5 transition-colors ${viewMode === "list" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+                  title="Table view"
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -439,8 +764,104 @@ export default function FleetRegistryPage() {
             <p className="text-xs text-muted-foreground">Try a different search or filter.</p>
           </div>
 
+        ) : viewMode === "list" ? (
+          /* ── Table view ── */
+          <div className="px-4 sm:px-8 pb-8 overflow-x-auto">
+            <table className="w-full border-collapse min-w-[700px]">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  {["VEHICLE", "STATUS", "AVAILABILITY", "CAPACITY", "FUEL", "DRIVER", "LICENSE", "ACTIONS"].map((h) => (
+                    <th key={h} className="pb-3 pt-1 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide pr-4 first:pl-0 whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filtered.map((vehicle) => {
+                  const licenses = vehicle.allowed_license
+                    ? vehicle.allowed_license.split(",").map((c) => c.trim()).filter(Boolean)
+                    : [];
+                  return (
+                    <tr key={vehicle.id} className="hover:bg-gray-50/50 transition-colors group">
+                      {/* Vehicle */}
+                      <td className="py-3.5 pr-4">
+                        <button onClick={() => setViewing(vehicle)} className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity">
+                          <div className="h-9 w-9 shrink-0 rounded-xl flex items-center justify-center bg-gray-100 text-emerald-600">
+                            <VehicleIcon type={vehicle.vehicle_type} className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 whitespace-nowrap">{vehicle.plate_number}</p>
+                            <p className="text-xs text-gray-400">{VEHICLE_TYPE_LABEL[vehicle.vehicle_type] ?? vehicle.vehicle_type}</p>
+                          </div>
+                        </button>
+                      </td>
+                      {/* Status */}
+                      <td className="py-3.5 pr-4">
+                        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${vehicle.is_active ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                          {vehicle.is_active ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      {/* Availability */}
+                      <td className="py-3.5 pr-4">
+                        {vehicle.is_active ? (
+                          <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md ${STATUS_STYLE[vehicle.availability as FleetStatus] ?? "bg-gray-100 text-gray-500"}`}>
+                            {STATUS_LABEL[vehicle.availability as FleetStatus] ?? vehicle.availability}
+                          </span>
+                        ) : <span className="text-xs text-gray-300">—</span>}
+                      </td>
+                      {/* Capacity */}
+                      <td className="py-3.5 pr-4 text-sm text-gray-700 whitespace-nowrap">
+                        {vehicle.capacity_kg != null ? `${vehicle.capacity_kg} kg` : <span className="text-gray-300">—</span>}
+                      </td>
+                      {/* Fuel */}
+                      <td className="py-3.5 pr-4 text-sm text-gray-700 capitalize whitespace-nowrap">
+                        {vehicle.fuel_type ?? <span className="text-gray-300">—</span>}
+                      </td>
+                      {/* Driver */}
+                      <td className="py-3.5 pr-4 text-sm whitespace-nowrap">
+                        {vehicle.assigned_driver_name
+                          ? <span className="font-medium text-gray-800">{vehicle.assigned_driver_name}</span>
+                          : <span className="text-gray-400 italic">Unassigned</span>}
+                      </td>
+                      {/* License */}
+                      <td className="py-3.5 pr-4">
+                        <div className="flex flex-wrap gap-1">
+                          {licenses.length > 0
+                            ? licenses.map((c) => (
+                                <span key={c} className="inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold bg-gray-100 text-gray-700">{c}</span>
+                              ))
+                            : <span className="text-xs text-gray-300">—</span>}
+                        </div>
+                      </td>
+                      {/* Actions — icons only */}
+                      <td className="py-3.5">
+                        <div className="flex items-center gap-0.5">
+                          <button onClick={() => setViewing(vehicle)} title="View"
+                            className="p-1.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                            <Eye className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => openEdit(vehicle)} title="Edit"
+                            className="p-1.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors">
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => handleDelete(vehicle)} title="Delete"
+                            disabled={deletingId === vehicle.id}
+                            className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
         ) : (
-          <div className="px-8 pb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          /* ── Card / Grid view ── */
+          <div className="px-4 sm:px-8 pb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map((vehicle) => {
               const licenses = vehicle.allowed_license
                 ? vehicle.allowed_license.split(",").map((c) => c.trim()).filter(Boolean)
@@ -448,32 +869,44 @@ export default function FleetRegistryPage() {
               return (
                 <div key={vehicle.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
 
-                  {/* Header — icon · plate · type · status */}
-                  <div className="p-5 flex items-center gap-4">
-                    <div className="h-12 w-12 shrink-0 rounded-xl flex items-center justify-center bg-gray-100 text-emerald-600">
-                      <VehicleIcon type={vehicle.vehicle_type} className="h-6 w-6" />
+                  {/* Header */}
+                  <div className="relative px-4 pt-4 pb-3">
+                    <button
+                      onClick={() => openEdit(vehicle)}
+                      className="absolute top-3 right-3 p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
+                      title="Edit vehicle"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <div className="flex items-center gap-3 pr-8">
+                      <div className="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center bg-gray-100 text-emerald-600">
+                        <VehicleIcon type={vehicle.vehicle_type} className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-gray-900 truncate leading-tight">{vehicle.plate_number}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{VEHICLE_TYPE_LABEL[vehicle.vehicle_type] ?? vehicle.vehicle_type}</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-base font-bold text-gray-900 truncate leading-tight">{vehicle.plate_number}</p>
-                      <p className="text-sm text-gray-400 mt-0.5">{VEHICLE_TYPE_LABEL[vehicle.vehicle_type] ?? vehicle.vehicle_type}</p>
+                    <div className="flex items-center gap-1.5 mt-2.5">
+                      <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${vehicle.is_active ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                        {vehicle.is_active ? "Active" : "Inactive"}
+                      </span>
+                      {vehicle.is_active && (
+                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${STATUS_STYLE[vehicle.availability as FleetStatus] ?? "bg-gray-100 text-gray-500"}`}>
+                          {STATUS_LABEL[vehicle.availability as FleetStatus] ?? vehicle.availability}
+                        </span>
+                      )}
                     </div>
-                    <span className={`shrink-0 flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full ${STATUS_STYLE[vehicle.status as FleetStatus] ?? "bg-gray-100 text-gray-500"}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[vehicle.status as FleetStatus] ?? "bg-gray-400"}`} />
-                      {STATUS_LABEL[vehicle.status as FleetStatus] ?? vehicle.status}
-                    </span>
                   </div>
 
                   {/* Details */}
                   <div className="border-t px-5 py-4 space-y-2.5 text-sm text-gray-600">
-                    {/* Capacity */}
                     {vehicle.capacity_kg != null && (
                       <div className="flex items-center gap-2.5">
                         <Package className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                         <span>Capacity: <span className="font-semibold text-gray-800">{vehicle.capacity_kg} kg</span></span>
                       </div>
                     )}
-
-                    {/* Assigned driver */}
                     <div className="flex items-center gap-2.5">
                       <User className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                       {vehicle.assigned_driver_name
@@ -481,16 +914,12 @@ export default function FleetRegistryPage() {
                         : <span className="text-gray-400 italic">No driver assigned</span>
                       }
                     </div>
-
-                    {/* Fuel type */}
                     {vehicle.fuel_type && (
                       <div className="flex items-center gap-2.5">
                         <Fuel className="h-3.5 w-3.5 text-gray-400 shrink-0" />
                         <span className="capitalize">{vehicle.fuel_type}</span>
                       </div>
                     )}
-
-                    {/* Allowed license badges */}
                     {licenses.length > 0 && (
                       <div className="flex items-start gap-2.5">
                         <ShieldCheck className="h-3.5 w-3.5 text-gray-400 shrink-0 mt-0.5" />
@@ -516,7 +945,7 @@ export default function FleetRegistryPage() {
                       onClick={() => openEdit(vehicle)}
                       className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-600 py-2.5 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
                     >
-                      <Pencil className="h-4 w-4" />
+                      <Pencil className="h-3.5 w-3.5" />
                       Edit
                     </button>
                   </div>
@@ -681,20 +1110,48 @@ export default function FleetRegistryPage() {
                 </div>
               </div>
 
-              {/* Row 6: Status + Last Service Date */}
+              {/* Row 6: Status + Vehicle Availability */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Status</label>
+                  <label className="text-sm font-medium text-gray-700 mb-1.5 block">Status <span className="text-red-500">*</span></label>
                   <select
-                    value={form.status}
-                    onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                    value={form.is_active ? "active" : "inactive"}
+                    onChange={(e) => {
+                      const active = e.target.value === "active";
+                      setForm((f) => ({
+                        ...f,
+                        is_active: active,
+                        availability: active ? f.availability : "in_maintenance",
+                      }));
+                    }}
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 bg-white"
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+                <div>
+                  <label className={`text-sm font-medium mb-1.5 block ${form.is_active ? "text-gray-700" : "text-gray-400"}`}>
+                    Vehicle Availability <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={form.availability}
+                    onChange={(e) => setForm((f) => ({ ...f, availability: e.target.value }))}
+                    disabled={!form.is_active}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 bg-white disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-50"
                   >
                     <option value="available">Available</option>
                     <option value="assigned">Assigned</option>
                     <option value="in_maintenance">In Maintenance</option>
                   </select>
+                  {!form.is_active && (
+                    <p className="mt-1 text-xs text-gray-400">Not applicable for inactive vehicles</p>
+                  )}
                 </div>
+              </div>
+
+              {/* Row 7: Last Service Date + Insurance Expiry */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1.5 block">Last Service Date</label>
                   <DatePickerInput
@@ -703,10 +1160,6 @@ export default function FleetRegistryPage() {
                     className="w-full rounded-lg border border-gray-200 px-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                   />
                 </div>
-              </div>
-
-              {/* Row 7: Insurance Expiry + Inspection Expiry */}
-              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1.5 block">Insurance Expiry</label>
                   <DatePickerInput
@@ -715,6 +1168,10 @@ export default function FleetRegistryPage() {
                     className="w-full rounded-lg border border-gray-200 px-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
                   />
                 </div>
+              </div>
+
+              {/* Row 8: Inspection Expiry */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm font-medium text-gray-700 mb-1.5 block">Inspection Expiry</label>
                   <DatePickerInput
@@ -805,6 +1262,164 @@ export default function FleetRegistryPage() {
         onEdit={() => { setViewing(null); openEdit(viewing!); }}
         onDelete={() => handleDelete(viewing!)}
       />
+
+      {/* Import progress */}
+      {importProgress && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 px-8 py-8">
+            <div className="flex justify-center mb-5">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 border border-emerald-100">
+                <Upload className="h-6 w-6 text-emerald-600" />
+              </div>
+            </div>
+            <div className="text-center mb-6">
+              <h3 className="text-sm font-semibold text-gray-900">Importing vehicles…</h3>
+              <p className="mt-1 text-xs text-gray-400">{importProgress.current} of {importProgress.total} row{importProgress.total !== 1 ? "s" : ""} processed</p>
+            </div>
+            <div className="w-full rounded-full bg-gray-100 h-2.5 overflow-hidden">
+              <div className="h-2.5 rounded-full transition-all duration-300" style={{ width: `${Math.round((importProgress.current / importProgress.total) * 100)}%`, backgroundColor: "#CDF782" }} />
+            </div>
+            <p className="mt-2 text-right text-xs font-semibold text-gray-500">{Math.round((importProgress.current / importProgress.total) * 100)}%</p>
+          </div>
+        </div>
+      )}
+
+      {/* Import error */}
+      {importError && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setImportError(null)} />
+          <div className="relative z-10 w-full max-w-md rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-5 border-b border-red-100 bg-red-50">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white border border-red-200">
+                  <X className="h-5 w-5 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-red-700">Upload Failed</h3>
+                  <p className="text-xs text-red-500 mt-0.5">{importError.title}</p>
+                </div>
+              </div>
+              <button onClick={() => setImportError(null)} className="shrink-0 text-red-400 hover:text-red-600 rounded-md p-1 hover:bg-red-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-xs text-gray-500">The following rows have missing required fields:</p>
+              <div className="rounded-xl border border-red-100 bg-red-50 divide-y divide-red-100 max-h-52 overflow-y-auto">
+                {importError.rows.map((row, i) => (
+                  <div key={i} className="flex items-center gap-2.5 px-4 py-2.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-red-400 shrink-0" />
+                    <span className="text-xs text-red-700">{row}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500">Please update your file with the missing values and try uploading again.</p>
+            </div>
+            <div className="px-6 pb-6 pt-1">
+              <button
+                onClick={() => setImportError(null)}
+                style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 16px", fontSize: 14, fontWeight: 600, color: "#162318", backgroundColor: "#CDF782", border: "none", borderRadius: 10, cursor: "pointer", transition: "all 0.15s" }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
+              >
+                Got it, I'll fix the file
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import guide */}
+      {importGuideOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setImportGuideOpen(false)} />
+          <div className="relative z-10 w-full max-w-2xl rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-5 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-100">
+                  <Upload className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">Import Vehicles</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">Prepare your Excel file using the format below</p>
+                </div>
+              </div>
+              <button onClick={() => setImportGuideOpen(false)} className="shrink-0 text-gray-400 hover:text-gray-600 rounded-md p-1 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="flex items-center gap-2 rounded-lg bg-blue-50 border border-blue-100 px-4 py-3">
+                <span className="text-base">📋</span>
+                <p className="text-xs text-blue-700">Accepted file types: <strong>.xlsx</strong> or <strong>.xls</strong>. The first sheet will be used.</p>
+              </div>
+              <div className="rounded-xl border border-gray-200 overflow-hidden max-h-80 overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0">
+                    <tr className="bg-gray-50 border-b border-gray-200">
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Column Name</th>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Required</th>
+                      <th className="px-4 py-2.5 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Accepted Values / Example</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {[
+                      { name: "Registration Plate",   req: true,  example: "KCA 123A" },
+                      { name: "Vehicle Type",         req: true,  example: "motorbike / bicycle / car / van / truck / other" },
+                      { name: "Status",               req: true,  example: "Active / Inactive" },
+                      { name: "Vehicle Availability", req: true,  example: "available / assigned / in maintenance" },
+                      { name: "Make",               req: false, example: "Toyota" },
+                      { name: "Model",              req: false, example: "Hilux" },
+                      { name: "Year",               req: false, example: "2020" },
+                      { name: "Color",              req: false, example: "White" },
+                      { name: "VIN",                req: false, example: "JT123456789" },
+                      { name: "Fuel Type",          req: false, example: "petrol / diesel / electric / hybrid / cng / other" },
+                      { name: "Capacity (kg)",      req: false, example: "500" },
+                      { name: "Odometer Reading (km)", req: false, example: "45000" },
+                      { name: "Last Service Date",  req: false, example: "2024-06-01" },
+                      { name: "Insurance Expiry",   req: false, example: "2025-12-31" },
+                      { name: "Inspection Expiry",  req: false, example: "2025-06-30" },
+                      { name: "Allowed Driving License", req: false, example: "B1,B2" },
+                      { name: "Notes",              req: false, example: "Any additional notes" },
+                    ].map((col) => (
+                      <tr key={col.name}>
+                        <td className="px-4 py-2.5">
+                          <span className="font-mono text-xs font-semibold text-gray-800 bg-gray-100 px-2 py-0.5 rounded">{col.name}</span>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          {col.req
+                            ? <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600"><span className="h-1.5 w-1.5 rounded-full bg-red-500 inline-block" />Required</span>
+                            : <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-400"><span className="h-1.5 w-1.5 rounded-full bg-gray-300 inline-block" />Optional</span>
+                          }
+                        </td>
+                        <td className="px-4 py-2.5 text-xs text-gray-500 italic">{col.example}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex items-start gap-2 rounded-lg bg-amber-50 border border-amber-100 px-4 py-3">
+                <span className="text-base mt-0.5">💡</span>
+                <p className="text-xs text-amber-700">Column names must match exactly as shown. Rows missing <strong>Registration Plate</strong>, <strong>Vehicle Type</strong>, <strong>Status</strong>, or <strong>Vehicle Availability</strong> will cause the entire upload to be rejected.</p>
+              </div>
+            </div>
+            <div className="px-6 pb-6 pt-1 flex gap-2">
+              <button
+                onClick={() => { setImportGuideOpen(false); importRef.current?.click(); }}
+                style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "10px 16px", fontSize: 14, fontWeight: 600, color: "#162318", backgroundColor: "#CDF782", border: "none", borderRadius: 10, cursor: "pointer", transition: "all 0.15s" }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
+              >
+                <Upload className="h-4 w-4" /> Browse File
+              </button>
+              <button onClick={() => setImportGuideOpen(false)} className="flex-1 rounded-[10px] border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 py-2.5 transition-colors">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

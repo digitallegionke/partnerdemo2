@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
 
-    const { name, notes } = body;
+    const { name, notes, is_active } = body;
     if (!name?.trim()) {
       return NextResponse.json({ error: "name is required" }, { status: 400 });
     }
@@ -76,7 +76,12 @@ export async function POST(req: NextRequest) {
     const supabase = makeClient(token);
     const { data, error } = await supabase
       .from("partner_route_names")
-      .insert({ provider_id: providerId, name: name.trim(), notes: notes?.trim() || null })
+      .insert({
+        provider_id: providerId,
+        name: name.trim(),
+        notes: notes?.trim() || null,
+        ...(is_active !== undefined ? { is_active: Boolean(is_active) } : {}),
+      })
       .select()
       .single();
 

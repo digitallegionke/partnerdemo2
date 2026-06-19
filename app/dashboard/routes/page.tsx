@@ -7,6 +7,7 @@ import {
   RefreshCw, AlertCircle, ChevronRight, ChevronDown,
   ClipboardList, Eye, Package, CheckCircle, Archive,
   Route as RouteIcon, Layers, Trash2, User, Car,
+  LayoutGrid, List,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import AddressSearch from "@/components/address-search";
@@ -208,6 +209,7 @@ function routeIdLabel(id: number) {
 
 export default function RoutesPage() {
   const [view, setView]                     = useState<"list" | "map">("list");
+  const [viewMode, setViewMode]             = useState<"grid" | "table">("grid");
   const [mapRoute, setMapRoute]             = useState<any>(null);
   const [mapDeliveries, setMapDeliveries]   = useState<any[]>([]);
 
@@ -756,44 +758,64 @@ export default function RoutesPage() {
               />
             </div>
 
-            {/* Filter tabs */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-              {/* Status group */}
-              <div style={{ display: "flex", gap: 8, backgroundColor: "#F9FAFB", padding: 4, borderRadius: 8, border: "1px solid #E5E7EB" }}>
-                {STATUS_TABS.map(({ key, label }) => (
-                  <span
-                    key={key}
-                    onClick={() => setActiveTab(key)}
-                    style={{
-                      padding: "8px 16px", fontSize: 13, fontWeight: 600, borderRadius: 6, cursor: "pointer", transition: "all 0.2s",
-                      backgroundColor: activeTab === key ? "#FFFFFF" : "transparent",
-                      color: activeTab === key ? "#0F6D48" : "#6B7280",
-                      border: activeTab === key ? "1px solid #E5E7EB" : "1px solid transparent",
-                      boxShadow: activeTab === key ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                    }}
-                  >
-                    {label}
-                  </span>
-                ))}
+            {/* Filter tabs + view toggle */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+                {/* Status group */}
+                <div style={{ display: "flex", gap: 8, backgroundColor: "#F9FAFB", padding: 4, borderRadius: 8, border: "1px solid #E5E7EB" }}>
+                  {STATUS_TABS.map(({ key, label }) => (
+                    <span
+                      key={key}
+                      onClick={() => setActiveTab(key)}
+                      style={{
+                        padding: "8px 16px", fontSize: 13, fontWeight: 600, borderRadius: 6, cursor: "pointer", transition: "all 0.2s",
+                        backgroundColor: activeTab === key ? "#CDF782" : "transparent",
+                        color: activeTab === key ? "#162318" : "#6B7280",
+                        border: activeTab === key ? "1px solid transparent" : "1px solid transparent",
+                        boxShadow: activeTab === key ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                      }}
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Mode group */}
+                <div style={{ display: "flex", gap: 8, backgroundColor: "#F9FAFB", padding: 4, borderRadius: 8, border: "1px solid #E5E7EB" }}>
+                  {MODE_TABS.map(({ key, label }) => (
+                    <span
+                      key={key}
+                      onClick={() => setModeTab(key)}
+                      style={{
+                        padding: "8px 16px", fontSize: 13, fontWeight: 600, borderRadius: 6, cursor: "pointer", transition: "all 0.2s",
+                        backgroundColor: modeTab === key ? "#CDF782" : "transparent",
+                        color: modeTab === key ? "#162318" : "#6B7280",
+                        border: "1px solid transparent",
+                        boxShadow: modeTab === key ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                      }}
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
               </div>
 
-              {/* Mode group */}
-              <div style={{ display: "flex", gap: 8, backgroundColor: "#F9FAFB", padding: 4, borderRadius: 8, border: "1px solid #E5E7EB" }}>
-                {MODE_TABS.map(({ key, label }) => (
-                  <span
-                    key={key}
-                    onClick={() => setModeTab(key)}
-                    style={{
-                      padding: "8px 16px", fontSize: 13, fontWeight: 600, borderRadius: 6, cursor: "pointer", transition: "all 0.2s",
-                      backgroundColor: modeTab === key ? "#FFFFFF" : "transparent",
-                      color: modeTab === key ? "#0F6D48" : "#6B7280",
-                      border: modeTab === key ? "1px solid #E5E7EB" : "1px solid transparent",
-                      boxShadow: modeTab === key ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
-                    }}
-                  >
-                    {label}
-                  </span>
-                ))}
+              {/* View toggle */}
+              <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5 shrink-0">
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={`rounded-md p-1.5 transition-colors ${viewMode === "grid" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+                  title="Card view"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode("table")}
+                  className={`rounded-md p-1.5 transition-colors ${viewMode === "table" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"}`}
+                  title="Table view"
+                >
+                  <List className="h-4 w-4" />
+                </button>
               </div>
             </div>
           </div>
@@ -815,11 +837,123 @@ export default function RoutesPage() {
 
         ) : (
           <>
-            {/* Routes — grouped + ungrouped */}
-            {filtered.length > 0 && (() => {
+            {/* ── Table view ── */}
+            {filtered.length > 0 && viewMode === "table" && (
+              <div style={{ padding: "0 24px 24px", overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #E5E7EB" }}>
+                      {["Route", "Type", "Status", "Driver", "Vehicle", "Schedule", "Actions"].map((h, i) => (
+                        <th key={h} style={{ paddingBottom: 10, paddingTop: 4, fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.07em", textAlign: i === 6 ? "right" : "left", paddingRight: i < 6 ? 16 : 0, whiteSpace: "nowrap" }}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((route) => {
+                      const statusDisplay = getStatusDisplay(route.status);
+                      const typeBg    = route.route_type === "planned" ? "#F0FDF4" : "#EEF2FF";
+                      const typeColor = route.route_type === "planned" ? "#15803D" : "#4338CA";
+                      const scheduleDays = Array.isArray(route.active_days) && route.active_days.length ? route.active_days.join(", ") : null;
+                      const scheduleTime = route.start_time && route.end_time ? `${route.start_time} - ${route.end_time}` : null;
+                      const scheduleLabel = [scheduleDays, scheduleTime].filter(Boolean).join(" · ");
+                      const group = groups.find((g) => g.id === route.group_id);
+                      return (
+                        <tr key={route.id} style={{ borderBottom: "1px solid #F3F4F6" }}
+                          onMouseEnter={(e) => (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#FAFAFA"}
+                          onMouseLeave={(e) => (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "transparent"}>
+                          {/* Route name */}
+                          <td style={{ padding: "14px 16px 14px 0", verticalAlign: "middle" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: group ? group.color + "20" : "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: `1px solid ${group ? group.color + "40" : "#E5E7EB"}` }}>
+                                <RouteIcon className="h-3.5 w-3.5" style={{ color: group ? group.color : "#9CA3AF" }} />
+                              </div>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }}>{route.name}</div>
+                                <div style={{ fontSize: 11, color: "#9CA3AF", fontWeight: 500 }}>{routeIdLabel(route.id)}{group ? ` · ${group.name}` : ""}</div>
+                              </div>
+                            </div>
+                          </td>
+                          {/* Type */}
+                          <td style={{ padding: "14px 16px 14px 0", verticalAlign: "middle" }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, backgroundColor: typeBg, color: typeColor, whiteSpace: "nowrap" }}>
+                              {route.route_type}
+                            </span>
+                          </td>
+                          {/* Status */}
+                          <td style={{ padding: "14px 16px 14px 0", verticalAlign: "middle" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, backgroundColor: statusDisplay.bgColor, color: statusDisplay.textColor, whiteSpace: "nowrap" }}>
+                              <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: statusDisplay.dotColor, display: "inline-block", flexShrink: 0 }} />
+                              {statusDisplay.label}
+                            </span>
+                          </td>
+                          {/* Driver */}
+                          <td style={{ padding: "14px 16px 14px 0", verticalAlign: "middle", fontSize: 13, color: route.driver ? "#374151" : "#D1D5DB", whiteSpace: "nowrap" }}>
+                            {route.driver ? route.driver.name : "—"}
+                          </td>
+                          {/* Vehicle */}
+                          <td style={{ padding: "14px 16px 14px 0", verticalAlign: "middle" }}>
+                            {(() => {
+                              const driverRecord = drivers.find((d) => d.id === route.driver_id);
+                              const vehicle = driverRecord?.assigned_vehicle;
+                              if (!vehicle) return <span style={{ color: "#D1D5DB", fontSize: 13 }}>—</span>;
+                              return (
+                                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                  <Car style={{ width: 13, height: 13, color: "#9CA3AF", flexShrink: 0 }} />
+                                  <span style={{ fontSize: 13, color: "#374151", whiteSpace: "nowrap" }}>
+                                    {vehicle.plate_number}
+                                    {vehicle.vehicle_type ? <span style={{ color: "#9CA3AF", fontSize: 11, marginLeft: 4 }}>· {vehicle.vehicle_type}</span> : null}
+                                  </span>
+                                </div>
+                              );
+                            })()}
+                          </td>
+                          {/* Schedule */}
+                          <td style={{ padding: "14px 16px 14px 0", verticalAlign: "middle", fontSize: 12, color: "#6B7280", maxWidth: 220 }}>
+                            {scheduleLabel
+                              ? <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{scheduleLabel}</span>
+                              : <span style={{ color: "#D1D5DB" }}>—</span>}
+                          </td>
+                          {/* Actions */}
+                          <td style={{ padding: "14px 0 14px 0", verticalAlign: "middle" }}>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
+                              <button onClick={() => handleView(route)} title="View"
+                                style={{ padding: "6px", borderRadius: 6, border: "none", background: "none", cursor: "pointer", color: "#9CA3AF", display: "flex", alignItems: "center" }}
+                                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#374151"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F3F4F6"; }}
+                                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#9CA3AF"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}>
+                                <Eye style={{ width: 16, height: 16 }} />
+                              </button>
+                              <button onClick={() => openEdit(route)} title="Edit"
+                                style={{ padding: "6px", borderRadius: 6, border: "none", background: "none", cursor: "pointer", color: "#9CA3AF", display: "flex", alignItems: "center" }}
+                                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#374151"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F3F4F6"; }}
+                                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#9CA3AF"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}>
+                                <Pencil style={{ width: 16, height: 16 }} />
+                              </button>
+                              <button onClick={() => handleDelete(route)} title="Archive"
+                                style={{ padding: "6px", borderRadius: 6, border: "none", background: "none", cursor: "pointer", color: "#FCA5A5", display: "flex", alignItems: "center" }}
+                                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#DC2626"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#FEF2F2"; }}
+                                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#FCA5A5"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}>
+                                <Archive style={{ width: 16, height: 16 }} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                <p style={{ marginTop: 16, fontSize: 12, color: "#9CA3AF" }}>
+                  {filtered.length} route{filtered.length !== 1 ? "s" : ""}
+                </p>
+              </div>
+            )}
+
+            {/* ── Card / Grid view (grouped + ungrouped) ── */}
+            {filtered.length > 0 && viewMode === "grid" && (() => {
               const gridStyle = {
                 display: "grid" as const,
-                gridTemplateColumns: viewOpen ? "repeat(auto-fill, minmax(340px, 1fr))" : "repeat(auto-fill, minmax(380px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))",
                 gap: 20,
               };
 
@@ -849,17 +983,17 @@ export default function RoutesPage() {
                     }}
                   >
                     {/* Header */}
-                    <div style={{ padding: "18px 20px", borderBottom: "1px solid #F3F4F6", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{route.name}</div>
-                        <div style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 500 }}>{routeIdLabel(route.id)}</div>
-                      </div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end", flexShrink: 0 }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, padding: "4px 10px", borderRadius: 999, backgroundColor: statusDisplay.bgColor, color: statusDisplay.textColor }}>
+                    <div style={{ padding: "16px 20px", borderBottom: "1px solid #F3F4F6" }}>
+                      {/* Name + route id */}
+                      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 2, paddingRight: 4 }}>{route.name}</div>
+                      <div style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 500, marginBottom: 10 }}>{routeIdLabel(route.id)}</div>
+                      {/* Badges row — always below title, never overlaps */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, backgroundColor: statusDisplay.bgColor, color: statusDisplay.textColor }}>
                           <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: statusDisplay.dotColor, display: "inline-block" }} />
                           {statusDisplay.label}
                         </span>
-                        <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, backgroundColor: typeBg, color: typeColor }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 6, backgroundColor: typeBg, color: typeColor }}>
                           {typeLabel}
                         </span>
                       </div>

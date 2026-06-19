@@ -197,7 +197,7 @@ export default function ClientsPage() {
       <div className="flex flex-col h-full">
 
         {/* Page header */}
-        <div className="flex items-center justify-between gap-4 border-b px-8 py-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b px-4 sm:px-8 py-4 sm:py-5">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Clients</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
@@ -222,15 +222,15 @@ export default function ClientsPage() {
 
         {/* Stats */}
         {!loading && !error && (
-          <div className="px-8 pt-6 pb-2 grid grid-cols-3 gap-4 max-w-2xl">
+          <div className="px-4 sm:px-8 pt-5 sm:pt-6 pb-2 grid grid-cols-3 gap-3 sm:gap-4 max-w-2xl">
             {[
               { label: "Total Clients", value: tabCounts.all },
               { label: "Active",        value: tabCounts.active },
               { label: "Inactive",      value: tabCounts.inactive },
             ].map((s) => (
-              <div key={s.label} className="rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm">
-                <p className="text-sm text-gray-500">{s.label}</p>
-                <p className="mt-1 text-3xl font-bold text-gray-900">{s.value}</p>
+              <div key={s.label} className="rounded-xl border border-gray-100 bg-white px-3 sm:px-5 py-3 sm:py-4 shadow-sm">
+                <p className="text-xs sm:text-sm text-gray-500 truncate">{s.label}</p>
+                <p className="mt-1 text-2xl sm:text-3xl font-bold text-gray-900">{s.value}</p>
               </div>
             ))}
           </div>
@@ -238,9 +238,9 @@ export default function ClientsPage() {
 
         {/* Search + tabs + view toggle */}
         {!loading && !error && (
-          <div className="px-8 pt-4 pb-3 flex flex-wrap items-center gap-3">
-            {/* Search */}
-            <div className="relative w-72">
+          <div className="px-4 sm:px-8 pt-4 pb-3 space-y-2.5">
+            {/* Row 1: Search */}
+            <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
               <input
                 type="text"
@@ -251,48 +251,59 @@ export default function ClientsPage() {
               />
             </div>
 
-            {/* Tabs */}
-            <div className="flex items-center gap-1">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                    activeTab === tab.key
-                      ? "bg-gray-900 text-white"
-                      : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
-                  }`}
-                >
-                  {tab.label}
-                  {tab.key !== "all" && tabCounts[tab.key] > 0 && (
-                    <span className={`ml-1.5 text-xs ${activeTab === tab.key ? "text-white/70" : "text-gray-400"}`}>
-                      ({tabCounts[tab.key]})
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+            {/* Row 2: Tabs + view toggle */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+                {TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className="px-4 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0"
+                    style={
+                      activeTab === tab.key
+                        ? { backgroundColor: "#CDF782", color: "#162318" }
+                        : { color: "#6b7280" }
+                    }
+                    onMouseEnter={(e) => {
+                      if (activeTab !== tab.key)
+                        (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f3f4f6";
+                    }}
+                    onMouseLeave={(e) => {
+                      if (activeTab !== tab.key)
+                        (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
+                    }}
+                  >
+                    {tab.label}
+                    {tab.key !== "all" && tabCounts[tab.key] > 0 && (
+                      <span className="ml-1.5 text-xs opacity-60">
+                        ({tabCounts[tab.key]})
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
 
-            {/* View toggle */}
-            <div className="ml-auto flex items-center rounded-lg border border-gray-200 bg-white p-0.5">
-              <button
-                onClick={() => setViewMode("grid")}
-                className={`rounded-md p-1.5 transition-colors ${
-                  viewMode === "grid" ? "bg-gray-900 text-white" : "text-gray-400 hover:text-gray-600"
-                }`}
-                title="Grid view"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setViewMode("list")}
-                className={`rounded-md p-1.5 transition-colors ${
-                  viewMode === "list" ? "bg-gray-900 text-white" : "text-gray-400 hover:text-gray-600"
-                }`}
-                title="List view"
-              >
-                <List className="h-4 w-4" />
-              </button>
+              {/* View toggle */}
+              <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5 shrink-0">
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={`rounded-md p-1.5 transition-colors ${
+                    viewMode === "grid" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"
+                  }`}
+                  title="Grid view"
+                >
+                  <LayoutGrid className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`rounded-md p-1.5 transition-colors ${
+                    viewMode === "list" ? "bg-gray-100 text-gray-900" : "text-gray-400 hover:text-gray-600"
+                  }`}
+                  title="List view"
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -374,7 +385,7 @@ function GridView({
   onDelete: (c: Client) => void;
 }) {
   return (
-    <div className="px-8 pb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    <div className="px-4 sm:px-8 pb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {clients.map((c) => (
         <ClientCard key={c.id} client={c} onView={onView} onEdit={onEdit} onDelete={onDelete} />
       ))}
@@ -403,36 +414,37 @@ function ClientCard({
         onClick={() => onView(c)}
         className="text-left focus:outline-none"
       >
-        {/* Top row: avatar + code + status */}
-        <div className="px-5 pt-5 pb-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div
-              className={`h-10 w-10 shrink-0 rounded-full ${colors.bg} ${colors.text} text-sm font-bold flex items-center justify-center`}
-            >
-              {getInitials(c.company_name)}
-            </div>
-            <span className="text-sm font-medium text-gray-500">{clientCode(c.id)}</span>
-          </div>
-          <span
-            className={`flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full ${
-              c.status === "active"
-                ? "bg-emerald-50 text-emerald-700"
-                : "bg-gray-100 text-gray-500"
-            }`}
+        {/* Avatar + code row */}
+        <div className="px-5 pt-5 pb-0 flex items-center gap-3">
+          <div
+            className={`h-10 w-10 shrink-0 rounded-full ${colors.bg} ${colors.text} text-sm font-bold flex items-center justify-center`}
           >
-            <span
-              className={`h-2 w-2 rounded-full ${
-                c.status === "active" ? "bg-emerald-500" : "bg-gray-400"
-              }`}
-            />
-            {c.status === "active" ? "Active" : "Inactive"}
-          </span>
+            {getInitials(c.company_name)}
+          </div>
+          <span className="text-sm font-medium text-gray-500">{clientCode(c.id)}</span>
         </div>
 
-        {/* Company + contact */}
-        <div className="px-5 pb-4">
-          <p className="text-lg font-bold text-gray-900 leading-tight">{c.company_name}</p>
-          <p className="mt-0.5 text-sm text-gray-400">{c.contact_name}</p>
+        {/* Company name + contact — full width, no squeeze from badge */}
+        <div className="px-5 pt-3 pb-0">
+          <p className="text-lg font-bold text-gray-900 leading-tight truncate">{c.company_name}</p>
+          <p className="mt-0.5 text-sm text-gray-400 truncate">{c.contact_name}</p>
+          {/* Status badge on its own row */}
+          <div className="mt-2.5 pb-4">
+            <span
+              className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${
+                c.status === "active"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-gray-100 text-gray-500"
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  c.status === "active" ? "bg-emerald-500" : "bg-gray-400"
+                }`}
+              />
+              {c.status === "active" ? "Active" : "Inactive"}
+            </span>
+          </div>
         </div>
 
         {/* Details */}
@@ -506,8 +518,8 @@ function ListView({
   onDelete: (c: Client) => void;
 }) {
   return (
-    <div className="px-8 pb-8 overflow-x-auto">
-      <table className="w-full border-collapse">
+    <div className="px-4 sm:px-8 pb-8 overflow-x-auto">
+      <table className="w-full border-collapse min-w-[640px]">
         <thead>
           <tr className="border-b border-gray-200">
             {["COMPANY", "CONTACT", "PHONE", "EMAIL", "ADDRESS", "STATUS", "ACTIONS"].map(
@@ -579,29 +591,29 @@ function ListView({
                 </span>
               </td>
 
-              {/* Actions */}
+              {/* Actions — icons only */}
               <td className="py-3.5">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-0.5">
                   <button
                     onClick={() => onView(c)}
-                    className="flex items-center gap-1 text-sm text-gray-400 hover:text-gray-700 transition-colors"
+                    title="View"
+                    className="p-1.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
                   >
-                    <Eye className="h-3.5 w-3.5" />
-                    View
+                    <Eye className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => onEdit(c)}
-                    className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 transition-colors"
+                    title="Edit"
+                    className="p-1.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
                   >
-                    <Pencil className="h-3.5 w-3.5" />
-                    Edit
+                    <Pencil className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => onDelete(c)}
-                    className="flex items-center gap-1 text-sm text-red-400 hover:text-red-600 transition-colors"
+                    title="Delete"
+                    className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    Delete
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </td>

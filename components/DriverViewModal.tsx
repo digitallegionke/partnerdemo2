@@ -1,6 +1,6 @@
 "use client";
 
-import { X, FileText, MapPin, Truck, Mail, CalendarDays } from "lucide-react";
+import { X, FileText, MapPin, Truck, Mail, CalendarDays, ShieldCheck } from "lucide-react";
 
 type Driver = {
   id: number;
@@ -9,8 +9,10 @@ type Driver = {
   email: string | null;
   license_number: string;
   license_type: string;
+  license_expiry?: string | null;
   primary_zone: string | null;
-  status: "active" | "inactive" | "on_trip" | "off_duty";
+  is_active: boolean;
+  availability: "available" | "on_duty" | "off_duty";
   is_online: boolean;
   created_at: string;
   assigned_vehicle?: {
@@ -20,25 +22,22 @@ type Driver = {
   } | null;
 };
 
-const STATUS_LABEL: Record<string, string> = {
-  active:   "Available",
-  on_trip:  "Assigned",
-  off_duty: "On Leave",
-  inactive: "Inactive",
+const AVAIL_LABEL: Record<string, string> = {
+  available: "Available",
+  on_duty:   "On Duty",
+  off_duty:  "Off Duty",
 };
 
-const STATUS_STYLE: Record<string, string> = {
-  active:   "bg-emerald-50 text-emerald-700",
-  on_trip:  "bg-blue-50 text-blue-700",
-  off_duty: "bg-amber-50 text-amber-700",
-  inactive: "bg-gray-100 text-gray-500",
+const AVAIL_STYLE: Record<string, string> = {
+  available: "bg-emerald-50 text-emerald-700",
+  on_duty:   "bg-blue-50 text-blue-700",
+  off_duty:  "bg-amber-50 text-amber-700",
 };
 
-const STATUS_DOT: Record<string, string> = {
-  active:   "bg-emerald-500",
-  on_trip:  "bg-blue-500",
-  off_duty: "bg-amber-400",
-  inactive: "bg-gray-400",
+const AVAIL_DOT: Record<string, string> = {
+  available: "bg-emerald-500",
+  on_duty:   "bg-blue-500",
+  off_duty:  "bg-amber-400",
 };
 
 const AVATAR_COLORS = [
@@ -91,18 +90,28 @@ export default function DriverViewModal({ driver, isOpen, onClose, onEdit }: Pro
               <p className="text-sm text-gray-400 mt-0.5">{driver.phone_number}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <span className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_STYLE[driver.status]}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[driver.status]}`} />
-              {STATUS_LABEL[driver.status] ?? driver.status}
-            </span>
-            <button
-              onClick={onClose}
-              className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-              aria-label="Close"
-            >
-              <X size={18} />
-            </button>
+          <div className="flex flex-col items-end gap-1.5">
+            <div className="flex items-center gap-2">
+              {/* Active / Inactive */}
+              <span className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${driver.is_active ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${driver.is_active ? "bg-emerald-500" : "bg-gray-400"}`} />
+                {driver.is_active ? "Active" : "Inactive"}
+              </span>
+              <button
+                onClick={onClose}
+                className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            {/* Availability — only when active */}
+            {driver.is_active && (
+              <span className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full ${AVAIL_STYLE[driver.availability] ?? "bg-gray-100 text-gray-500"}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${AVAIL_DOT[driver.availability] ?? "bg-gray-400"}`} />
+                {AVAIL_LABEL[driver.availability] ?? driver.availability}
+              </span>
+            )}
           </div>
         </div>
 
@@ -110,12 +119,13 @@ export default function DriverViewModal({ driver, isOpen, onClose, onEdit }: Pro
         <div className="px-6 py-5 space-y-3.5 text-sm text-gray-700">
           <div className="flex items-center gap-3">
             <FileText className="h-4 w-4 text-gray-400 shrink-0" />
-            <span className="text-gray-500 w-32 shrink-0">License No.</span>
+            <span className="text-gray-500 w-36 shrink-0">License No.</span>
             <span className="font-medium text-gray-900">{driver.license_number}</span>
           </div>
+
           <div className="flex items-start gap-3">
             <FileText className="h-4 w-4 text-gray-400 shrink-0 mt-0.5" />
-            <span className="text-gray-500 w-32 shrink-0">License Class</span>
+            <span className="text-gray-500 w-36 shrink-0">License Class</span>
             <div className="flex flex-wrap gap-1">
               {driver.license_type
                 ? driver.license_type.split(",").map((c) => c.trim()).filter(Boolean).map((c) => (
@@ -127,17 +137,27 @@ export default function DriverViewModal({ driver, isOpen, onClose, onEdit }: Pro
               }
             </div>
           </div>
+
+          <div className="flex items-center gap-3">
+            <CalendarDays className="h-4 w-4 text-gray-400 shrink-0" />
+            <span className="text-gray-500 w-36 shrink-0">License Expiry</span>
+            <span className={`font-medium ${driver.license_expiry ? "text-gray-900" : "text-gray-400"}`}>
+              {driver.license_expiry ? formatDate(driver.license_expiry) : "—"}
+            </span>
+          </div>
+
           <div className="flex items-center gap-3">
             <MapPin className="h-4 w-4 text-gray-400 shrink-0" />
-            <span className="text-gray-500 w-32 shrink-0">Primary Zone</span>
+            <span className="text-gray-500 w-36 shrink-0">Primary Zone</span>
             <span className={`font-medium ${driver.primary_zone ? "text-gray-900" : "text-gray-400"}`}>
               {driver.primary_zone ?? "—"}
             </span>
           </div>
+
           {driver.email && (
             <div className="flex items-center gap-3">
               <Mail className="h-4 w-4 text-gray-400 shrink-0" />
-              <span className="text-gray-500 w-32 shrink-0">Email</span>
+              <span className="text-gray-500 w-36 shrink-0">Email</span>
               <span className="font-medium text-gray-900">{driver.email}</span>
             </div>
           )}
@@ -146,7 +166,7 @@ export default function DriverViewModal({ driver, isOpen, onClose, onEdit }: Pro
           <div className="border-t pt-3.5 space-y-3.5">
             <div className="flex items-center gap-3">
               <Truck className="h-4 w-4 text-gray-400 shrink-0" />
-              <span className="text-gray-500 w-32 shrink-0">Assigned Vehicle</span>
+              <span className="text-gray-500 w-36 shrink-0">Assigned Vehicle</span>
               {driver.assigned_vehicle ? (
                 <span className="font-medium text-gray-900">
                   {driver.assigned_vehicle.plate_number}
@@ -160,8 +180,8 @@ export default function DriverViewModal({ driver, isOpen, onClose, onEdit }: Pro
             </div>
             {driver.assigned_vehicle && (
               <div className="flex items-center gap-3">
-                <CalendarDays className="h-4 w-4 text-gray-400 shrink-0" />
-                <span className="text-gray-500 w-32 shrink-0">Assigned Since</span>
+                <ShieldCheck className="h-4 w-4 text-gray-400 shrink-0" />
+                <span className="text-gray-500 w-36 shrink-0">Assigned Since</span>
                 <span className="font-medium text-gray-900">
                   {formatDate(driver.assigned_vehicle.assigned_from)}
                 </span>
@@ -189,7 +209,7 @@ export default function DriverViewModal({ driver, isOpen, onClose, onEdit }: Pro
           <p className="text-xs text-gray-400">Joined {formatDate(driver.created_at)}</p>
         </div>
 
-        {/* Footer actions */}
+        {/* Footer */}
         <div className="border-t flex gap-3 px-6 py-4">
           <button
             onClick={onClose}

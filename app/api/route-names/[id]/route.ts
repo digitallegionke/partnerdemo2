@@ -53,9 +53,10 @@ export async function PATCH(
     const body = await req.json().catch(() => null);
     if (!body) return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
 
-    const updates: Record<string, string | null> = {};
+    const updates: Record<string, string | boolean | null> = {};
     if (body.name !== undefined) updates.name = body.name.trim();
     if (body.notes !== undefined) updates.notes = body.notes?.trim() || null;
+    if (body.is_active !== undefined) updates.is_active = Boolean(body.is_active);
 
     const supabase = makeClient(token);
     const { data, error } = await supabase

@@ -52,6 +52,8 @@
     "formik": "^2.4.6",
     "geist": "latest",
     "input-otp": "latest",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "leaflet": "latest",
     "lucide-react": "^0.454.0",
     "mapbox-gl": "^3.14.0",
@@ -72,6 +74,7 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "latest",
+    "xlsx": "^0.18.5",
     "yup": "^1.7.1",
     "zod": "^3.24.1"
   },
