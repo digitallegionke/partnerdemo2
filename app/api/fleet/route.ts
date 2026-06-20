@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
       .from("partner_vehicles")
       .select("*")
       .eq("provider_id", providerId)
+      .eq("is_deleted", false)
       .order("created_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

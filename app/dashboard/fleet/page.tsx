@@ -1,12 +1,12 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   Truck, Plus, Pencil, Search, X, Eye,
   Bike, Package, CheckCircle2, User,
   Fuel, ShieldCheck, CalendarIcon,
   Upload, Download, ChevronDown,
-  LayoutGrid, List, Trash2,
+  LayoutGrid, List, Trash2, UserCheck, UserX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FleetService, type FleetVehicle } from "@/lib/services/fleet";
@@ -227,6 +227,10 @@ export default function FleetRegistryPage() {
   const [importError, setImportError]           = useState<{ title: string; rows: string[] } | null>(null);
   const [importProgress, setImportProgress]     = useState<{ current: number; total: number } | null>(null);
   const importRef                               = useRef<HTMLInputElement>(null);
+  const [selectedIds, setSelectedIds]           = useState<Set<number>>(new Set());
+  const [bulkProcessing, setBulkProcessing]     = useState(false);
+  const [deleteTarget, setDeleteTarget]         = useState<FleetVehicleEnriched | null>(null);
+  const [deleting, setDeleting]                 = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -537,20 +541,34 @@ export default function FleetRegistryPage() {
     }
   };
 
-  const handleDelete = async (v: FleetVehicleEnriched) => {
-    if (!confirm(`Remove ${v.plate_number} from your fleet? This cannot be undone.`)) return;
-    setDeletingId(v.id);
+  const handleDelete = (v: FleetVehicleEnriched) => setDeleteTarget(v);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      await FleetService.delete(v.id);
-      setVehicles((prev) => prev.filter((x) => x.id !== v.id));
+      await FleetService.delete(deleteTarget.id);
+      setVehicles((prev) => prev.filter((x) => x.id !== deleteTarget.id));
+      setSelectedIds((prev) => { const s = new Set(prev); s.delete(deleteTarget.id); return s; });
       window.dispatchEvent(new Event("navcount:refresh"));
       setViewing(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete vehicle");
+      toast({ variant: "destructive", title: "Delete failed", description: err instanceof Error ? err.message : "Failed to delete vehicle" });
     } finally {
-      setDeletingId(null);
+      setDeleting(false);
+      setDeleteTarget(null);
     }
   };
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds((prev) => {
+      const s = new Set(prev);
+      s.has(id) ? s.delete(id) : s.add(id);
+      return s;
+    });
+  }, []);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
 
   const tabCounts = useMemo(() => {
     const c: Record<FilterTab, number> = { all: vehicles.length, active: 0, inactive: 0, available: 0, assigned: 0, in_maintenance: 0 };
@@ -581,6 +599,55 @@ export default function FleetRegistryPage() {
     }
     return list;
   }, [vehicles, activeTab, search]);
+
+  const allFilteredSelected  = filtered.length > 0 && filtered.every((v) => selectedIds.has(v.id));
+  const someFilteredSelected = filtered.some((v) => selectedIds.has(v.id));
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      const allSelected = filtered.every((v) => prev.has(v.id));
+      if (allSelected) {
+        const s = new Set(prev);
+        filtered.forEach((v) => s.delete(v.id));
+        return s;
+      }
+      const s = new Set(prev);
+      filtered.forEach((v) => s.add(v.id));
+      return s;
+    });
+  }, [filtered]);
+
+  const handleBulkDelete = async () => {
+    if (!selectedIds.size) return;
+    setBulkProcessing(true);
+    const ids = [...selectedIds];
+    let deleted = 0;
+    for (const id of ids) {
+      try { await FleetService.delete(id); deleted++; } catch { /* skip */ }
+    }
+    setVehicles((prev) => prev.filter((v) => !selectedIds.has(v.id)));
+    setSelectedIds(new Set());
+    window.dispatchEvent(new Event("navcount:refresh"));
+    setBulkProcessing(false);
+    toast({ title: "Bulk delete", description: `${deleted} of ${ids.length} vehicle${ids.length !== 1 ? "s" : ""} removed.` });
+  };
+
+  const handleBulkSetActive = async (isActive: boolean) => {
+    if (!selectedIds.size) return;
+    setBulkProcessing(true);
+    const ids = [...selectedIds];
+    let updated = 0;
+    for (const id of ids) {
+      try {
+        const result = await FleetService.update(id, { is_active: isActive, availability: isActive ? "available" : "in_maintenance" }) as FleetVehicleEnriched;
+        setVehicles((prev) => prev.map((v) => v.id === result.id ? { ...result, assigned_driver_name: v.assigned_driver_name } : v));
+        updated++;
+      } catch { /* skip */ }
+    }
+    setSelectedIds(new Set());
+    setBulkProcessing(false);
+    toast({ title: `Bulk ${isActive ? "activate" : "deactivate"}`, description: `${updated} vehicle${updated !== 1 ? "s" : ""} updated.` });
+  };
 
   return (
     <>
@@ -682,9 +749,24 @@ export default function FleetRegistryPage() {
                 className="w-full rounded-lg border border-gray-200 bg-white pl-9 pr-4 py-2 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
               />
             </div>
-            {/* Row 2: tabs + view toggle */}
+            {/* Row 2: Select-all + tabs + view toggle */}
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-0.5">
+              <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-0.5">
+                {/* Select-all checkbox */}
+                {filtered.length > 0 && (
+                  <button
+                    onClick={toggleSelectAll}
+                    className="shrink-0 flex items-center justify-center h-5 w-5 rounded border border-gray-300 bg-white hover:border-emerald-500 transition-colors"
+                    title={allFilteredSelected ? "Deselect all" : "Select all"}
+                  >
+                    {allFilteredSelected ? (
+                      <span className="block h-3 w-3 rounded-sm bg-emerald-500" />
+                    ) : someFilteredSelected ? (
+                      <span className="block h-0.5 w-2.5 bg-emerald-400 rounded" />
+                    ) : null}
+                  </button>
+                )}
+                <div className="flex items-center gap-1">
                 {TABS.map((tab, i) => (
                   <React.Fragment key={tab.key}>
                     {i === 3 && <span className="mx-1 h-4 w-px bg-gray-200 hidden sm:block shrink-0" />}
@@ -704,6 +786,7 @@ export default function FleetRegistryPage() {
                     </button>
                   </React.Fragment>
                 ))}
+                </div>
               </div>
               {/* View toggle */}
               <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5 shrink-0">
@@ -722,6 +805,32 @@ export default function FleetRegistryPage() {
                   <List className="h-4 w-4" />
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Bulk action bar */}
+        {someFilteredSelected && (
+          <div className="px-8 pb-3">
+            <div className="inline-flex items-center gap-3 rounded-full border border-gray-200 bg-white px-4 py-2 shadow-sm text-sm">
+              <span className="font-semibold text-gray-700">{selectedIds.size} selected</span>
+              <div className="h-4 w-px bg-gray-200" />
+              <button onClick={handleBulkDelete} disabled={bulkProcessing}
+                className="font-medium text-red-600 hover:text-red-700 disabled:opacity-40 transition-colors">
+                Delete
+              </button>
+              <button onClick={() => handleBulkSetActive(true)} disabled={bulkProcessing}
+                className="font-medium text-emerald-700 hover:text-emerald-800 disabled:opacity-40 transition-colors">
+                Activate
+              </button>
+              <button onClick={() => handleBulkSetActive(false)} disabled={bulkProcessing}
+                className="font-medium text-gray-500 hover:text-gray-700 disabled:opacity-40 transition-colors">
+                Deactivate
+              </button>
+              <button onClick={clearSelection}
+                className="text-gray-400 hover:text-gray-600 transition-colors ml-1">
+                <X className="h-3.5 w-3.5" />
+              </button>
             </div>
           </div>
         )}
@@ -770,6 +879,7 @@ export default function FleetRegistryPage() {
             <table className="w-full border-collapse min-w-[700px]">
               <thead>
                 <tr className="border-b border-gray-200">
+                  <th className="pb-3 pt-1 pr-4 w-8" />
                   {["VEHICLE", "STATUS", "AVAILABILITY", "CAPACITY", "FUEL", "DRIVER", "LICENSE", "ACTIONS"].map((h) => (
                     <th key={h} className="pb-3 pt-1 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wide pr-4 first:pl-0 whitespace-nowrap">
                       {h}
@@ -783,7 +893,22 @@ export default function FleetRegistryPage() {
                     ? vehicle.allowed_license.split(",").map((c) => c.trim()).filter(Boolean)
                     : [];
                   return (
-                    <tr key={vehicle.id} className="hover:bg-gray-50/50 transition-colors group">
+                    <tr key={vehicle.id} className={`transition-colors ${selectedIds.has(vehicle.id) ? "bg-emerald-50/60" : "hover:bg-gray-50/50"}`}>
+                      {/* Checkbox */}
+                      <td className="py-3.5 pr-4">
+                        <button
+                          onClick={() => toggleSelect(vehicle.id)}
+                          className={`flex items-center justify-center h-5 w-5 rounded border transition-colors ${
+                            selectedIds.has(vehicle.id) ? "border-emerald-500 bg-emerald-500" : "border-gray-300 bg-white hover:border-emerald-400"
+                          }`}
+                        >
+                          {selectedIds.has(vehicle.id) && (
+                            <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none">
+                              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </button>
+                      </td>
                       {/* Vehicle */}
                       <td className="py-3.5 pr-4">
                         <button onClick={() => setViewing(vehicle)} className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity">
@@ -867,18 +992,39 @@ export default function FleetRegistryPage() {
                 ? vehicle.allowed_license.split(",").map((c) => c.trim()).filter(Boolean)
                 : [];
               return (
-                <div key={vehicle.id} className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow flex flex-col">
+                <div key={vehicle.id} className={`bg-white rounded-2xl border overflow-hidden hover:shadow-md transition-shadow flex flex-col ${selectedIds.has(vehicle.id) ? "border-emerald-400 ring-1 ring-emerald-300" : "border-gray-200"}`}>
 
                   {/* Header */}
                   <div className="relative px-4 pt-4 pb-3">
-                    <button
-                      onClick={() => openEdit(vehicle)}
-                      className="absolute top-3 right-3 p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
-                      title="Edit vehicle"
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <div className="flex items-center gap-3 pr-8">
+                    <div className="absolute top-3 right-3 flex items-center gap-1">
+                      <button
+                        onClick={() => openEdit(vehicle)}
+                        className="p-1.5 rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                        title="Edit vehicle"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(vehicle)}
+                        className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                        title="Delete vehicle"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => toggleSelect(vehicle.id)}
+                        className={`flex items-center justify-center h-5 w-5 rounded border transition-colors ${
+                          selectedIds.has(vehicle.id) ? "border-emerald-500 bg-emerald-500" : "border-gray-300 bg-white hover:border-emerald-400"
+                        }`}
+                      >
+                        {selectedIds.has(vehicle.id) && (
+                          <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none">
+                            <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-3 pr-16">
                       <div className="h-10 w-10 shrink-0 rounded-xl flex items-center justify-center bg-gray-100 text-emerald-600">
                         <VehicleIcon type={vehicle.vehicle_type} className="h-5 w-5" />
                       </div>
@@ -1324,6 +1470,40 @@ export default function FleetRegistryPage() {
                 onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
               >
                 Got it, I'll fix the file
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirm modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !deleting && setDeleteTarget(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="px-6 pt-6 pb-5">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 border border-red-100 mb-4">
+                <Trash2 className="h-5 w-5 text-red-500" />
+              </div>
+              <h3 className="text-base font-semibold text-gray-900">Remove vehicle?</h3>
+              <p className="mt-1.5 text-sm text-gray-500">
+                <span className="font-semibold text-gray-700">{deleteTarget.plate_number}</span> will be removed from your fleet. This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3 px-6 pb-6">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="flex-1 rounded-xl border border-gray-200 bg-white py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="flex-1 rounded-xl bg-red-500 py-2.5 text-sm font-semibold text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+              >
+                {deleting ? "Removing…" : "Remove"}
               </button>
             </div>
           </div>

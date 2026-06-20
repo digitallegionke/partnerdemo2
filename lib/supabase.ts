@@ -701,6 +701,7 @@ export interface Database {
           license_expiry: string | null;
           primary_zone: string | null;
           is_active: boolean;
+          is_deleted: boolean;
           availability: "available" | "on_duty" | "off_duty";
           is_online: boolean;
           last_known_lat: number | null;
@@ -719,6 +720,7 @@ export interface Database {
           license_expiry?: string | null;
           primary_zone?: string | null;
           is_active?: boolean;
+          is_deleted?: boolean;
           availability?: "available" | "on_duty" | "off_duty";
           is_online?: boolean;
           last_known_lat?: number | null;
@@ -737,6 +739,7 @@ export interface Database {
           license_expiry?: string | null;
           primary_zone?: string | null;
           is_active?: boolean;
+          is_deleted?: boolean;
           availability?: "available" | "on_duty" | "off_duty";
           is_online?: boolean;
           last_known_lat?: number | null;
@@ -909,6 +912,7 @@ export interface Database {
           capacity_kg: number | null;
           availability: string;
           is_active: boolean;
+          is_deleted: boolean;
           vin: string | null;
           fuel_type: string | null;
           odometer_km: number | null;
@@ -932,6 +936,7 @@ export interface Database {
           capacity_kg?: number | null;
           availability?: string;
           is_active?: boolean;
+          is_deleted?: boolean;
           vin?: string | null;
           fuel_type?: string | null;
           odometer_km?: number | null;
@@ -955,6 +960,7 @@ export interface Database {
           capacity_kg?: number | null;
           availability?: string;
           is_active?: boolean;
+          is_deleted?: boolean;
           vin?: string | null;
           fuel_type?: string | null;
           odometer_km?: number | null;
