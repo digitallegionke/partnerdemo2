@@ -8,6 +8,7 @@ import "react-international-phone/style.css";
 type DriverLike = {
   full_name?: string | null;
   name?: string | null;
+  email?: string | null;
   phone_number?: string | null;
   phone?: string | null;
   license_type?: string | null;
@@ -22,6 +23,7 @@ type DriverLike = {
 
 type DriverFormData = {
   name: string;
+  email: string;
   phone: string;
   licenseType: string;
   licenseNumber: string;
@@ -58,14 +60,15 @@ const LICENSE_CLASSES = [
 ];
 
 const defaults: DriverFormData = {
-  name:         "",
-  phone:        "",
-  licenseType:  "",
+  name:          "",
+  email:         "",
+  phone:         "",
+  licenseType:   "",
   licenseNumber: "",
   licenseExpiry: "",
-  primaryZone:  "",
-  isActive:     true,
-  availability: "available",
+  primaryZone:   "",
+  isActive:      true,
+  availability:  "available",
 };
 
 export default function DriverModal({ isOpen, onClose, onSave, driver }: DriverModalProps) {
@@ -81,6 +84,7 @@ export default function DriverModal({ isOpen, onClose, onSave, driver }: DriverM
       setSelectedClasses(classes);
       setFormData({
         name:          driver.full_name || driver.name || "",
+        email:         driver.email || "",
         phone:         driver.phone_number || driver.phone || "",
         licenseType:   rawType,
         licenseNumber: driver.license_number || driver.nationalId || "",
@@ -169,6 +173,21 @@ export default function DriverModal({ isOpen, onClose, onSave, driver }: DriverM
                   required
                 />
               </div>
+            </div>
+
+            {/* Row 2: Email */}
+            <div>
+              <label className="mb-1.5 block text-sm font-semibold text-gray-700">
+                Email Address <span className="text-red-600">*</span>
+              </label>
+              <input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData((f) => ({ ...f, email: e.target.value }))}
+                placeholder="e.g., driver@example.com"
+                required
+                className="w-full rounded-lg border border-gray-200 px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-emerald-700"
+              />
             </div>
 
             {/* License Class */}

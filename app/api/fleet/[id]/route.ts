@@ -80,7 +80,7 @@ export async function DELETE(
     const supabase = makeClient(token);
     const { error } = await supabase
       .from("partner_vehicles")
-      .delete()
+      .update({ is_deleted: true })
       .eq("id", vehicleId)
       .eq("provider_id", providerId);
 

@@ -35,11 +35,13 @@ export class DriverService {
       },
     })
 
-    const result = await response.json()
+    if (response.status === 204) return null
+
+    const result = await response.json().catch(() => null)
 
     if (!response.ok) {
       console.error('API Error Response:', result)
-      throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`)
+      throw new Error(result?.error || `HTTP ${response.status}: ${response.statusText}`)
     }
 
     return result

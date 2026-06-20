@@ -49,6 +49,7 @@ export async function GET(req: NextRequest) {
       .from("partner_drivers")
       .select("*")
       .eq("provider_id", providerId)
+      .eq("is_deleted", false)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -113,11 +114,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
     }
 
-    const { full_name, phone_number, license_type, license_number, license_expiry,
-            primary_zone, is_active, availability, email } = body;
-    if (!full_name || !phone_number || !license_type || !license_number) {
+    const { full_name, phone_number, email, license_type, license_number,
+            license_expiry, primary_zone, is_active, availability } = body;
+    if (!full_name || !phone_number || !email) {
       return NextResponse.json(
-        { error: "full_name, phone_number, license_type, and license_number are required" },
+        { error: "full_name, phone_number, and email are required" },
         { status: 400 }
       );
     }
@@ -128,14 +129,14 @@ export async function POST(req: NextRequest) {
       .insert({
         full_name,
         phone_number,
-        license_type,
-        license_number,
+        email,
+        license_type:   license_type   ?? "",
+        license_number: license_number ?? "",
         license_expiry:  license_expiry  ?? null,
         primary_zone:    primary_zone    ?? null,
         is_active:       is_active !== undefined ? Boolean(is_active) : true,
         availability:    availability    ?? "available",
         provider_id: providerId,
-        email: email ?? null,
       })
       .select()
       .single();

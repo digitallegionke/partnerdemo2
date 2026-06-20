@@ -92,10 +92,11 @@ export async function DELETE(
     const providerId = await getProviderId(token);
     if (!providerId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+    // Soft delete — preserves allocation history for audit trail
     const supabase = makeClient(token);
     const { error } = await supabase
       .from("partner_drivers")
-      .delete()
+      .update({ is_deleted: true })
       .eq("id", driverId)
       .eq("provider_id", providerId);
 

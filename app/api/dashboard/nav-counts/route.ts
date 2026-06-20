@@ -44,13 +44,13 @@ export async function GET(req: NextRequest) {
         .from("partner_drivers")
         .select("id", { count: "exact", head: true })
         .eq("provider_id", providerId)
-        .eq("status", "active"),
+        .eq("is_deleted", false),
 
       supabase
         .from("partner_vehicles")
         .select("id", { count: "exact", head: true })
         .eq("provider_id", providerId)
-        .eq("status", "available"),
+        .eq("is_deleted", false),
 
       supabase
         .from("partner_allocation_requests")
