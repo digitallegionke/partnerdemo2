@@ -96,7 +96,7 @@ export async function DELETE(
     const supabase = makeClient(token);
     const { error } = await supabase
       .from("partner_route_names")
-      .delete()
+      .update({ is_deleted: true })
       .eq("id", routeNameId)
       .eq("provider_id", providerId);
 

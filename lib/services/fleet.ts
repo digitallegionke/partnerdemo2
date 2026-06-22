@@ -19,7 +19,7 @@ export class FleetService {
       ...options,
       headers: { "Content-Type": "application/json", Authorization: authHeader, ...options.headers },
     });
-    const result = await response.json();
+    const result = await response.json().catch(() => null);
     if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
     return result;
   }

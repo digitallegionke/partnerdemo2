@@ -231,6 +231,9 @@ export default function FleetRegistryPage() {
   const [bulkProcessing, setBulkProcessing]     = useState(false);
   const [deleteTarget, setDeleteTarget]         = useState<FleetVehicleEnriched | null>(null);
   const [deleting, setDeleting]                 = useState(false);
+  const [confirmBulkAction, setConfirmBulkAction] = useState<{ type: "delete" | "activate" | "deactivate"; count: number } | null>(null);
+  const [confirmUpdate, setConfirmUpdate]         = useState(false);
+  const [pendingForm, setPendingForm]             = useState<FormState | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -503,6 +506,12 @@ export default function FleetRegistryPage() {
 
   const handleSave = async () => {
     if (!form.plate_number.trim()) { setFormError("Registration plate is required."); return; }
+    if (editing) {
+      setPendingForm({ ...form });
+      setConfirmUpdate(true);
+      setModalOpen(false);
+      return;
+    }
     setSaving(true);
     setFormError(null);
     const payload = {
@@ -525,13 +534,9 @@ export default function FleetRegistryPage() {
       notes:             form.notes || null,
     };
     try {
-      if (editing) {
-        const updated = await FleetService.update(editing.id, payload) as FleetVehicleEnriched;
-        setVehicles((prev) => prev.map((v) => v.id === updated.id ? { ...updated, assigned_driver_name: editing.assigned_driver_name } : v));
-      } else {
-        const created = await FleetService.create(payload) as FleetVehicleEnriched;
-        setVehicles((prev) => [created, ...prev]);
-      }
+      const created = await FleetService.create(payload) as FleetVehicleEnriched;
+      setVehicles((prev) => [created, ...prev]);
+      toast({ title: "Vehicle added", description: `${payload.plate_number} has been added to the fleet.` });
       window.dispatchEvent(new Event("navcount:refresh"));
       setModalOpen(false);
     } catch (err) {
@@ -541,17 +546,54 @@ export default function FleetRegistryPage() {
     }
   };
 
+  const executeUpdate = async () => {
+    if (!editing || !pendingForm) return;
+    const f = pendingForm;
+    const payload = {
+      plate_number:      f.plate_number.toUpperCase().trim(),
+      vehicle_type:      f.vehicle_type,
+      make:              f.make.trim() || null,
+      model:             f.model.trim() || null,
+      year:              f.year ? Number(f.year) : null,
+      color:             f.color.trim() || null,
+      vin:               f.vin.trim() || null,
+      fuel_type:         f.fuel_type || null,
+      capacity_kg:       f.capacity_kg ? Number(f.capacity_kg) : null,
+      odometer_km:       f.odometer_km ? Number(f.odometer_km) : null,
+      is_active:         f.is_active,
+      availability:      f.availability || "available",
+      last_service_date: displayToIso(f.last_service_date) || null,
+      insurance_expiry:  displayToIso(f.insurance_expiry) || null,
+      inspection_expiry: displayToIso(f.inspection_expiry) || null,
+      allowed_license:   f.allowed_license.length > 0 ? f.allowed_license.join(",") : null,
+      notes:             f.notes || null,
+    };
+    try {
+      const updated = await FleetService.update(editing.id, payload) as FleetVehicleEnriched;
+      setVehicles((prev) => prev.map((v) => v.id === updated.id ? { ...updated, assigned_driver_name: editing.assigned_driver_name } : v));
+      toast({ title: "Vehicle updated", description: `${payload.plate_number} has been updated successfully.` });
+      window.dispatchEvent(new Event("navcount:refresh"));
+    } catch (err) {
+      toast({ variant: "destructive", title: "Update failed", description: err instanceof Error ? err.message : "Failed to update vehicle." });
+    } finally {
+      setConfirmUpdate(false);
+      setPendingForm(null);
+    }
+  };
+
   const handleDelete = (v: FleetVehicleEnriched) => setDeleteTarget(v);
 
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
+      const name = deleteTarget.plate_number;
       await FleetService.delete(deleteTarget.id);
       setVehicles((prev) => prev.filter((x) => x.id !== deleteTarget.id));
       setSelectedIds((prev) => { const s = new Set(prev); s.delete(deleteTarget.id); return s; });
       window.dispatchEvent(new Event("navcount:refresh"));
       setViewing(null);
+      toast({ title: "Vehicle deleted", description: `${name} has been removed from the fleet.` });
     } catch (err) {
       toast({ variant: "destructive", title: "Delete failed", description: err instanceof Error ? err.message : "Failed to delete vehicle" });
     } finally {
@@ -617,36 +659,45 @@ export default function FleetRegistryPage() {
     });
   }, [filtered]);
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (!selectedIds.size) return;
-    setBulkProcessing(true);
-    const ids = [...selectedIds];
-    let deleted = 0;
-    for (const id of ids) {
-      try { await FleetService.delete(id); deleted++; } catch { /* skip */ }
-    }
-    setVehicles((prev) => prev.filter((v) => !selectedIds.has(v.id)));
-    setSelectedIds(new Set());
-    window.dispatchEvent(new Event("navcount:refresh"));
-    setBulkProcessing(false);
-    toast({ title: "Bulk delete", description: `${deleted} of ${ids.length} vehicle${ids.length !== 1 ? "s" : ""} removed.` });
+    setConfirmBulkAction({ type: "delete", count: selectedIds.size });
   };
 
-  const handleBulkSetActive = async (isActive: boolean) => {
+  const handleBulkSetActive = (isActive: boolean) => {
     if (!selectedIds.size) return;
+    setConfirmBulkAction({ type: isActive ? "activate" : "deactivate", count: selectedIds.size });
+  };
+
+  const executeBulkAction = async () => {
+    if (!confirmBulkAction) return;
     setBulkProcessing(true);
-    const ids = [...selectedIds];
-    let updated = 0;
-    for (const id of ids) {
-      try {
-        const result = await FleetService.update(id, { is_active: isActive, availability: isActive ? "available" : "in_maintenance" }) as FleetVehicleEnriched;
-        setVehicles((prev) => prev.map((v) => v.id === result.id ? { ...result, assigned_driver_name: v.assigned_driver_name } : v));
-        updated++;
-      } catch { /* skip */ }
+    setConfirmBulkAction(null);
+    if (confirmBulkAction.type === "delete") {
+      const ids = [...selectedIds];
+      let deleted = 0;
+      for (const id of ids) {
+        try { await FleetService.delete(id); deleted++; } catch { /* skip */ }
+      }
+      setVehicles((prev) => prev.filter((v) => !selectedIds.has(v.id)));
+      setSelectedIds(new Set());
+      window.dispatchEvent(new Event("navcount:refresh"));
+      setBulkProcessing(false);
+      toast({ title: "Deleted", description: `${deleted} vehicle${deleted !== 1 ? "s" : ""} removed from fleet.` });
+    } else {
+      const isActive = confirmBulkAction.type === "activate";
+      let updated = 0;
+      for (const id of selectedIds) {
+        try {
+          const result = await FleetService.update(id, { is_active: isActive, availability: isActive ? "available" : "in_maintenance" }) as FleetVehicleEnriched;
+          setVehicles((prev) => prev.map((v) => v.id === result.id ? { ...result, assigned_driver_name: v.assigned_driver_name } : v));
+          updated++;
+        } catch { /* skip */ }
+      }
+      setSelectedIds(new Set());
+      setBulkProcessing(false);
+      toast({ title: isActive ? "Activated" : "Deactivated", description: `${updated} vehicle${updated !== 1 ? "s" : ""} ${isActive ? "activated" : "deactivated"}.` });
     }
-    setSelectedIds(new Set());
-    setBulkProcessing(false);
-    toast({ title: `Bulk ${isActive ? "activate" : "deactivate"}`, description: `${updated} vehicle${updated !== 1 ? "s" : ""} updated.` });
   };
 
   return (
@@ -1481,14 +1532,13 @@ export default function FleetRegistryPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !deleting && setDeleteTarget(null)} />
           <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
-            <div className="px-6 pt-6 pb-5">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-red-50 border border-red-100 mb-4">
-                <Trash2 className="h-5 w-5 text-red-500" />
-              </div>
-              <h3 className="text-base font-semibold text-gray-900">Remove vehicle?</h3>
-              <p className="mt-1.5 text-sm text-gray-500">
-                <span className="font-semibold text-gray-700">{deleteTarget.plate_number}</span> will be removed from your fleet. This action cannot be undone.
-              </p>
+            <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
+              <h3 className="text-sm font-semibold text-red-600">
+                Do you want to delete {deleteTarget.plate_number}?
+              </h3>
+              <button onClick={() => setDeleteTarget(null)} className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors rounded-md p-1 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
             </div>
             <div className="flex gap-3 px-6 pb-6">
               <button
@@ -1503,7 +1553,78 @@ export default function FleetRegistryPage() {
                 disabled={deleting}
                 className="flex-1 rounded-xl bg-red-500 py-2.5 text-sm font-semibold text-white hover:bg-red-600 transition-colors disabled:opacity-50"
               >
-                {deleting ? "Removing…" : "Remove"}
+                {deleting ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm update modal */}
+      {confirmUpdate && pendingForm && editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setConfirmUpdate(false); setPendingForm(null); }} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Do you want to update {editing.plate_number}?
+              </h3>
+              <button onClick={() => { setConfirmUpdate(false); setPendingForm(null); }} className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors rounded-md p-1 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                onClick={() => { setConfirmUpdate(false); setPendingForm(null); }}
+                className="flex-1 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 py-2.5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeUpdate}
+                className="flex-1 rounded-xl text-sm font-semibold py-2.5 transition-colors"
+                style={{ backgroundColor: "#CDF782", color: "#162318" }}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm bulk action modal */}
+      {confirmBulkAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmBulkAction(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
+              <h3 className={`text-sm font-semibold ${confirmBulkAction.type === "delete" ? "text-red-600" : "text-gray-900"}`}>
+                {confirmBulkAction.type === "delete"
+                  ? `Do you want to delete ${confirmBulkAction.count} vehicle${confirmBulkAction.count !== 1 ? "s" : ""}?`
+                  : confirmBulkAction.type === "activate"
+                  ? `Do you want to activate ${confirmBulkAction.count} vehicle${confirmBulkAction.count !== 1 ? "s" : ""}?`
+                  : `Do you want to deactivate ${confirmBulkAction.count} vehicle${confirmBulkAction.count !== 1 ? "s" : ""}?`}
+              </h3>
+              <button onClick={() => setConfirmBulkAction(null)} className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors rounded-md p-1 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                onClick={() => setConfirmBulkAction(null)}
+                className="flex-1 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 py-2.5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeBulkAction}
+                disabled={bulkProcessing}
+                className={`flex-1 rounded-xl text-sm font-semibold py-2.5 transition-colors disabled:opacity-50 ${
+                  confirmBulkAction.type === "delete" ? "bg-red-500 hover:bg-red-600 text-white" : ""
+                }`}
+                style={confirmBulkAction.type !== "delete" ? { backgroundColor: "#CDF782", color: "#162318" } : undefined}
+              >
+                {bulkProcessing ? "Processing…" : confirmBulkAction.type === "delete" ? "Delete" : confirmBulkAction.type === "activate" ? "Activate" : "Deactivate"}
               </button>
             </div>
           </div>

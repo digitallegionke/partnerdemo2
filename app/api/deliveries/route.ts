@@ -60,6 +60,7 @@ export async function GET(req: NextRequest) {
         .from("partner_deliveries")
         .select("*")
         .eq("route_id", routeId)
+        .eq("is_deleted", false)
         .order("order_index", { ascending: true });
 
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -71,6 +72,7 @@ export async function GET(req: NextRequest) {
       .from("partner_deliveries")
       .select("*")
       .eq("provider_id", providerId)
+      .eq("is_deleted", false)
       .order("created_at", { ascending: false });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

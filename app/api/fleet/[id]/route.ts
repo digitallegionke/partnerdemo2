@@ -85,7 +85,7 @@ export async function DELETE(
       .eq("provider_id", providerId);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-    return new NextResponse(null, { status: 204 });
+    return NextResponse.json({ success: true });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Server error" }, { status: 500 });
   }
