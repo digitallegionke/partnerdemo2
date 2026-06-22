@@ -24,6 +24,12 @@ type Provider = Database["public"]["Tables"]["partner_providers"]["Row"];
 
 type FilterTab = "all" | "active" | "inactive" | "available" | "on_duty" | "off_duty";
 
+type DriverFormData = {
+  name: string; email: string; phone: string; licenseType: string;
+  licenseNumber: string; licenseExpiry: string;
+  primaryZone: string; isActive: boolean; availability: string;
+};
+
 const TABS: { key: FilterTab; label: string }[] = [
   { key: "all",       label: "All" },
   { key: "active",    label: "Active" },
@@ -92,6 +98,9 @@ export default function ProviderDriversPage() {
   const [deleting, setDeleting]               = useState(false);
   const [selectedIds, setSelectedIds]         = useState<Set<number>>(new Set());
   const [bulkProcessing, setBulkProcessing]   = useState(false);
+  const [pendingFormData, setPendingFormData] = useState<DriverFormData | null>(null);
+  const [confirmUpdate, setConfirmUpdate]     = useState(false);
+  const [confirmBulkAction, setConfirmBulkAction] = useState<{ type: "delete" | "activate" | "deactivate"; count: number } | null>(null);
 
   const fetchDrivers = async () => {
     try {
@@ -377,11 +386,13 @@ export default function ProviderDriversPage() {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
+    const name = deleteTarget.full_name;
     try {
       await DriverService.deleteDriver(deleteTarget.id);
       setDrivers((prev) => prev.filter((dr) => dr.id !== deleteTarget.id));
       window.dispatchEvent(new Event("navcount:refresh"));
       setDeleteTarget(null);
+      toast({ title: "Driver deleted", description: `${name} has been removed.` });
     } catch (err) {
       toast({ variant: "destructive", title: "Delete failed", description: err instanceof Error ? err.message : "Failed to delete driver." });
     } finally {
@@ -415,37 +426,47 @@ export default function ProviderDriversPage() {
 
   const clearSelection = () => setSelectedIds(new Set());
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (!selectedIds.size) return;
-    setBulkProcessing(true);
-    let deleted = 0;
-    for (const id of selectedIds) {
-      try { await DriverService.deleteDriver(id); deleted++; } catch { /* skip */ }
-    }
-    setDrivers((prev) => prev.filter((d) => !selectedIds.has(d.id)));
-    clearSelection();
-    window.dispatchEvent(new Event("navcount:refresh"));
-    setBulkProcessing(false);
-    toast({ title: "Deleted", description: `${deleted} driver${deleted !== 1 ? "s" : ""} deleted.` });
+    setConfirmBulkAction({ type: "delete", count: selectedIds.size });
   };
 
-  const handleBulkSetActive = async (isActive: boolean) => {
+  const handleBulkSetActive = (isActive: boolean) => {
     if (!selectedIds.size) return;
+    setConfirmBulkAction({ type: isActive ? "activate" : "deactivate", count: selectedIds.size });
+  };
+
+  const executeBulkAction = async () => {
+    if (!confirmBulkAction) return;
     setBulkProcessing(true);
-    let updated = 0;
-    const updatedDrivers: Driver[] = [];
-    for (const id of selectedIds) {
-      try {
-        const result = await DriverService.updateDriver(id, { is_active: isActive });
-        updatedDrivers.push(result);
-        updated++;
-      } catch { /* skip */ }
+    setConfirmBulkAction(null);
+    if (confirmBulkAction.type === "delete") {
+      let deleted = 0;
+      for (const id of selectedIds) {
+        try { await DriverService.deleteDriver(id); deleted++; } catch { /* skip */ }
+      }
+      setDrivers((prev) => prev.filter((d) => !selectedIds.has(d.id)));
+      clearSelection();
+      window.dispatchEvent(new Event("navcount:refresh"));
+      setBulkProcessing(false);
+      toast({ title: "Deleted", description: `${deleted} driver${deleted !== 1 ? "s" : ""} deleted.` });
+    } else {
+      const isActive = confirmBulkAction.type === "activate";
+      let updated = 0;
+      const updatedDrivers: Driver[] = [];
+      for (const id of selectedIds) {
+        try {
+          const result = await DriverService.updateDriver(id, { is_active: isActive });
+          updatedDrivers.push(result);
+          updated++;
+        } catch { /* skip */ }
+      }
+      setDrivers((prev) => prev.map((d) => updatedDrivers.find((u) => u.id === d.id) ?? d));
+      clearSelection();
+      window.dispatchEvent(new Event("navcount:refresh"));
+      setBulkProcessing(false);
+      toast({ title: isActive ? "Activated" : "Deactivated", description: `${updated} driver${updated !== 1 ? "s" : ""} ${isActive ? "activated" : "deactivated"}.` });
     }
-    setDrivers((prev) => prev.map((d) => updatedDrivers.find((u) => u.id === d.id) ?? d));
-    clearSelection();
-    window.dispatchEvent(new Event("navcount:refresh"));
-    setBulkProcessing(false);
-    toast({ title: isActive ? "Activated" : "Deactivated", description: `${updated} driver${updated !== 1 ? "s" : ""} ${isActive ? "activated" : "deactivated"}.` });
   };
 
   const handleAssignSaved = (updated: Driver) => {
@@ -453,43 +474,57 @@ export default function ProviderDriversPage() {
     setAssignOpen(false);
   };
 
-  const handleSave = async (formData: {
-    name: string; email: string; phone: string; licenseType: string;
-    licenseNumber: string; licenseExpiry: string;
-    primaryZone: string; isActive: boolean; availability: string;
-  }) => {
+  const handleSave = async (formData: DriverFormData) => {
+    if (selectedDriver) {
+      setPendingFormData(formData);
+      setConfirmUpdate(true);
+      setModalOpen(false);
+      return;
+    }
     try {
-      if (selectedDriver) {
-        const updated = await DriverService.updateDriver(selectedDriver.id, {
-          full_name:       formData.name,
-          email:           formData.email || null,
-          phone_number:    formData.phone,
-          license_type:    formData.licenseType,
-          license_number:  formData.licenseNumber,
-          license_expiry:  formData.licenseExpiry || null,
-          primary_zone:    formData.primaryZone || null,
-          is_active:       formData.isActive,
-          availability:    formData.availability as Driver["availability"],
-        });
-        setDrivers((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
-      } else {
-        const created = await DriverService.createDriver({
-          full_name:       formData.name,
-          email:           formData.email || null,
-          phone_number:    formData.phone,
-          license_type:    formData.licenseType,
-          license_number:  formData.licenseNumber,
-          license_expiry:  formData.licenseExpiry || null,
-          primary_zone:    formData.primaryZone || null,
-          is_active:       formData.isActive,
-          availability:    formData.availability as Driver["availability"],
-        });
-        setDrivers((prev) => [created, ...prev]);
-      }
+      const created = await DriverService.createDriver({
+        full_name:       formData.name,
+        email:           formData.email || null,
+        phone_number:    formData.phone,
+        license_type:    formData.licenseType,
+        license_number:  formData.licenseNumber,
+        license_expiry:  formData.licenseExpiry || null,
+        primary_zone:    formData.primaryZone || null,
+        is_active:       formData.isActive,
+        availability:    formData.availability as Driver["availability"],
+      });
+      setDrivers((prev) => [created, ...prev]);
+      toast({ title: "Driver added", description: `${formData.name} has been added successfully.` });
       window.dispatchEvent(new Event("navcount:refresh"));
       setModalOpen(false);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to save driver");
+      toast({ variant: "destructive", title: "Save failed", description: err instanceof Error ? err.message : "Failed to save driver." });
+    }
+  };
+
+  const executeUpdate = async () => {
+    if (!selectedDriver || !pendingFormData) return;
+    const formData = pendingFormData;
+    try {
+      const updated = await DriverService.updateDriver(selectedDriver.id, {
+        full_name:       formData.name,
+        email:           formData.email || null,
+        phone_number:    formData.phone,
+        license_type:    formData.licenseType,
+        license_number:  formData.licenseNumber,
+        license_expiry:  formData.licenseExpiry || null,
+        primary_zone:    formData.primaryZone || null,
+        is_active:       formData.isActive,
+        availability:    formData.availability as Driver["availability"],
+      });
+      setDrivers((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+      toast({ title: "Driver updated", description: `${formData.name} has been updated successfully.` });
+      window.dispatchEvent(new Event("navcount:refresh"));
+    } catch (err) {
+      toast({ variant: "destructive", title: "Update failed", description: err instanceof Error ? err.message : "Failed to update driver." });
+    } finally {
+      setConfirmUpdate(false);
+      setPendingFormData(null);
     }
   };
 
@@ -1091,6 +1126,79 @@ export default function ProviderDriversPage() {
         onClose={() => setImportGuideOpen(false)}
         onProceed={() => { setImportGuideOpen(false); importRef.current?.click(); }}
       />
+
+      {/* Confirm update modal */}
+      {confirmUpdate && pendingFormData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setConfirmUpdate(false); setPendingFormData(null); }} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Do you want to update {pendingFormData.name}?
+              </h3>
+              <button onClick={() => { setConfirmUpdate(false); setPendingFormData(null); }} className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors rounded-md p-1 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                onClick={() => { setConfirmUpdate(false); setPendingFormData(null); }}
+                className="flex-1 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 py-2.5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeUpdate}
+                className="flex-1 rounded-xl text-sm font-semibold py-2.5 transition-colors"
+                style={{ backgroundColor: "#CDF782", color: "#162318" }}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm bulk action modal */}
+      {confirmBulkAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmBulkAction(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
+              <h3 className={`text-sm font-semibold ${confirmBulkAction.type === "delete" ? "text-red-600" : "text-gray-900"}`}>
+                {confirmBulkAction.type === "delete"
+                  ? `Do you want to delete ${confirmBulkAction.count} driver${confirmBulkAction.count !== 1 ? "s" : ""}?`
+                  : confirmBulkAction.type === "activate"
+                  ? `Do you want to activate ${confirmBulkAction.count} driver${confirmBulkAction.count !== 1 ? "s" : ""}?`
+                  : `Do you want to deactivate ${confirmBulkAction.count} driver${confirmBulkAction.count !== 1 ? "s" : ""}?`}
+              </h3>
+              <button onClick={() => setConfirmBulkAction(null)} className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors rounded-md p-1 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                onClick={() => setConfirmBulkAction(null)}
+                className="flex-1 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 py-2.5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeBulkAction}
+                disabled={bulkProcessing}
+                className={`flex-1 rounded-xl text-sm font-semibold py-2.5 transition-colors disabled:opacity-50 ${
+                  confirmBulkAction.type === "delete"
+                    ? "bg-red-500 hover:bg-red-600 text-white"
+                    : ""
+                }`}
+                style={confirmBulkAction.type !== "delete" ? { backgroundColor: "#CDF782", color: "#162318" } : undefined}
+              >
+                {bulkProcessing ? "Processing…" : confirmBulkAction.type === "delete" ? "Delete" : confirmBulkAction.type === "activate" ? "Activate" : "Deactivate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -1116,27 +1224,12 @@ function DeleteConfirmModal({
 
         {/* Header */}
         <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-50 border border-red-100">
-              <Trash2 className="h-5 w-5 text-red-500" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900">Delete Driver</h3>
-              <p className="text-xs text-gray-400 mt-0.5">This action cannot be undone</p>
-            </div>
-          </div>
+          <h3 className="text-sm font-semibold text-red-600">
+            Do you want to delete {driver.full_name}?
+          </h3>
           <button onClick={onCancel} className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors rounded-md p-1 hover:bg-gray-100">
             <X className="h-4 w-4" />
           </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-6 pb-5">
-          <p className="text-sm text-gray-600">
-            Are you sure you want to delete{" "}
-            <span className="font-semibold text-gray-900">{driver.full_name}</span>?
-            All associated data will be permanently removed.
-          </p>
         </div>
 
         {/* Actions */}

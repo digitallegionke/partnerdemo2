@@ -49,7 +49,14 @@ export default function RouteNamesPage() {
   const [togglingId, setTogglingId]     = useState<number | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const { toast } = useToast();
-  const [viewMode, setViewMode]           = useState<"grid" | "list">("list");
+  const [selectedIds, setSelectedIds]     = useState<Set<number>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [deletingId, setDeletingId]       = useState<number | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<RouteName | null>(null);
+  const [confirmBulkAction, setConfirmBulkAction] = useState<{ type: "delete" | "activate" | "deactivate"; count: number } | null>(null);
+  const [confirmUpdate, setConfirmUpdate] = useState(false);
+  const [pendingUpdate, setPendingUpdate] = useState<{ name: string; notes: string; is_active: boolean } | null>(null);
+  const [viewMode, setViewMode]           = useState<"grid" | "list">("grid");
   const [exportOpen, setExportOpen]       = useState(false);
   const [importing, setImporting]         = useState(false);
   const [importGuideOpen, setImportGuideOpen]   = useState(false);
@@ -97,17 +104,22 @@ export default function RouteNamesPage() {
 
   const handleView = (item: RouteName) => { setViewingItem(item); setViewModalOpen(true); };
 
-  const handleDelete = async (item: RouteName) => {
-    if (!confirm(`Delete "${item.name}"? This cannot be undone.`)) return;
+  const handleDelete = (item: RouteName) => {
+    setConfirmDelete(item);
+  };
+
+  const executeDelete = async (item: RouteName) => {
+    setConfirmDelete(null);
+    setDeletingId(item.id);
     try {
-      const auth = await getAuthHeader();
-      await fetch(`/api/route-names/${item.id}`, {
-        method: "DELETE",
-        headers: { Authorization: auth },
-      });
+      await apiFetch(`/api/route-names/${item.id}`, { method: "DELETE" });
       setRouteNames((prev) => prev.filter((r) => r.id !== item.id));
-    } catch {
-      toast({ variant: "destructive", title: "Delete failed", description: "Failed to delete route name. Please try again." });
+      if (viewingItem?.id === item.id) setViewModalOpen(false);
+      toast({ title: "Route name deleted", description: `"${item.name}" has been removed.` });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Delete failed", description: err instanceof Error ? err.message : "Failed to delete route name." });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -127,28 +139,46 @@ export default function RouteNamesPage() {
     }
   };
 
-  const handleSave = async (name: string, notes: string) => {
+  const handleSave = async (name: string, notes: string, is_active: boolean) => {
+    if (editingItem) {
+      setPendingUpdate({ name, notes, is_active });
+      setConfirmUpdate(true);
+      setEditModalOpen(false);
+      return;
+    }
     setSaving(true);
     try {
-      if (editingItem) {
-        const updated = await apiFetch(`/api/route-names/${editingItem.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ name, notes }),
-        });
-        setRouteNames((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
-        if (viewingItem?.id === editingItem.id) setViewingItem(updated);
-      } else {
-        const created = await apiFetch("/api/route-names", {
-          method: "POST",
-          body: JSON.stringify({ name, notes }),
-        });
-        setRouteNames((prev) => [created, ...prev]);
-      }
+      const created = await apiFetch("/api/route-names", {
+        method: "POST",
+        body: JSON.stringify({ name, notes, is_active }),
+      });
+      setRouteNames((prev) => [created, ...prev]);
+      toast({ title: "Route name added", description: `"${name}" has been added.` });
       setEditModalOpen(false);
     } catch (err) {
       toast({ variant: "destructive", title: "Save failed", description: err instanceof Error ? err.message : "Failed to save route name." });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const executeUpdate = async () => {
+    if (!editingItem || !pendingUpdate) return;
+    setSaving(true);
+    try {
+      const updated = await apiFetch(`/api/route-names/${editingItem.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(pendingUpdate),
+      });
+      setRouteNames((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      if (viewingItem?.id === editingItem.id) setViewingItem(updated);
+      toast({ title: "Route name updated", description: `"${pendingUpdate.name}" has been updated.` });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Update failed", description: err instanceof Error ? err.message : "Failed to update route name." });
+    } finally {
+      setSaving(false);
+      setConfirmUpdate(false);
+      setPendingUpdate(null);
     }
   };
 
@@ -328,6 +358,71 @@ export default function RouteNamesPage() {
     inactive: routeNames.filter((r) => !r.is_active).length,
   }), [routeNames]);
 
+  const allFilteredSelected = filtered.length > 0 && filtered.every((r) => selectedIds.has(r.id));
+  const someFilteredSelected = filtered.some((r) => selectedIds.has(r.id));
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      const allSelected = filtered.length > 0 && filtered.every((r) => prev.has(r.id));
+      if (allSelected) return new Set();
+      return new Set(filtered.map((r) => r.id));
+    });
+  }, [filtered]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const handleBulkDelete = () => {
+    if (!selectedIds.size) return;
+    setConfirmBulkAction({ type: "delete", count: selectedIds.size });
+  };
+
+  const handleBulkSetActive = (is_active: boolean) => {
+    if (!selectedIds.size) return;
+    setConfirmBulkAction({ type: is_active ? "activate" : "deactivate", count: selectedIds.size });
+  };
+
+  const executeBulkAction = async () => {
+    if (!confirmBulkAction) return;
+    setBulkProcessing(true);
+    setConfirmBulkAction(null);
+    if (confirmBulkAction.type === "delete") {
+      try {
+        await Promise.all([...selectedIds].map((id) => apiFetch(`/api/route-names/${id}`, { method: "DELETE" })));
+        const count = selectedIds.size;
+        setRouteNames((prev) => prev.filter((r) => !selectedIds.has(r.id)));
+        clearSelection();
+        toast({ title: `${count} route name${count !== 1 ? "s" : ""} deleted`, description: "Selected route names have been removed." });
+      } catch (err) {
+        toast({ variant: "destructive", title: "Bulk delete failed", description: err instanceof Error ? err.message : "Failed to delete selected route names." });
+      }
+    } else {
+      const is_active = confirmBulkAction.type === "activate";
+      try {
+        const results = await Promise.all(
+          [...selectedIds].map((id) => apiFetch(`/api/route-names/${id}`, { method: "PATCH", body: JSON.stringify({ is_active }) }))
+        );
+        setRouteNames((prev) => prev.map((r) => {
+          const updated = results.find((u) => u.id === r.id);
+          return updated ?? r;
+        }));
+        const count = selectedIds.size;
+        clearSelection();
+        toast({ title: `${count} route name${count !== 1 ? "s" : ""} ${is_active ? "activated" : "deactivated"}`, description: `Selected route names have been ${is_active ? "set to active" : "set to inactive"}.` });
+      } catch (err) {
+        toast({ variant: "destructive", title: "Update failed", description: err instanceof Error ? err.message : "Failed to update selected route names." });
+      }
+    }
+    setBulkProcessing(false);
+  };
+
   return (
     <>
       <div className="flex flex-col h-full">
@@ -434,6 +529,27 @@ export default function RouteNamesPage() {
         {/* Search + Filters + View toggle — all one row */}
         {!loading && !error && (
           <div className="px-4 sm:px-8 pt-5 pb-3 flex flex-wrap items-center gap-2.5">
+            {/* Select-all checkbox */}
+            <button
+              onClick={toggleSelectAll}
+              className={`flex items-center justify-center h-5 w-5 rounded border transition-colors shrink-0 ${
+                allFilteredSelected
+                  ? "border-emerald-500 bg-emerald-500"
+                  : someFilteredSelected
+                  ? "border-emerald-400 bg-white"
+                  : "border-gray-300 bg-white hover:border-emerald-400"
+              }`}
+              title={allFilteredSelected ? "Deselect all" : "Select all"}
+            >
+              {allFilteredSelected && (
+                <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M2 6l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+              {someFilteredSelected && !allFilteredSelected && (
+                <div className="h-0.5 w-2.5 bg-emerald-500 rounded-full" />
+              )}
+            </button>
             {/* Search */}
             <div className="relative w-full sm:w-64 shrink-0">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
@@ -484,6 +600,42 @@ export default function RouteNamesPage() {
           </div>
         )}
 
+        {/* Bulk action bar */}
+        {someFilteredSelected && (
+          <div className="px-4 sm:px-8 pb-3">
+            <div className="inline-flex items-center gap-3 rounded-full border border-gray-200 bg-white px-4 py-2 shadow-sm text-sm">
+              <span className="font-semibold text-gray-700">{selectedIds.size} selected</span>
+              <div className="h-4 w-px bg-gray-200" />
+              <button
+                onClick={() => handleBulkSetActive(true)}
+                disabled={bulkProcessing}
+                className="font-medium text-emerald-600 hover:text-emerald-700 disabled:opacity-50 transition-colors"
+              >
+                {bulkProcessing ? "Processing…" : "Activate"}
+              </button>
+              <button
+                onClick={() => handleBulkSetActive(false)}
+                disabled={bulkProcessing}
+                className="font-medium text-gray-500 hover:text-gray-700 disabled:opacity-50 transition-colors"
+              >
+                Deactivate
+              </button>
+              <div className="h-4 w-px bg-gray-200" />
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkProcessing}
+                className="flex items-center gap-1.5 text-red-500 hover:text-red-600 font-medium disabled:opacity-50 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete
+              </button>
+              <button onClick={clearSelection} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Content */}
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
@@ -526,17 +678,37 @@ export default function RouteNamesPage() {
           /* ── Card / Grid view ── */
           <div className="px-4 sm:px-8 pb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map((item) => (
-              <div key={item.id} className="bg-white rounded-2xl border border-gray-200 hover:shadow-md transition-shadow flex flex-col">
+              <div
+                key={item.id}
+                className="bg-white rounded-2xl hover:shadow-md transition-shadow flex flex-col"
+                style={{ border: selectedIds.has(item.id) ? "1.5px solid #10B981" : "1px solid #E5E7EB" }}
+              >
                 {/* Card header */}
                 <div className="relative px-5 pt-5 pb-0">
-                  <button
-                    onClick={() => handleEdit(item)}
-                    className="absolute top-3 right-3 p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
-                    title="Edit"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <div className="flex items-center gap-3 pr-8">
+                  <div className="absolute top-3 right-3 flex items-center gap-1">
+                    <button
+                      onClick={() => handleDelete(item)}
+                      disabled={deletingId === item.id}
+                      className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
+                      title="Delete route name"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      onClick={() => toggleSelect(item.id)}
+                      className={`flex items-center justify-center h-5 w-5 rounded border transition-colors ${
+                        selectedIds.has(item.id) ? "border-emerald-500 bg-emerald-500" : "border-gray-300 bg-white hover:border-emerald-400"
+                      }`}
+                      title={selectedIds.has(item.id) ? "Deselect" : "Select"}
+                    >
+                      {selectedIds.has(item.id) && (
+                        <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M2 6l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3 pr-16">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-100">
                       <MapPin className="h-4 w-4 text-emerald-600" />
                     </div>
@@ -575,18 +747,16 @@ export default function RouteNamesPage() {
                 </div>
 
                 {/* Actions */}
-                <div className="border-t grid grid-cols-3 divide-x">
-                  <button onClick={() => handleView(item)} title="View"
-                    className="flex items-center justify-center py-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors">
+                <div className="border-t grid grid-cols-2 gap-3 p-3 mt-auto">
+                  <button onClick={() => handleView(item)}
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors">
                     <Eye className="h-4 w-4" />
+                    View
                   </button>
-                  <button onClick={() => handleEdit(item)} title="Edit"
-                    className="flex items-center justify-center py-2.5 text-gray-400 hover:text-gray-700 hover:bg-gray-50 transition-colors">
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => handleDelete(item)} title="Delete"
-                    className="flex items-center justify-center py-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">
-                    <Trash2 className="h-4 w-4" />
+                  <button onClick={() => handleEdit(item)}
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-600 py-2.5 text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors">
+                    <Pencil className="h-3.5 w-3.5" />
+                    Edit
                   </button>
                 </div>
               </div>
@@ -599,6 +769,7 @@ export default function RouteNamesPage() {
             <table className="w-full border-collapse min-w-[560px]">
               <thead>
                 <tr className="border-b border-gray-200">
+                  <th className="pb-3 pt-1 w-10" />
                   {["Route Name", "Serving Areas", "Status", "Created At", "Actions"].map((h, i) => (
                     <th key={h} className={`pb-3 pt-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide pr-4 ${i === 4 ? "text-right" : "text-left"}`}>
                       {h}
@@ -608,7 +779,21 @@ export default function RouteNamesPage() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filtered.map((item) => (
-                  <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={item.id} className={`hover:bg-gray-50/50 transition-colors ${selectedIds.has(item.id) ? "bg-emerald-50/50" : ""}`}>
+                    <td className="py-3.5 pr-2 w-10">
+                      <button
+                        onClick={() => toggleSelect(item.id)}
+                        className={`flex items-center justify-center h-5 w-5 rounded border transition-colors ${
+                          selectedIds.has(item.id) ? "border-emerald-500 bg-emerald-500" : "border-gray-300 bg-white hover:border-emerald-400"
+                        }`}
+                      >
+                        {selectedIds.has(item.id) && (
+                          <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M2 6l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        )}
+                      </button>
+                    </td>
                     {/* Route name */}
                     <td className="py-3.5 pr-4">
                       <div className="flex items-center gap-3">
@@ -718,6 +903,110 @@ export default function RouteNamesPage() {
         onClose={() => setImportGuideOpen(false)}
         onProceed={() => { setImportGuideOpen(false); importRef.current?.click(); }}
       />
+
+      {/* Delete confirm modal */}
+      {confirmDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmDelete(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
+              <h3 className="text-sm font-semibold text-red-600">
+                Do you want to delete &quot;{confirmDelete.name}&quot;?
+              </h3>
+              <button onClick={() => setConfirmDelete(null)} className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors rounded-md p-1 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                onClick={() => setConfirmDelete(null)}
+                className="flex-1 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 py-2.5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => executeDelete(confirmDelete)}
+                disabled={deletingId === confirmDelete.id}
+                className="flex-1 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2.5 transition-colors disabled:opacity-50"
+              >
+                {deletingId === confirmDelete.id ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm update modal */}
+      {confirmUpdate && pendingUpdate && editingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => { setConfirmUpdate(false); setPendingUpdate(null); }} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Do you want to update &quot;{editingItem.name}&quot;?
+              </h3>
+              <button onClick={() => { setConfirmUpdate(false); setPendingUpdate(null); }} className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors rounded-md p-1 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                onClick={() => { setConfirmUpdate(false); setPendingUpdate(null); }}
+                className="flex-1 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 py-2.5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeUpdate}
+                disabled={saving}
+                className="flex-1 rounded-xl text-sm font-semibold py-2.5 transition-colors disabled:opacity-50"
+                style={{ backgroundColor: "#CDF782", color: "#162318" }}
+              >
+                {saving ? "Saving…" : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm bulk action modal */}
+      {confirmBulkAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmBulkAction(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-4">
+              <h3 className={`text-sm font-semibold ${confirmBulkAction.type === "delete" ? "text-red-600" : "text-gray-900"}`}>
+                {confirmBulkAction.type === "delete"
+                  ? `Do you want to delete ${confirmBulkAction.count} route name${confirmBulkAction.count !== 1 ? "s" : ""}?`
+                  : confirmBulkAction.type === "activate"
+                  ? `Do you want to activate ${confirmBulkAction.count} route name${confirmBulkAction.count !== 1 ? "s" : ""}?`
+                  : `Do you want to deactivate ${confirmBulkAction.count} route name${confirmBulkAction.count !== 1 ? "s" : ""}?`}
+              </h3>
+              <button onClick={() => setConfirmBulkAction(null)} className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors rounded-md p-1 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                onClick={() => setConfirmBulkAction(null)}
+                className="flex-1 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 py-2.5 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeBulkAction}
+                disabled={bulkProcessing}
+                className={`flex-1 rounded-xl text-sm font-semibold py-2.5 transition-colors disabled:opacity-50 ${
+                  confirmBulkAction.type === "delete" ? "bg-red-500 hover:bg-red-600 text-white" : ""
+                }`}
+                style={confirmBulkAction.type !== "delete" ? { backgroundColor: "#CDF782", color: "#162318" } : undefined}
+              >
+                {bulkProcessing ? "Processing…" : confirmBulkAction.type === "delete" ? "Delete" : confirmBulkAction.type === "activate" ? "Activate" : "Deactivate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -733,17 +1022,19 @@ function RouteNameModal({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (name: string, notes: string) => void;
+  onSave: (name: string, notes: string, is_active: boolean) => void;
   item: RouteName | null;
   saving: boolean;
 }) {
-  const [name, setName]   = useState("");
-  const [notes, setNotes] = useState("");
+  const [name, setName]         = useState("");
+  const [notes, setNotes]       = useState("");
+  const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
     if (isOpen) {
       setName(item?.name ?? "");
       setNotes(item?.notes ?? "");
+      setIsActive(item?.is_active ?? true);
     }
   }, [isOpen, item]);
 
@@ -752,7 +1043,7 @@ function RouteNameModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onSave(name.trim(), notes.trim());
+    onSave(name.trim(), notes.trim(), isActive);
   };
 
   const isEdit = item !== null;
@@ -820,6 +1111,21 @@ function RouteNameModal({
                 rows={3}
                 className="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 resize-none"
               />
+            </div>
+
+            {/* Status */}
+            <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
+              <div>
+                <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Status</p>
+                <p className="text-xs text-gray-400 mt-0.5">{isActive ? "Active — visible on routes" : "Inactive — hidden from routes"}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsActive((v) => !v)}
+                className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${isActive ? "bg-emerald-500" : "bg-gray-200"}`}
+              >
+                <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow-sm transform transition-transform duration-200 ${isActive ? "translate-x-4" : "translate-x-0"}`} />
+              </button>
             </div>
           </div>
 

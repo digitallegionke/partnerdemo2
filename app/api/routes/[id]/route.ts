@@ -137,13 +137,13 @@ export async function DELETE(
 
     if (!existing) return NextResponse.json({ error: "Route not found" }, { status: 404 });
 
-    // Unlink deliveries before deleting
-    await supabase
-      .from("partner_deliveries")
-      .update({ route_id: null })
-      .eq("route_id", routeId);
+    // Soft-delete: set is_deleted = true so all linked deliveries, drivers and
+    // historical records keep their route_id and data integrity is preserved.
+    const { error } = await supabase
+      .from("partner_routes")
+      .update({ is_deleted: true })
+      .eq("id", routeId);
 
-    const { error } = await supabase.from("partner_routes").delete().eq("id", routeId);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     return new NextResponse(null, { status: 204 });

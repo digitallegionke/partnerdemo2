@@ -1,19 +1,19 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { HexColorPicker } from "react-colorful";
 import {
   Plus, Pencil, Search, X, MapPin, Clock,
-  RefreshCw, AlertCircle, ChevronRight, ChevronDown,
-  ClipboardList, Eye, Package, CheckCircle, Archive,
+  AlertCircle, ChevronDown,
+  Eye, Package, CheckCircle, Archive,
   Route as RouteIcon, Layers, Trash2, User, Car,
   LayoutGrid, List,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import AddressSearch from "@/components/address-search";
 import RouteMapScreen from "@/app/screens/route-map-screen";
 import MapComponent from "@/components/map-component";
 import { supabase, parsePointCoordinates } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -32,6 +32,7 @@ type PartnerRoute = {
   id: number;
   name: string;
   status: RouteStatus;
+  is_deleted: boolean;
   route_type: "on_demand" | "planned";
   group_id: number | null;
   route_name_id: number | null;
@@ -208,6 +209,7 @@ function routeIdLabel(id: number) {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function RoutesPage() {
+  const { toast } = useToast();
   const [view, setView]                     = useState<"list" | "map">("list");
   const [viewMode, setViewMode]             = useState<"grid" | "table">("grid");
   const [mapRoute, setMapRoute]             = useState<any>(null);
@@ -218,8 +220,8 @@ export default function RoutesPage() {
   const [error, setError]                   = useState<string | null>(null);
   const [drivers, setDrivers]               = useState<any[]>([]);
   const [routeNamesList, setRouteNamesList]  = useState<{ id: number; name: string }[]>([]);
-  const [acceptedRequests, setAcceptedRequests] = useState<AcceptedRequest[]>([]);
-  const [selectedRequestIds, setSelectedRequestIds] = useState<Set<number>>(new Set());
+  const [, setAcceptedRequests] = useState<AcceptedRequest[]>([]);
+  const [, setSelectedRequestIds] = useState<Set<number>>(new Set());
 
   const [activeTab, setActiveTab]           = useState("all");
   const [modeTab, setModeTab]               = useState("all");
@@ -239,16 +241,16 @@ export default function RoutesPage() {
   const [formError, setFormError]           = useState<string | null>(null);
   const [deletingId, setDeletingId]         = useState<number | null>(null);
 
-  const [deliveryMode, setDeliveryMode]     = useState<"new" | "existing">("new");
-  const [newDeliveries, setNewDeliveries]   = useState<DeliveryForm[]>([newDeliveryForm()]);
+  const [, setDeliveryMode]                 = useState<"new" | "existing">("new");
+  const [, setNewDeliveries]                = useState<DeliveryForm[]>([newDeliveryForm()]);
   const [unassigned, setUnassigned]         = useState<Delivery[]>([]);
   const [selectedExisting, setSelectedExisting] = useState<Set<number>>(new Set());
   const [routeDeliveries, setRouteDeliveries] = useState<Delivery[]>([]);
-  const [loadingDeliveries, setLoadingDeliveries] = useState(false);
+  const [loadingRouteDeliveries, setLoadingRouteDeliveries] = useState(false);
 
   // Wizard UI state (shared by create & edit)
   const [wizardStep, setWizardStep]           = useState(1);
-  const [wizardRequestsTab, setWizardRequestsTab] = useState<"ondemand" | "business">("ondemand");
+  const [, setWizardRequestsTab]                  = useState<"ondemand" | "business">("ondemand");
 
   // Route groups
   const [groups, setGroups]                   = useState<RouteGroup[]>([]);
@@ -260,6 +262,10 @@ export default function RoutesPage() {
   const [groupFormError, setGroupFormError]   = useState<string | null>(null);
   const [showColorWheel, setShowColorWheel]   = useState(false);
   const [customColors, setCustomColors]       = useState<string[]>([]);
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds]     = useState<Set<number>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
 
   // Reusable confirm modal
   const [confirmModal, setConfirmModal] = useState<{
@@ -275,6 +281,11 @@ export default function RoutesPage() {
 
   const closeConfirm = () =>
     setConfirmModal((m) => ({ ...m, open: false }));
+
+  const [confirmBulkAction, setConfirmBulkAction] = useState<{ type: "delete" | "activate"; count: number } | null>(null);
+  const [confirmUpdate, setConfirmUpdate] = useState(false);
+  const [pendingForm, setPendingForm] = useState<FormState | null>(null);
+  const [pendingEditRoute, setPendingEditRoute] = useState<PartnerRoute | null>(null);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -335,12 +346,12 @@ export default function RoutesPage() {
   };
 
   const fetchRouteDeliveries = async (routeId: number) => {
-    setLoadingDeliveries(true);
+    setLoadingRouteDeliveries(true);
     try {
       const data = await apiFetch(`/api/deliveries?route_id=${routeId}`);
       setRouteDeliveries(Array.isArray(data) ? data : []);
     } catch { /* non-blocking */ }
-    finally { setLoadingDeliveries(false); }
+    finally { setLoadingRouteDeliveries(false); }
   };
 
   const fetchGroups = async () => {
@@ -376,6 +387,67 @@ export default function RoutesPage() {
     return list;
   }, [routes, activeTab, modeTab, search]);
 
+
+  const allFilteredSelected  = filtered.length > 0 && filtered.every((r) => selectedIds.has(r.id));
+  const someFilteredSelected = filtered.some((r) => selectedIds.has(r.id));
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      const allSelected = filtered.every((r) => prev.has(r.id));
+      const next = new Set(prev);
+      filtered.forEach((r) => allSelected ? next.delete(r.id) : next.add(r.id));
+      return next;
+    });
+  }, [filtered]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const handleBulkDelete = () => {
+    if (!selectedIds.size) return;
+    setConfirmBulkAction({ type: "delete", count: selectedIds.size });
+  };
+
+  const handleBulkActivate = () => {
+    if (!selectedIds.size) return;
+    setConfirmBulkAction({ type: "activate", count: selectedIds.size });
+  };
+
+  const executeBulkAction = async () => {
+    const action = confirmBulkAction;
+    setConfirmBulkAction(null);
+    if (!action) return;
+    setBulkProcessing(true);
+    const ids = [...selectedIds];
+    const succeeded = new Set<number>();
+    for (const id of ids) {
+      try {
+        if (action.type === "delete") {
+          await apiFetch(`/api/routes/${id}`, { method: "DELETE" });
+        } else {
+          await apiFetch(`/api/routes/${id}`, { method: "PATCH", body: JSON.stringify({ status: "active" }) });
+        }
+        succeeded.add(id);
+      } catch { /* skip */ }
+    }
+    if (action.type === "delete") {
+      setRoutes((prev) => prev.filter((r) => !succeeded.has(r.id)));
+      if (viewRoute && succeeded.has(viewRoute.id)) setViewOpen(false);
+    } else {
+      await fetchRoutes();
+    }
+    setSelectedIds(new Set());
+    setBulkProcessing(false);
+    const label = action.type === "delete" ? "deleted" : "activated";
+    toast({ title: `Routes ${label}`, description: `${succeeded.size} of ${ids.length} route${ids.length !== 1 ? "s" : ""} ${label}.` });
+  };
 
   // ── View panel ─────────────────────────────────────────────────────────────
 
@@ -447,16 +519,68 @@ export default function RoutesPage() {
     });
     setDeliveryMode("existing");
     setSelectedExisting(new Set());
+    setRouteDeliveries([]);
+    setUnassigned([]);
     setModalOpen(true);
-    // Fetch route deliveries and unassigned in background after modal opens
     Promise.all([fetchRouteDeliveries(route.id), fetchUnassigned(), fetchAcceptedRequests()]);
   };
 
   // ── Save ───────────────────────────────────────────────────────────────────
 
+  const executeUpdate = async () => {
+    if (!pendingForm || !pendingEditRoute) return;
+    setConfirmUpdate(false);
+    setSaving(true);
+    setFormError(null);
+    try {
+      const f = pendingForm;
+      const route = pendingEditRoute;
+      const payload: any = {
+        name: f.name.trim(),
+        route_name_id: f.route_name_id ? parseInt(f.route_name_id) : null,
+        start_location: f.start_location || null,
+        end_location: f.end_location || null,
+        driver_id: f.driver_id ? parseInt(f.driver_id) : null,
+        status: f.status,
+        route_type: f.route_type,
+        service_area: f.service_area || null,
+        active_days: f.active_days,
+        start_time: f.start_time,
+        end_time: f.end_time,
+        min_deliveries: parseInt(f.min_deliveries) || 0,
+        max_deliveries: f.max_deliveries ? parseInt(f.max_deliveries) : null,
+        driver_capacity: f.route_type === "on_demand" && f.driver_capacity ? parseInt(f.driver_capacity) : null,
+        max_orders: f.route_type === "planned" && f.max_orders ? parseInt(f.max_orders) : null,
+        cutoff_time: f.route_type === "planned" && f.cutoff_time ? f.cutoff_time : null,
+        ...(f.start_lat && { lat: f.start_lat, lng: f.start_lng }),
+      };
+      await apiFetch(`/api/routes/${route.id}`, { method: "PATCH", body: JSON.stringify(payload) });
+      for (const deliveryId of Array.from(selectedExisting)) {
+        await apiFetch(`/api/deliveries/${deliveryId}`, { method: "PATCH", body: JSON.stringify({ route_id: route.id }) });
+      }
+      await fetchRoutes();
+      toast({ title: "Route updated", description: `"${f.name}" has been saved.` });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Update failed", description: err instanceof Error ? err.message : "Failed to update route." });
+    } finally {
+      setSaving(false);
+      setPendingForm(null);
+      setPendingEditRoute(null);
+    }
+  };
+
   const handleSave = async (nameOverride?: string) => {
     const routeName = nameOverride ?? form.name;
     if (!routeName.trim()) { setFormError("Route name is required."); return; }
+
+    if (editing) {
+      setPendingForm({ ...form, name: routeName });
+      setPendingEditRoute(editing);
+      setConfirmUpdate(true);
+      setModalOpen(false);
+      return;
+    }
+
     setSaving(true);
     setFormError(null);
     try {
@@ -477,34 +601,18 @@ export default function RoutesPage() {
         driver_capacity: form.route_type === "on_demand" && form.driver_capacity ? parseInt(form.driver_capacity) : null,
         max_orders: form.route_type === "planned" && form.max_orders ? parseInt(form.max_orders) : null,
         cutoff_time: form.route_type === "planned" && form.cutoff_time ? form.cutoff_time : null,
-        // Only send lat/lng for new routes or when a new address was selected
-        ...(!editing && { lat: form.start_lat || "0", lng: form.start_lng || "0" }),
-        ...(editing && form.start_lat && { lat: form.start_lat, lng: form.start_lng }),
+        lat: form.start_lat || "0",
+        lng: form.start_lng || "0",
       };
 
-      if (editing) {
-        const updated = await apiFetch(`/api/routes/${editing.id}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
+      const created = await apiFetch("/api/routes", { method: "POST", body: JSON.stringify(payload) });
+      for (const deliveryId of Array.from(selectedExisting)) {
+        await apiFetch(`/api/deliveries/${deliveryId}`, {
+          method: "PATCH", body: JSON.stringify({ route_id: created.id }),
         });
-        // Assign any newly selected deliveries to this route
-        for (const deliveryId of Array.from(selectedExisting)) {
-          await apiFetch(`/api/deliveries/${deliveryId}`, {
-            method: "PATCH", body: JSON.stringify({ route_id: editing.id }),
-          });
-        }
-        await fetchRoutes();
-        setModalOpen(false);
-      } else {
-        const created = await apiFetch("/api/routes", { method: "POST", body: JSON.stringify(payload) });
-        for (const deliveryId of Array.from(selectedExisting)) {
-          await apiFetch(`/api/deliveries/${deliveryId}`, {
-            method: "PATCH", body: JSON.stringify({ route_id: created.id }),
-          });
-        }
-        await fetchRoutes();
-        setModalOpen(false);
       }
+      await fetchRoutes();
+      setModalOpen(false);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Failed to save route");
     } finally {
@@ -516,8 +624,8 @@ export default function RoutesPage() {
 
   const handleDelete = (route: PartnerRoute) => {
     openConfirm(
-      `Archive "${route.name}"?`,
-      "All linked deliveries will be unassigned. This cannot be undone.",
+      `Do you want to delete "${route.name}"?`,
+      "",
       async () => {
         closeConfirm();
         setDeletingId(route.id);
@@ -525,10 +633,12 @@ export default function RoutesPage() {
           await apiFetch(`/api/routes/${route.id}`, { method: "DELETE" });
           setRoutes((prev) => prev.filter((r) => r.id !== route.id));
           if (viewRoute?.id === route.id) setViewOpen(false);
-        } catch { /* silent — user stays in context */ }
-        finally { setDeletingId(null); }
+          toast({ title: "Route deleted", description: `"${route.name}" has been removed.` });
+        } catch (err) {
+          toast({ variant: "destructive", title: "Delete failed", description: err instanceof Error ? err.message : "Failed to delete route." });
+        } finally { setDeletingId(null); }
       },
-      "Archive"
+      "Delete"
     );
   };
 
@@ -590,8 +700,8 @@ export default function RoutesPage() {
 
   const handleDeleteGroup = (group: RouteGroup) => {
     openConfirm(
-      `Delete "${group.name}"?`,
-      "All routes in this group will be ungrouped. The routes themselves are not deleted.",
+      `Do you want to delete "${group.name}"?`,
+      "",
       async () => {
         closeConfirm();
         try {
@@ -655,8 +765,6 @@ export default function RoutesPage() {
 
   // ── Delivery form helpers ──────────────────────────────────────────────────
 
-  const addNewDelivery = () => setNewDeliveries((prev) => [...prev, newDeliveryForm()]);
-
   const toggleExisting = (id: number) => {
     setSelectedExisting((prev) => {
       const next = new Set(prev);
@@ -675,16 +783,7 @@ export default function RoutesPage() {
     } catch { alert("Failed to remove delivery"); }
   };
 
-  const handleAddToRoute = async (deliveryId: number) => {
-    if (!editing) return;
-    try {
-      await apiFetch(`/api/deliveries/${deliveryId}`, {
-        method: "PATCH", body: JSON.stringify({ route_id: editing.id }),
-      });
-      await fetchRouteDeliveries(editing.id);
-      fetchUnassigned();
-    } catch { alert("Failed to add delivery"); }
-  };
+
 
   // ── Map full-screen view ───────────────────────────────────────────────────
 
@@ -761,6 +860,20 @@ export default function RoutesPage() {
             {/* Filter tabs + view toggle */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+                {/* Select-all checkbox */}
+                {filtered.length > 0 && (
+                  <button
+                    onClick={toggleSelectAll}
+                    className="shrink-0 flex items-center justify-center h-5 w-5 rounded border border-gray-300 bg-white hover:border-emerald-500 transition-colors"
+                    title={allFilteredSelected ? "Deselect all" : "Select all"}
+                  >
+                    {allFilteredSelected ? (
+                      <span className="block h-3 w-3 rounded-sm bg-emerald-500" />
+                    ) : someFilteredSelected ? (
+                      <span className="block h-0.5 w-2.5 bg-emerald-400 rounded" />
+                    ) : null}
+                  </button>
+                )}
                 {/* Status group */}
                 <div style={{ display: "flex", gap: 8, backgroundColor: "#F9FAFB", padding: 4, borderRadius: 8, border: "1px solid #E5E7EB" }}>
                   {STATUS_TABS.map(({ key, label }) => (
@@ -821,6 +934,28 @@ export default function RoutesPage() {
           </div>
         )}
 
+        {/* Bulk action bar */}
+        {someFilteredSelected && (
+          <div className="px-6 pb-3">
+            <div className="inline-flex items-center gap-3 rounded-full border border-gray-200 bg-white px-4 py-2 shadow-sm text-sm">
+              <span className="font-semibold text-gray-700">{selectedIds.size} selected</span>
+              <div className="h-4 w-px bg-gray-200" />
+              <button onClick={handleBulkActivate} disabled={bulkProcessing}
+                className="font-medium text-emerald-700 hover:text-emerald-800 disabled:opacity-40 transition-colors">
+                Activate
+              </button>
+              <button onClick={handleBulkDelete} disabled={bulkProcessing}
+                className="font-medium text-red-600 hover:text-red-700 disabled:opacity-40 transition-colors">
+                {bulkProcessing ? "Processing…" : "Archive"}
+              </button>
+              <button onClick={clearSelection}
+                className="text-gray-400 hover:text-gray-600 transition-colors ml-1">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* States */}
         {loading ? (
           <div className="flex-1 flex items-center justify-center">
@@ -843,6 +978,7 @@ export default function RoutesPage() {
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 700 }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid #E5E7EB" }}>
+                      <th style={{ paddingBottom: 10, paddingTop: 4, paddingRight: 16, width: 32 }} />
                       {["Route", "Type", "Status", "Driver", "Vehicle", "Schedule", "Actions"].map((h, i) => (
                         <th key={h} style={{ paddingBottom: 10, paddingTop: 4, fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.07em", textAlign: i === 6 ? "right" : "left", paddingRight: i < 6 ? 16 : 0, whiteSpace: "nowrap" }}>
                           {h}
@@ -860,9 +996,24 @@ export default function RoutesPage() {
                       const scheduleLabel = [scheduleDays, scheduleTime].filter(Boolean).join(" · ");
                       const group = groups.find((g) => g.id === route.group_id);
                       return (
-                        <tr key={route.id} style={{ borderBottom: "1px solid #F3F4F6" }}
-                          onMouseEnter={(e) => (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#FAFAFA"}
-                          onMouseLeave={(e) => (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "transparent"}>
+                        <tr key={route.id} style={{ borderBottom: "1px solid #F3F4F6", backgroundColor: selectedIds.has(route.id) ? "rgba(236,253,245,0.6)" : "transparent" }}
+                          onMouseEnter={(e) => { if (!selectedIds.has(route.id)) (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#FAFAFA"; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.backgroundColor = selectedIds.has(route.id) ? "rgba(236,253,245,0.6)" : "transparent"; }}>
+                          {/* Checkbox */}
+                          <td style={{ padding: "14px 16px 14px 0", verticalAlign: "middle" }}>
+                            <button
+                              onClick={() => toggleSelect(route.id)}
+                              className={`flex items-center justify-center h-5 w-5 rounded border transition-colors ${
+                                selectedIds.has(route.id) ? "border-emerald-500 bg-emerald-500" : "border-gray-300 bg-white hover:border-emerald-400"
+                              }`}
+                            >
+                              {selectedIds.has(route.id) && (
+                                <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none">
+                                  <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              )}
+                            </button>
+                          </td>
                           {/* Route name */}
                           <td style={{ padding: "14px 16px 14px 0", verticalAlign: "middle" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -934,7 +1085,7 @@ export default function RoutesPage() {
                                 style={{ padding: "6px", borderRadius: 6, border: "none", background: "none", cursor: "pointer", color: "#FCA5A5", display: "flex", alignItems: "center" }}
                                 onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#DC2626"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#FEF2F2"; }}
                                 onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "#FCA5A5"; (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}>
-                                <Archive style={{ width: 16, height: 16 }} />
+                                <Trash2 style={{ width: 16, height: 16 }} />
                               </button>
                             </div>
                           </td>
@@ -975,17 +1126,41 @@ export default function RoutesPage() {
                     key={route.id}
                     style={{
                       backgroundColor: "#FFFFFF",
-                      border: isViewing ? "1.5px solid #0F6D48" : "1px solid #E5E7EB",
+                      border: selectedIds.has(route.id) ? "1.5px solid #10B981" : isViewing ? "1.5px solid #0F6D48" : "1px solid #E5E7EB",
                       borderRadius: 12, overflow: "hidden",
                       animation: "fadeInUp 0.4s ease forwards",
                       animationDelay: `${i * 40}ms`, opacity: 0,
                       display: "flex", flexDirection: "column",
+                      boxShadow: selectedIds.has(route.id) ? "0 0 0 1px #A7F3D0" : undefined,
                     }}
                   >
                     {/* Header */}
-                    <div style={{ padding: "16px 20px", borderBottom: "1px solid #F3F4F6" }}>
+                    <div style={{ padding: "16px 20px", borderBottom: "1px solid #F3F4F6", position: "relative" }}>
+                      {/* Trash + Checkbox — top right */}
+                      <div className="absolute top-3 right-3 flex items-center gap-1">
+                        <button
+                          onClick={() => handleDelete(route)}
+                          className="p-1.5 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          title="Archive route"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => toggleSelect(route.id)}
+                          className={`flex items-center justify-center h-5 w-5 rounded border transition-colors ${
+                            selectedIds.has(route.id) ? "border-emerald-500 bg-emerald-500" : "border-gray-300 bg-white hover:border-emerald-400"
+                          }`}
+                          title="Select route"
+                        >
+                          {selectedIds.has(route.id) && (
+                            <svg className="h-3 w-3 text-white" viewBox="0 0 12 12" fill="none">
+                              <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
                       {/* Name + route id */}
-                      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 2, paddingRight: 4 }}>{route.name}</div>
+                      <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 2, paddingRight: 56 }}>{route.name}</div>
                       <div style={{ fontSize: 12, color: "#9CA3AF", fontWeight: 500, marginBottom: 10 }}>{routeIdLabel(route.id)}</div>
                       {/* Badges row — always below title, never overlaps */}
                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -1671,9 +1846,11 @@ export default function RoutesPage() {
                     {editing && (
                       <div>
                         <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700, color: "#374151" }}>
-                          On this route ({routeDeliveries.length})
+                          On this route ({loadingRouteDeliveries ? "…" : routeDeliveries.length})
                         </p>
-                        {routeDeliveries.length === 0 ? (
+                        {loadingRouteDeliveries ? (
+                          <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>Loading deliveries…</p>
+                        ) : routeDeliveries.length === 0 ? (
                           <p style={{ fontSize: 13, color: "#9CA3AF", margin: 0 }}>No deliveries assigned yet.</p>
                         ) : (
                           <div style={{ border: "1px solid #E5E7EB", borderRadius: 10, overflow: "hidden" }}>
@@ -1704,6 +1881,44 @@ export default function RoutesPage() {
                         )}
                       </div>
                     )}
+
+                    {/* Selected to add */}
+                    {selectedExisting.size > 0 && (() => {
+                      const selectedDeliveries = unassigned.filter((d) => selectedExisting.has(d.id));
+                      return (
+                        <div>
+                          <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 700, color: "#374151" }}>
+                            Selected to add ({selectedExisting.size})
+                          </p>
+                          <div style={{ border: "1px solid #A7F3D0", borderRadius: 10, overflow: "hidden", backgroundColor: "#F0FDF4" }}>
+                            {selectedDeliveries.map((d, i) => {
+                              let itemLabel = "";
+                              try {
+                                const parsed = typeof d.item === "string" ? JSON.parse(d.item) : d.item;
+                                itemLabel = Array.isArray(parsed)
+                                  ? parsed.map((it: { name?: string }) => it.name).filter(Boolean).join(", ")
+                                  : typeof parsed === "string" ? parsed : "";
+                              } catch { itemLabel = typeof d.item === "string" ? d.item : ""; }
+                              return (
+                                <div key={d.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderBottom: i < selectedDeliveries.length - 1 ? "1px solid #D1FAE5" : "none" }}>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <p style={{ margin: "0 0 2px", fontSize: 13, fontWeight: 600, color: "#065F46", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.customer_name}</p>
+                                    <p style={{ margin: 0, fontSize: 11, color: "#6B7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                      DEL-{String(d.id).padStart(4, "0")} · {d.location.split(",")[0]}{itemLabel ? ` · ${itemLabel}` : ""}
+                                    </p>
+                                  </div>
+                                  <button type="button" onClick={() => toggleExisting(d.id)}
+                                    style={{ padding: "4px 6px", borderRadius: 6, border: "1px solid #6EE7B7", backgroundColor: "#ECFDF5", color: "#059669", cursor: "pointer", flexShrink: 0, display: "flex", alignItems: "center" }}
+                                    title="Remove from selection">
+                                    <X className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Route name filter notice */}
                     {form.route_name_id && (
@@ -1783,12 +1998,6 @@ export default function RoutesPage() {
                       );
                     })()}
 
-                    {selectedExisting.size > 0 && (
-                      <p style={{ margin: 0, fontSize: 12, color: "#059669", fontWeight: 600 }}>
-                        {selectedExisting.size} deliver{selectedExisting.size === 1 ? "y" : "ies"} selected
-                      </p>
-                    )}
-
                     {formError && <p style={{ margin: 0, fontSize: 12, color: "#DC2626" }}>{formError}</p>}
                   </div>
                 )}
@@ -1815,6 +2024,11 @@ export default function RoutesPage() {
                       if (!form.start_location.trim()) { setFormError("Start location is required."); return; }
                       if (!form.end_location.trim()) { setFormError("End location is required."); return; }
                       setFormError(null);
+                      if (editing) {
+                        setRouteDeliveries([]);
+                        fetchRouteDeliveries(editing.id);
+                        fetchUnassigned();
+                      }
                       setWizardStep((s) => s + 1);
                     }}
                     style={{ display: "flex", alignItems: "center", gap: 6, padding: "10px 20px", fontSize: 13, fontWeight: 600, color: "#162318", backgroundColor: "#CDF782", border: "none", borderRadius: 8, cursor: "pointer", transition: "all 0.15s" }}
@@ -1846,23 +2060,11 @@ export default function RoutesPage() {
             className="bg-white rounded-2xl shadow-2xl w-full max-w-sm"
             style={{ animation: "fadeInUp 0.18s ease forwards" }}
           >
-            {/* Icon + title */}
-            <div style={{ padding: "28px 28px 0", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 12 }}>
-              <div style={{
-                width: 52, height: 52, borderRadius: "50%",
-                backgroundColor: "#FEF2F2", display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <Trash2 className="h-6 w-6" style={{ color: "#EF4444" }} />
-              </div>
-              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#111827" }}>
+            <div style={{ padding: "28px 28px 0", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#DC2626" }}>
                 {confirmModal.title}
               </h3>
-              <p style={{ margin: 0, fontSize: 14, color: "#6B7280", lineHeight: 1.5 }}>
-                {confirmModal.message}
-              </p>
             </div>
-
-            {/* Buttons */}
             <div style={{ padding: "24px 28px 28px", display: "flex", gap: 12 }}>
               <button
                 onClick={closeConfirm}
@@ -1883,6 +2085,66 @@ export default function RoutesPage() {
                 }}
               >
                 {confirmModal.confirmLabel ?? "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm Bulk Action Modal ─────────────────────────────────────────── */}
+      {confirmBulkAction && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" style={{ animation: "fadeInUp 0.18s ease forwards" }}>
+            <div style={{ padding: "28px 28px 0", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: confirmBulkAction.type === "delete" ? "#DC2626" : "#111827" }}>
+                {confirmBulkAction.type === "delete"
+                  ? `Do you want to delete ${confirmBulkAction.count} route${confirmBulkAction.count !== 1 ? "s" : ""}?`
+                  : `Do you want to activate ${confirmBulkAction.count} route${confirmBulkAction.count !== 1 ? "s" : ""}?`}
+              </h3>
+            </div>
+            <div style={{ padding: "24px 28px 28px", display: "flex", gap: 12 }}>
+              <button
+                onClick={() => setConfirmBulkAction(null)}
+                style={{ flex: 1, padding: "11px 0", fontSize: 14, fontWeight: 600, color: "#374151", backgroundColor: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 10, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeBulkAction}
+                style={{
+                  flex: 1, padding: "11px 0", fontSize: 14, fontWeight: 600, border: "none", borderRadius: 10, cursor: "pointer",
+                  color: confirmBulkAction.type === "delete" ? "#fff" : "#162318",
+                  backgroundColor: confirmBulkAction.type === "delete" ? "#EF4444" : "#CDF782",
+                }}
+              >
+                {confirmBulkAction.type === "delete" ? "Delete" : "Activate"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm Update Modal ──────────────────────────────────────────────── */}
+      {confirmUpdate && pendingForm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" style={{ animation: "fadeInUp 0.18s ease forwards" }}>
+            <div style={{ padding: "28px 28px 0", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
+              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: "#111827" }}>
+                Do you want to update &ldquo;{pendingForm.name}&rdquo;?
+              </h3>
+            </div>
+            <div style={{ padding: "24px 28px 28px", display: "flex", gap: 12 }}>
+              <button
+                onClick={() => setConfirmUpdate(false)}
+                style={{ flex: 1, padding: "11px 0", fontSize: 14, fontWeight: 600, color: "#374151", backgroundColor: "#F9FAFB", border: "1px solid #E5E7EB", borderRadius: 10, cursor: "pointer" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeUpdate}
+                style={{ flex: 1, padding: "11px 0", fontSize: 14, fontWeight: 600, color: "#162318", backgroundColor: "#CDF782", border: "none", borderRadius: 10, cursor: "pointer" }}
+              >
+                Save Changes
               </button>
             </div>
           </div>

@@ -20,8 +20,10 @@ import {
   CheckCircle2,
   XCircle,
   MapPin,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import AddDeliveryModal, {
   type CreateDeliveryPayload,
 } from "@/components/add-delivery-modal";
@@ -128,6 +130,17 @@ function itemCount(itemStr: string): number {
     if (Array.isArray(parsed)) return parsed.length;
   } catch {}
   return 1;
+}
+
+function itemLabel(itemStr: string): string {
+  try {
+    const parsed = JSON.parse(itemStr);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const first = parsed[0]?.name ?? parsed[0]?.label ?? String(parsed[0]);
+      return parsed.length > 1 ? `${first} +${parsed.length - 1}` : first;
+    }
+  } catch {}
+  return itemStr ?? "—";
 }
 
 function getDisplayStatus(rawStatus: string): DisplayStatus {
@@ -246,25 +259,27 @@ const TD_STICKY_RIGHT =
 function DeliveriesTable({
   rows,
   actionId,
+  selectedIds,
   onView,
   onEdit,
   onDelete,
+  onToggleSelect,
   onApprove,
   onAccept,
   onReject,
   onCancel,
-  onDeliver,
 }: {
   rows: EnrichedDelivery[];
   actionId: number | null;
+  selectedIds: Set<number>;
   onView: (d: EnrichedDelivery) => void;
   onEdit: (d: EnrichedDelivery) => void;
   onDelete: (id: number) => void;
+  onToggleSelect: (id: number) => void;
   onApprove: (id: number) => void;
   onAccept: (id: number) => void;
   onReject: (id: number) => void;
   onCancel: (id: number) => void;
-  onDeliver: (id: number) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
@@ -317,12 +332,29 @@ function DeliveriesTable({
     const editable = ["awaiting_approval", "pending", "out_for_delivery", "cancelled", "rejected"].includes(d.displayStatus);
 
     return (
-      <tr key={d.id} className="hover:bg-gray-50/60 transition-colors">
+      <tr key={d.id} className={`hover:bg-gray-50/60 transition-colors ${selectedIds.has(d.id) ? "bg-emerald-50/50" : ""}`}>
         <td className={TD_STICKY_LEFT}>
-          <p className="font-semibold text-gray-900 whitespace-nowrap">{deliveryIdLabel(d.id)}</p>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {itemCount(d.item)} {itemCount(d.item) === 1 ? "item" : "items"}
-          </p>
+          <div className="flex items-start gap-2.5">
+            <button
+              type="button"
+              onClick={() => onToggleSelect(d.id)}
+              className={`mt-0.5 flex shrink-0 items-center justify-center h-4 w-4 rounded border transition-colors ${
+                selectedIds.has(d.id) ? "border-emerald-500 bg-emerald-500" : "border-gray-300 bg-white hover:border-emerald-400"
+              }`}
+            >
+              {selectedIds.has(d.id) && (
+                <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M2 6l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+            <div>
+              <p className="font-semibold text-gray-900 whitespace-nowrap">{deliveryIdLabel(d.id)}</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {itemCount(d.item)} {itemCount(d.item) === 1 ? "item" : "items"}
+              </p>
+            </div>
+          </div>
         </td>
         <td className="px-4 py-4 align-top">
           <p className="font-medium text-gray-900 whitespace-nowrap">{d.customer_name}</p>
@@ -387,12 +419,7 @@ function DeliveriesTable({
                 <XCircle className="h-4 w-4" />
               </button>
             )}
-            {d.displayStatus === "in_transit" && (
-              <button type="button" disabled={busy} onClick={() => onDeliver(d.id)} title="Mark Delivered"
-                className="p-1.5 rounded text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-40">
-                <MapPin className="h-4 w-4" />
-              </button>
-            )}
+
             {(d.displayStatus === "cancelled" || d.displayStatus === "rejected") && (
               <button type="button" disabled={busy} onClick={() => onAccept(d.id)} title="Accept"
                 className="p-1.5 rounded text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-40">
@@ -488,12 +515,19 @@ export default function DeliveriesPage() {
   const [search, setSearch] = useState("");
   const [activeFilter, setActiveFilter] = useState<FilterKey>("all");
   const [pageTab, setPageTab] = useState<PageTab>("deliveries");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("list");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [addOpen, setAddOpen] = useState(false);
   const [viewDelivery, setViewDelivery] = useState<ViewableDelivery | null>(null);
   const [editDelivery, setEditDelivery] = useState<PartnerDelivery | null>(null);
   const [saving, setSaving] = useState(false);
   const [actionId, setActionId] = useState<number | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+  const [confirmStatus, setConfirmStatus] = useState<{ id: number; status: DisplayStatus; label: string; description: string } | null>(null);
+  const [confirmBulkAction, setConfirmBulkAction] = useState<{ type: "status"; status: DisplayStatus; label: string } | { type: "delete" } | null>(null);
+  const [confirmUpdate, setConfirmUpdate] = useState<{ id: number; payload: CreateDeliveryPayload } | null>(null);
+  const { toast } = useToast();
 
   const routeById = useMemo(
     () => new Map(routes.map((r) => [r.id, r])),
@@ -604,12 +638,92 @@ export default function DeliveriesPage() {
     );
   }, [tabSource, activeFilter, search]);
 
+  const allFilteredSelected = filtered.length > 0 && filtered.every((d) => selectedIds.has(d.id));
+  const someFilteredSelected = filtered.some((d) => selectedIds.has(d.id));
+
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      const allSelected = filtered.length > 0 && filtered.every((d) => prev.has(d.id));
+      if (allSelected) return new Set();
+      return new Set(filtered.map((d) => d.id));
+    });
+  }, [filtered]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const handleBulkDelete = async () => {
+    if (!selectedIds.size) return;
+    setBulkProcessing(true);
+    try {
+      await Promise.all([...selectedIds].map((id) => apiFetch(`/api/deliveries/${id}`, { method: "DELETE" })));
+      const count = selectedIds.size;
+      setDeliveries((prev) => prev.filter((d) => !selectedIds.has(d.id)));
+      clearSelection();
+      toast({ title: `${count} deliver${count !== 1 ? "ies" : "y"} deleted`, description: "Selected deliveries have been removed." });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Bulk delete failed", description: err instanceof Error ? err.message : "Failed to delete selected deliveries." });
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  // Maps each bulk action to the statuses that are eligible for it
+  const BULK_STATUS_ELIGIBILITY: Record<DisplayStatus, DisplayStatus[]> = {
+    pending:          ["awaiting_approval"],
+    out_for_delivery: ["pending", "cancelled", "rejected"],
+    rejected:         ["pending"],
+    cancelled:        ["out_for_delivery"],
+    delivered:        ["in_transit"],
+    awaiting_approval: [],
+    in_transit:       [],
+    failed:           [],
+  };
+
+  const handleBulkStatusChange = async (newStatus: DisplayStatus, label: string) => {
+    const eligible = filtered.filter(
+      (d) => selectedIds.has(d.id) && BULK_STATUS_ELIGIBILITY[newStatus].includes(d.displayStatus)
+    );
+    if (!eligible.length) {
+      toast({ variant: "destructive", title: "No eligible deliveries", description: `None of the selected deliveries can be ${label.toLowerCase()}d.` });
+      return;
+    }
+    setBulkProcessing(true);
+    try {
+      await Promise.all(eligible.map((d) => apiFetch(`/api/deliveries/${d.id}`, { method: "PATCH", body: JSON.stringify({ status: newStatus }) })));
+      await fetchData();
+      clearSelection();
+      toast({ title: `${eligible.length} deliver${eligible.length !== 1 ? "ies" : "y"} ${label.toLowerCase()}d`, description: `Status updated successfully.` });
+    } catch (err) {
+      toast({ variant: "destructive", title: `Bulk ${label.toLowerCase()} failed`, description: err instanceof Error ? err.message : "Failed to update deliveries." });
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
   const handleView = (d: EnrichedDelivery) => {
     setViewDelivery(d as ViewableDelivery);
   };
 
+  const STATUS_TOAST: Record<DisplayStatus, string> = {
+    pending:          "Approved",
+    out_for_delivery: "Accepted",
+    rejected:         "Rejected",
+    in_transit:       "Moved to in transit",
+    cancelled:        "Cancelled",
+    delivered:        "Marked as delivered",
+    awaiting_approval: "Reset to awaiting approval",
+    failed:           "Marked as failed",
+  };
+
   const handleStatusChange = async (id: number, newStatus: DisplayStatus) => {
-    // Optimistic update — flip badge immediately so the UI feels instant
     setDeliveries((prev) =>
       prev.map((d) =>
         d.id === id ? { ...d, status: newStatus, updated_at: new Date().toISOString() } : d
@@ -621,40 +735,47 @@ export default function DeliveriesPage() {
         method: "PATCH",
         body: JSON.stringify({ status: newStatus }),
       });
-      // Sync with server to get accurate updated_at and any other server-side changes
       await fetchData();
+      toast({ title: `${deliveryIdLabel(id)} — ${STATUS_TOAST[newStatus]}`, description: "Delivery status updated." });
     } catch (err) {
-      // Revert by re-fetching on failure
       await fetchData();
-      alert(err instanceof Error ? err.message : "Failed to update delivery status");
+      toast({ variant: "destructive", title: "Status update failed", description: err instanceof Error ? err.message : "Failed to update delivery status." });
     } finally {
       setActionId(null);
     }
   };
 
-  const handleApprove      = (id: number) => handleStatusChange(id, "pending");
-  const handleAccept       = (id: number) => handleStatusChange(id, "out_for_delivery");
-  const handleReject       = (id: number) => handleStatusChange(id, "rejected");
-  const handleStartTransit = (id: number) => handleStatusChange(id, "in_transit");
-  const handleCancelDelivery = (id: number) => handleStatusChange(id, "cancelled");
-  const handleDeliver      = (id: number) => handleStatusChange(id, "delivered");
+  const handleApprove = (id: number) => setConfirmStatus({
+    id, status: "pending", label: "Approve",
+    description: "Do you want to approve this delivery and move it to Pending?",
+  });
+  const handleAccept = (id: number) => setConfirmStatus({
+    id, status: "out_for_delivery", label: "Accept",
+    description: "Do you want to accept this delivery and mark it as Out for Delivery?",
+  });
+  const handleReject = (id: number) => setConfirmStatus({
+    id, status: "rejected", label: "Reject",
+    description: "Do you want to reject this delivery? It can still be accepted later.",
+  });
+  const handleCancelDelivery = (id: number) => setConfirmStatus({
+    id, status: "cancelled", label: "Cancel",
+    description: "Do you want to cancel this delivery? It can still be accepted later.",
+  });
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Delete this delivery? This cannot be undone.")) return;
+  const handleDelete = (id: number) => {
+    setConfirmDeleteId(id);
+  };
+
+  const executeDelete = async (id: number) => {
+    setConfirmDeleteId(null);
     setActionId(id);
     try {
-      const auth = await getAuthHeader();
-      const res = await fetch(`/api/deliveries/${id}`, {
-        method: "DELETE",
-        headers: { Authorization: auth },
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => null);
-        throw new Error((data as { error?: string })?.error || `HTTP ${res.status}`);
-      }
+      await apiFetch(`/api/deliveries/${id}`, { method: "DELETE" });
       setDeliveries((prev) => prev.filter((d) => d.id !== id));
+      setSelectedIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
+      toast({ title: "Delivery deleted", description: `${deliveryIdLabel(id)} has been removed.` });
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Failed to delete delivery");
+      toast({ variant: "destructive", title: "Delete failed", description: err instanceof Error ? err.message : "Failed to delete delivery." });
     } finally {
       setActionId(null);
     }
@@ -698,6 +819,7 @@ export default function DeliveriesPage() {
       });
       setAddOpen(false);
       await fetchData();
+      toast({ title: "Delivery created", description: `Delivery for ${payload.customer_name} has been added.` });
     } catch (err) {
       throw err;
     } finally {
@@ -706,16 +828,24 @@ export default function DeliveriesPage() {
   };
 
   const handleUpdateDelivery = async (id: number, payload: CreateDeliveryPayload) => {
+    setEditDelivery(null);
+    setConfirmUpdate({ id, payload });
+  };
+
+  const executeUpdate = async () => {
+    if (!confirmUpdate) return;
+    const { id, payload } = confirmUpdate;
+    setConfirmUpdate(null);
     setSaving(true);
     try {
       await apiFetch(`/api/deliveries/${id}`, {
         method: "PATCH",
         body: JSON.stringify(payload),
       });
-      setEditDelivery(null);
       await fetchData();
+      toast({ title: "Delivery updated", description: `${deliveryIdLabel(id)} has been updated.` });
     } catch (err) {
-      throw err;
+      toast({ variant: "destructive", title: "Update failed", description: err instanceof Error ? err.message : "Failed to update delivery." });
     } finally {
       setSaving(false);
     }
@@ -724,22 +854,49 @@ export default function DeliveriesPage() {
   const renderCard = (d: EnrichedDelivery) => {
     const badge = STATUS_BADGE[d.displayStatus];
     const priority = getPriority(d);
-    const clientLabel = d.routeName ?? d.item ?? "—";
+    const itemDisplayLabel = d.routeName ?? (d.item ? itemLabel(d.item) : "—");
     const busy = actionId === d.id;
     const editable = ["awaiting_approval", "pending", "out_for_delivery", "cancelled", "rejected"].includes(d.displayStatus);
 
     return (
-      <div key={d.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col">
-        {/* Card header: ID top-left, pencil top-right, name full-width, badge below */}
+      <div
+        key={d.id}
+        className="bg-white rounded-2xl shadow-sm flex flex-col"
+        style={{ border: selectedIds.has(d.id) ? "1.5px solid #10B981" : "1px solid #f3f4f6" }}
+      >
+        {/* Card header: ID top-left, checkbox+pencil top-right, name full-width, badge below */}
         <div className="relative px-5 pt-4 pb-3">
-          <button
-            type="button"
-            onClick={() => setEditDelivery(d)}
-            className="absolute top-3 right-3 p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
-            title="Edit"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-          </button>
+          <div className="absolute top-3 right-3 flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => handleDelete(d.id)}
+              className="p-1.5 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+              title="Delete"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditDelivery(d)}
+              className="p-1.5 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+              title="Edit"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => toggleSelect(d.id)}
+              className={`flex items-center justify-center h-4 w-4 rounded border transition-colors ${
+                selectedIds.has(d.id) ? "border-emerald-500 bg-emerald-500" : "border-gray-300 bg-white hover:border-emerald-400"
+              }`}
+            >
+              {selectedIds.has(d.id) && (
+                <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M2 6l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+          </div>
           <span className="text-xs font-semibold text-gray-400 tracking-wide pr-8 block">
             {deliveryIdLabel(d.id)}
           </span>
@@ -768,7 +925,7 @@ export default function DeliveriesPage() {
               ["DRIVER", d.driverName],
               ["ETA", formatEta(d.drop_time)],
               ["VALUE", formatValue(d.estimated_value)],
-              ["CLIENT", clientLabel],
+              ["ITEM", itemDisplayLabel],
             ] as [string, React.ReactNode][]
           ).map(([label, value]) => (
             <div key={label}>
@@ -810,28 +967,13 @@ export default function DeliveriesPage() {
               <XCircle className="h-3.5 w-3.5" />Cancel
             </button>
           )}
-          {d.displayStatus === "in_transit" && (
-            <button type="button" disabled={busy} onClick={() => handleDeliver(d.id)}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50">
-              <MapPin className="h-3.5 w-3.5" />Delivered
-            </button>
-          )}
+
           {(d.displayStatus === "cancelled" || d.displayStatus === "rejected") && (
             <button type="button" disabled={busy} onClick={() => handleAccept(d.id)}
               className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition-colors disabled:opacity-50">
               <CheckCircle2 className="h-3.5 w-3.5" />Accept
             </button>
           )}
-          {editable && (
-            <button type="button" onClick={() => setEditDelivery(d)}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
-              <Pencil className="h-3.5 w-3.5" />Edit
-            </button>
-          )}
-          <button type="button" disabled={busy} onClick={() => handleDelete(d.id)}
-            className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border border-red-100 text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50 ml-auto">
-            <Trash2 className="h-3.5 w-3.5" />Delete
-          </button>
         </div>
       </div>
     );
@@ -911,24 +1053,36 @@ export default function DeliveriesPage() {
         <div className="rounded-xl border border-gray-200 bg-white">
           {/* Controls: stacked rows for responsiveness */}
           <div className="px-4 py-3 border-b space-y-2.5">
-            {/* Row 1: Page tabs + View toggle */}
+            {/* Row 1: Page tabs + Search + View toggle */}
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1">
-                {(["deliveries", "pickups"] as PageTab[]).map((tab) => (
-                  <button
-                    key={tab}
-                    type="button"
-                    onClick={() => setPageTab(tab)}
-                    className="px-3.5 py-1.5 rounded-full text-sm font-semibold transition-colors border"
-                    style={
-                      pageTab === tab
-                        ? { backgroundColor: "#CDF782", color: "#162318", borderColor: "#CDF782" }
-                        : { backgroundColor: "transparent", color: "#6b7280", borderColor: "#e5e7eb" }
-                    }
-                  >
-                    {tab === "deliveries" ? "Deliveries" : "Pickups"}
-                  </button>
-                ))}
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  {(["deliveries", "pickups"] as PageTab[]).map((tab) => (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => setPageTab(tab)}
+                      className="px-3.5 py-1.5 rounded-full text-sm font-semibold transition-colors border"
+                      style={
+                        pageTab === tab
+                          ? { backgroundColor: "#CDF782", color: "#162318", borderColor: "#CDF782" }
+                          : { backgroundColor: "transparent", color: "#6b7280", borderColor: "#e5e7eb" }
+                      }
+                    >
+                      {tab === "deliveries" ? "Deliveries" : "Pickups"}
+                    </button>
+                  ))}
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Search deliveries, customers, drivers..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-56 sm:w-72 rounded-lg border border-gray-200 bg-white pl-8 pr-3 py-1.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+                  />
+                </div>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button
@@ -950,20 +1104,33 @@ export default function DeliveriesPage() {
               </div>
             </div>
 
-            {/* Row 2: Search */}
-            <div className="relative w-full sm:max-w-xs">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400 pointer-events-none" />
-              <input
-                type="text"
-                placeholder="Search deliveries, customers, drivers..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-white pl-8 pr-3 py-1.5 text-sm placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
-              />
-            </div>
+            {/* Row 2: Select-all checkbox + Filter chips */}
+            <div className="flex items-center gap-2.5 overflow-x-auto pb-0.5 scrollbar-none">
+              <button
+                type="button"
+                onClick={toggleSelectAll}
+                className={`flex shrink-0 items-center justify-center h-4 w-4 rounded border transition-colors ${
+                  allFilteredSelected
+                    ? "border-emerald-500 bg-emerald-500"
+                    : someFilteredSelected
+                    ? "border-emerald-400 bg-white"
+                    : "border-gray-300 bg-white hover:border-emerald-400"
+                }`}
+                title={allFilteredSelected ? "Deselect all" : "Select all"}
+              >
+                {allFilteredSelected && (
+                  <svg className="h-2.5 w-2.5 text-white" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M2 6l3 3 5-5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+                {someFilteredSelected && !allFilteredSelected && (
+                  <div className="h-0.5 w-2 bg-emerald-500 rounded-full" />
+                )}
+              </button>
+              <div className="h-4 w-px bg-gray-200 shrink-0" />
 
-            {/* Row 3: Filter chips — horizontally scrollable */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+            {/* Filter chips — horizontally scrollable */}
+            <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
               {FILTER_TABS.map((tab) => (
                 <button
                   key={tab.key}
@@ -993,7 +1160,43 @@ export default function DeliveriesPage() {
                 </button>
               ))}
             </div>
+            </div>
           </div>
+
+          {/* Bulk action bar */}
+          {someFilteredSelected && (
+            <div className="px-4 py-2.5 border-t border-gray-100">
+              <div className="inline-flex flex-wrap items-center gap-3 rounded-2xl border border-gray-200 bg-white px-4 py-2 shadow-sm text-sm">
+                <span className="font-semibold text-gray-700">{selectedIds.size} selected</span>
+                <div className="h-4 w-px bg-gray-200" />
+                <button type="button" disabled={bulkProcessing} onClick={() => setConfirmBulkAction({ type: "status", status: "pending", label: "Approve" })}
+                  className="font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50 transition-colors">
+                  Approve
+                </button>
+                <button type="button" disabled={bulkProcessing} onClick={() => setConfirmBulkAction({ type: "status", status: "out_for_delivery", label: "Accept" })}
+                  className="font-medium text-emerald-600 hover:text-emerald-700 disabled:opacity-50 transition-colors">
+                  Accept
+                </button>
+                <button type="button" disabled={bulkProcessing} onClick={() => setConfirmBulkAction({ type: "status", status: "rejected", label: "Reject" })}
+                  className="font-medium text-rose-500 hover:text-rose-600 disabled:opacity-50 transition-colors">
+                  Reject
+                </button>
+                <button type="button" disabled={bulkProcessing} onClick={() => setConfirmBulkAction({ type: "status", status: "cancelled", label: "Cancel" })}
+                  className="font-medium text-gray-500 hover:text-gray-700 disabled:opacity-50 transition-colors">
+                  Cancel
+                </button>
+                <div className="h-4 w-px bg-gray-200" />
+                <button type="button" disabled={bulkProcessing} onClick={() => setConfirmBulkAction({ type: "delete" })}
+                  className="flex items-center gap-1.5 text-red-500 hover:text-red-600 font-medium disabled:opacity-50 transition-colors">
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {bulkProcessing ? "Processing…" : "Delete"}
+                </button>
+                <button type="button" onClick={clearSelection} className="text-gray-400 hover:text-gray-600 transition-colors">
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          )}
 
           {!loading && !error && tabSource.length > 0 && filtered.length === 0 && (
             <p className="px-5 pb-8 text-sm text-gray-500 text-center">
@@ -1006,14 +1209,15 @@ export default function DeliveriesPage() {
               <DeliveriesTable
                 rows={filtered}
                 actionId={actionId}
+                selectedIds={selectedIds}
                 onView={handleView}
                 onEdit={(d) => setEditDelivery(d)}
                 onDelete={handleDelete}
+                onToggleSelect={toggleSelect}
                 onApprove={handleApprove}
                 onAccept={handleAccept}
                 onReject={handleReject}
                 onCancel={handleCancelDelivery}
-                onDeliver={handleDeliver}
               />
             </div>
           )}
@@ -1090,6 +1294,147 @@ export default function DeliveriesPage() {
         saving={saving}
         clientOptions={clientOptions}
       />
+
+      {/* Delete confirm modal */}
+      {confirmDeleteId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmDeleteId(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="px-6 pt-6 pb-5">
+              <h3 className="text-sm font-semibold text-red-600">Do you want to delete {deliveryIdLabel(confirmDeleteId)}?</h3>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                type="button"
+                onClick={() => executeDelete(confirmDeleteId)}
+                disabled={actionId === confirmDeleteId}
+                className="flex-1 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-semibold py-2.5 transition-colors disabled:opacity-50"
+              >
+                {actionId === confirmDeleteId ? "Deleting…" : "Delete"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteId(null)}
+                className="flex-1 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 py-2.5 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update confirm modal */}
+      {confirmUpdate !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmUpdate(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="px-6 pt-6 pb-5">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Do you want to save changes to {deliveryIdLabel(confirmUpdate.id)}?
+              </h3>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                type="button"
+                onClick={executeUpdate}
+                disabled={saving}
+                style={{ backgroundColor: "#CDF782", color: "#162318" }}
+                className="flex-1 rounded-xl text-sm font-semibold py-2.5 transition-colors disabled:opacity-50 hover:opacity-90"
+              >
+                {saving ? "Saving…" : "Save Changes"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmUpdate(null)}
+                className="flex-1 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 py-2.5 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk action confirm modal */}
+      {confirmBulkAction !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmBulkAction(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="px-6 pt-6 pb-5">
+              <h3 className={`text-sm font-semibold ${confirmBulkAction.type === "delete" ? "text-red-600" : "text-gray-900"}`}>
+                {confirmBulkAction.type === "delete"
+                  ? `Do you want to delete ${selectedIds.size} deliver${selectedIds.size !== 1 ? "ies" : "y"}?`
+                  : `Do you want to ${confirmBulkAction.label.toLowerCase()} ${selectedIds.size} deliver${selectedIds.size !== 1 ? "ies" : "y"}?`}
+              </h3>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                type="button"
+                disabled={bulkProcessing}
+                onClick={() => {
+                  const action = confirmBulkAction;
+                  setConfirmBulkAction(null);
+                  if (action.type === "delete") {
+                    handleBulkDelete();
+                  } else {
+                    handleBulkStatusChange(action.status, action.label);
+                  }
+                }}
+                className={`flex-1 rounded-xl text-sm font-semibold py-2.5 transition-colors disabled:opacity-50 hover:opacity-90 ${
+                  confirmBulkAction.type === "delete" ? "bg-red-500 hover:bg-red-600 text-white" : ""
+                }`}
+                style={confirmBulkAction.type !== "delete" ? { backgroundColor: "#CDF782", color: "#162318" } : {}}
+              >
+                {bulkProcessing ? "Processing…" : confirmBulkAction.type === "delete" ? "Delete" : confirmBulkAction.label}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmBulkAction(null)}
+                className="flex-1 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 py-2.5 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status change confirm modal */}
+      {confirmStatus !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setConfirmStatus(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="px-6 pt-6 pb-5">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Do you want to {confirmStatus.label.toLowerCase()} {deliveryIdLabel(confirmStatus.id)}?
+              </h3>
+            </div>
+            <div className="px-6 pb-6 flex gap-2">
+              <button
+                type="button"
+                disabled={actionId === confirmStatus.id}
+                onClick={() => {
+                  const { id, status } = confirmStatus;
+                  setConfirmStatus(null);
+                  handleStatusChange(id, status);
+                }}
+                style={{ backgroundColor: "#CDF782", color: "#162318" }}
+                className="flex-1 rounded-xl text-sm font-semibold py-2.5 transition-colors disabled:opacity-50 hover:opacity-90"
+              >
+                {actionId === confirmStatus.id ? "Updating…" : confirmStatus.label}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmStatus(null)}
+                className="flex-1 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-600 py-2.5 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

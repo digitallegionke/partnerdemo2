@@ -146,10 +146,14 @@ export async function DELETE(
     const delivery = await getDeliveryAndVerifyOwnership(supabase, deliveryId, providerId);
     if (!delivery) return NextResponse.json({ error: "Delivery not found" }, { status: 404 });
 
-    const { error } = await supabase.from("partner_deliveries").delete().eq("id", deliveryId);
+    const { error } = await supabase
+      .from("partner_deliveries")
+      .update({ is_deleted: true })
+      .eq("id", deliveryId);
+
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    return new NextResponse(null, { status: 204 });
+    return NextResponse.json({ success: true });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "Server error" }, { status: 500 });
   }
