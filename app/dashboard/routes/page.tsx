@@ -19,6 +19,21 @@ import { useToast } from "@/hooks/use-toast";
 
 type RouteStatus = "active" | "completed" | "pending" | "cancelled";
 
+type DeliveryStop = {
+  id: number;
+  customer_name: string;
+  location: string;
+  coordinates: [number, number] | null;
+  item: string;
+  phone: string;
+  drop_time: string;
+  status: string;
+  order_index: number | null;
+  estimated_value: string | null;
+  weight: string | null;
+  delivery_notes: string | null;
+};
+
 type RouteGroup = {
   id: number;
   provider_id: number;
@@ -58,6 +73,7 @@ type PartnerRoute = {
   provider_id: number;
   driver: { id: number; name: string } | null;
   delivery_count: number;
+  delivery_stops: DeliveryStop[];
 };
 
 type Delivery = {
@@ -204,6 +220,25 @@ function getDeliveryStatusBadge(status: string) {
 
 function routeIdLabel(id: number) {
   return `RT-${String(id).padStart(3, "0")}`;
+}
+
+function buildDeliveryStop(d: Pick<Delivery, "id" | "customer_name" | "location" | "coordinates" | "item" | "phone" | "drop_time" | "status" | "order_index" | "estimated_value" | "weight" | "delivery_notes">): DeliveryStop {
+  return {
+    id: d.id,
+    customer_name: d.customer_name,
+    location: d.location,
+    coordinates: Array.isArray(d.coordinates)
+      ? d.coordinates as [number, number]
+      : parsePointCoordinates(d.coordinates as any) as [number, number] | null,
+    item: d.item,
+    phone: d.phone,
+    drop_time: d.drop_time,
+    status: d.status,
+    order_index: d.order_index,
+    estimated_value: d.estimated_value,
+    weight: d.weight,
+    delivery_notes: d.delivery_notes,
+  };
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
@@ -519,10 +554,32 @@ export default function RoutesPage() {
     });
     setDeliveryMode("existing");
     setSelectedExisting(new Set());
-    setRouteDeliveries([]);
     setUnassigned([]);
+    // Populate immediately from the route's stored delivery_stops (no async wait)
+    const storedStops = route.delivery_stops ?? [];
+    setRouteDeliveries(
+      storedStops.map((s) => ({
+        id: s.id,
+        route_id: route.id,
+        route_name_id: null,
+        customer_name: s.customer_name,
+        location: s.location,
+        coordinates: s.coordinates ?? [0, 0],
+        item: s.item,
+        phone: s.phone,
+        drop_time: s.drop_time,
+        status: s.status,
+        order_index: s.order_index,
+        estimated_value: s.estimated_value,
+        weight: s.weight,
+        delivery_notes: s.delivery_notes,
+      }))
+    );
     setModalOpen(true);
-    Promise.all([fetchRouteDeliveries(route.id), fetchUnassigned(), fetchAcceptedRequests()]);
+    // Fetch unassigned for the add-delivery list; also refresh route deliveries for old routes
+    fetchUnassigned();
+    fetchAcceptedRequests();
+    if (storedStops.length === 0) fetchRouteDeliveries(route.id);
   };
 
   // ── Save ───────────────────────────────────────────────────────────────────
@@ -553,6 +610,11 @@ export default function RoutesPage() {
         max_orders: f.route_type === "planned" && f.max_orders ? parseInt(f.max_orders) : null,
         cutoff_time: f.route_type === "planned" && f.cutoff_time ? f.cutoff_time : null,
         ...(f.start_lat && { lat: f.start_lat, lng: f.start_lng }),
+        // Build delivery_stops from current "on this route" list + newly selected ones
+        delivery_stops: [
+          ...routeDeliveries.map(buildDeliveryStop),
+          ...unassigned.filter((d) => selectedExisting.has(d.id)).map(buildDeliveryStop),
+        ],
       };
       await apiFetch(`/api/routes/${route.id}`, { method: "PATCH", body: JSON.stringify(payload) });
       for (const deliveryId of Array.from(selectedExisting)) {
@@ -603,6 +665,7 @@ export default function RoutesPage() {
         cutoff_time: form.route_type === "planned" && form.cutoff_time ? form.cutoff_time : null,
         lat: form.start_lat || "0",
         lng: form.start_lng || "0",
+        delivery_stops: unassigned.filter((d) => selectedExisting.has(d.id)).map(buildDeliveryStop),
       };
 
       const created = await apiFetch("/api/routes", { method: "POST", body: JSON.stringify(payload) });
@@ -734,33 +797,54 @@ export default function RoutesPage() {
   // ── View map ───────────────────────────────────────────────────────────────
 
   const handleViewMap = async (route: PartnerRoute) => {
-    try {
-      const deliveriesData: Delivery[] = await apiFetch(`/api/deliveries?route_id=${route.id}`);
-      const formatted = deliveriesData.map((d) => ({
-        id: d.id, customer_name: d.customer_name, location: d.location,
-        coordinates: parsePointCoordinates(d.coordinates) as [number, number],
-        item: d.item, estimated_value: d.estimated_value, weight: d.weight,
-        phone: d.phone, drop_time: d.drop_time,
-        status: d.status as "pending" | "in-progress" | "completed" | "failed",
-      }));
-      setMapRoute({
-        id: route.id, name: route.name,
-        distance: route.total_distance ? `${route.total_distance.toFixed(1)} km` : "0.0 km",
-        duration: route.estimated_duration ? formatDuration(route.estimated_duration) : "0m",
-        stops: formatted.length, status: route.status,
-        driver: route.driver
-          ? { id: route.driver.id, name: route.driver.name, phone: "", vehicle_type: "" }
-          : null,
-        lastUpdated: new Date(route.updated_at).toLocaleDateString(),
-        efficiency: route.efficiency_score || 0,
-        start_location: route.start_location,
-        end_location: route.end_location,
-      });
-      setMapDeliveries(formatted);
-      setView("map");
-    } catch {
-      alert("Failed to load route deliveries");
+    const stops = route.delivery_stops ?? [];
+
+    // Build formatted markers from delivery_stops (already have parsed coordinates)
+    let formatted = stops.map((s) => ({
+      id: s.id,
+      customer_name: s.customer_name,
+      location: s.location,
+      coordinates: (Array.isArray(s.coordinates) ? s.coordinates : [0, 0]) as [number, number],
+      item: s.item,
+      estimated_value: s.estimated_value,
+      weight: s.weight,
+      phone: s.phone,
+      drop_time: s.drop_time,
+      status: s.status as "pending" | "in-progress" | "completed" | "failed",
+    }));
+
+    // Fall back to live fetch for routes that predate the delivery_stops column
+    if (formatted.length === 0) {
+      try {
+        const deliveriesData: Delivery[] = await apiFetch(`/api/deliveries?route_id=${route.id}`);
+        formatted = deliveriesData.map((d) => ({
+          id: d.id, customer_name: d.customer_name, location: d.location,
+          coordinates: parsePointCoordinates(d.coordinates) as [number, number],
+          item: d.item, estimated_value: d.estimated_value, weight: d.weight,
+          phone: d.phone, drop_time: d.drop_time,
+          status: d.status as "pending" | "in-progress" | "completed" | "failed",
+        }));
+      } catch {
+        alert("Failed to load route deliveries");
+        return;
+      }
     }
+
+    setMapRoute({
+      id: route.id, name: route.name,
+      distance: route.total_distance ? `${route.total_distance.toFixed(1)} km` : "0.0 km",
+      duration: route.estimated_duration ? formatDuration(route.estimated_duration) : "0m",
+      stops: formatted.length, status: route.status,
+      driver: route.driver
+        ? { id: route.driver.id, name: route.driver.name, phone: "", vehicle_type: "" }
+        : null,
+      lastUpdated: new Date(route.updated_at).toLocaleDateString(),
+      efficiency: route.efficiency_score || 0,
+      start_location: route.start_location,
+      end_location: route.end_location,
+    });
+    setMapDeliveries(formatted);
+    setView("map");
   };
 
   // ── Delivery form helpers ──────────────────────────────────────────────────
@@ -778,7 +862,21 @@ export default function RoutesPage() {
       await apiFetch(`/api/deliveries/${deliveryId}`, {
         method: "PATCH", body: JSON.stringify({ route_id: null }),
       });
-      setRouteDeliveries((prev) => prev.filter((d) => d.id !== deliveryId));
+      const remaining = routeDeliveries.filter((d) => d.id !== deliveryId);
+      setRouteDeliveries(remaining);
+      // Keep delivery_stops on the route in sync immediately
+      if (editing) {
+        await apiFetch(`/api/routes/${editing.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ delivery_stops: remaining.map(buildDeliveryStop) }),
+        });
+        // Optimistically update the local route in state so the card/map reflects the change
+        setRoutes((prev) =>
+          prev.map((r) =>
+            r.id === editing.id ? { ...r, delivery_stops: remaining.map(buildDeliveryStop) } : r
+          )
+        );
+      }
       fetchUnassigned();
     } catch { alert("Failed to remove delivery"); }
   };

@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       name, start_location, end_location, driver_id, status, lat, lng,
       route_type, service_area, active_days, start_time, end_time,
       min_deliveries, max_deliveries, driver_capacity, max_orders, cutoff_time,
-      route_name_id,
+      route_name_id, delivery_stops,
     } = body;
 
     const supabase = makeClient(token!);
@@ -134,6 +134,7 @@ export async function POST(req: NextRequest) {
         driver_capacity: driver_capacity ?? null,
         max_orders: max_orders ?? null,
         cutoff_time: cutoff_time ?? null,
+        delivery_stops: delivery_stops ?? [],
       })
       .select()
       .single();
