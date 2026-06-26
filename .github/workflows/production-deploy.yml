@@ -1,0 +1,20 @@
+name: Prod Deployment
+
+on:
+  push:
+    tags:
+      - "prod-*"
+
+jobs:
+  deploy-to-dokploy:
+    name: Deploy to Dokploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Dokploy deployment
+        uses: benbristow/dokploy-deploy-action@0.2.2
+        with:
+          api_token: ${{ secrets.DOKPLOY_AUTH_TOKEN }}
+          application_id: ${{ secrets.DOKPLOY_PROD_APPLICATION_ID }}
+          dokploy_url: ${{ secrets.DOKPLOY_URL }}
+          service_type: application

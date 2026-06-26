@@ -1,0 +1,48 @@
+{
+  "blocks": [
+    {
+      "type": "header",
+      "text": {
+        "type": "plain_text",
+        "text": ":rocket: ${{ env.APPLICATION_NAME }} Deployment Started!  :rocket:",
+        "emoji": true
+      }
+    },
+    {
+      "type": "section",
+      "fields": [
+        {
+          "type": "mrkdwn",
+          "text": "*Project:*\n${{ github.payload.repository.full_name }}"
+        },
+        {
+          "type": "mrkdwn",
+          "text": "*Environment:*\n${{ env.APPLICATION_NAME }}"
+        },
+        { "type": "mrkdwn", "text": "*Branch:*\n${{ github.ref }}" },
+        { "type": "mrkdwn", "text": "*Commit:*\n${{ github.sha }}" },
+        { "type": "mrkdwn", "text": "*Author:*\n${{ github.actor }}" },
+        { "type": "mrkdwn", "text": "*Mentions:*\n@${{ github.actor }}" }
+      ],
+      "accessory": {
+        "type": "image",
+        "image_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+        "alt_text": "Logo Image"
+      }
+    },
+    {
+      "type": "actions",
+      "elements": [
+        {
+          "type": "button",
+          "text": {
+            "type": "plain_text",
+            "text": ":mag: View Job",
+            "emoji": true
+          },
+          "url": "https://github.com/${{ github.payload.repository.full_name }}/actions/runs/${{ github.runId }}"
+        }
+      ]
+    }
+  ]
+}
