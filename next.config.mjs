@@ -13,6 +13,7 @@ const nextConfig = {
   compiler: {
     removeConsole: process.env.NODE_ENV === "production" ? true : false,
   },
+  output: 'standalone',
 };
 
 export default nextConfig;
