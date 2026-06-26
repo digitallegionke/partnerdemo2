@@ -11,13 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       APPLICATION_NAME: "Roundi Provider Webapp"
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-      NEXT_PUBLIC_EMBED_MAP: ${{ secrets.NEXT_PUBLIC_EMBED_MAP }}
-      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-      MAPS_PLATFORM_API_KEY: ${{ secrets.MAPS_PLATFORM_API_KEY }}
-      FROM_EMAIL: ${{ secrets.FROM_EMAIL }}
-
+      
     steps:
       - uses: actions/checkout@v4
 
@@ -42,6 +36,14 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/roundiafrica/roundi_providers_webapp:latest
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_EMBED_MAP=${{ secrets.NEXT_PUBLIC_EMBED_MAP }}
+            RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}
+            MAPS_PLATFORM_API_KEY=${{ secrets.MAPS_PLATFORM_API_KEY }}
+            FROM_EMAIL=${{ secrets.FROM_EMAIL }}
+
 
       - name: Notify Slack Build and Push was Successful
         if: success()
