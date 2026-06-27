@@ -7,7 +7,6 @@ import {
   Plus,
   Search,
   Download,
-  Upload,
   Link2,
   LayoutGrid,
   List,
@@ -21,7 +20,12 @@ import {
   XCircle,
   MapPin,
   X,
+  ChevronDown,
 } from "lucide-react";
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import AddDeliveryModal, {
@@ -527,6 +531,8 @@ export default function DeliveriesPage() {
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
   const [confirmStatus, setConfirmStatus] = useState<{ id: number; status: DisplayStatus; label: string; description: string } | null>(null);
   const [confirmBulkAction, setConfirmBulkAction] = useState<{ type: "status"; status: DisplayStatus; label: string } | { type: "delete" } | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [provider, setProvider] = useState<{ provider_name?: string; legal_name?: string; contact_email?: string; contact_phone?: string; city?: string; country?: string } | null>(null);
   const [confirmUpdate, setConfirmUpdate] = useState<{ id: number; payload: CreateDeliveryPayload } | null>(null);
   const { toast } = useToast();
 
@@ -580,6 +586,21 @@ export default function DeliveriesPage() {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: membership } = await supabase
+        .from("partner_provider_users").select("provider_id")
+        .eq("user_id", user.id).eq("is_active", true).maybeSingle();
+      if (!membership) return;
+      const { data: prov } = await supabase
+        .from("partner_providers").select("provider_name,legal_name,contact_email,contact_phone,city,country")
+        .eq("id", (membership as { provider_id: number }).provider_id).single();
+      if (prov) setProvider(prov);
+    })();
+  }, []);
 
   const tabSource = useMemo(() => {
     return pageTab === "pickups"
@@ -782,33 +803,77 @@ export default function DeliveriesPage() {
     }
   };
 
-  const handleExport = () => {
-    const rows = tabSource.map((d) => ({
-      id: deliveryIdLabel(d.id),
-      customer: d.customer_name,
-      location: d.location,
-      status: STATUS_BADGE[d.displayStatus].label,
-      driver: d.driverName,
-      eta: formatEta(d.drop_time),
-      value: d.estimated_value ?? "",
-      item: d.item,
-      phone: d.phone,
+  const exportExcel = () => {
+    const rows = filtered.map((d) => ({
+      "Delivery ID":    deliveryIdLabel(d.id),
+      "Customer":       d.customer_name,
+      "Phone":          d.phone ?? "",
+      "Item":           d.item ?? "",
+      "Location":       d.location ?? "",
+      "Status":         STATUS_BADGE[d.displayStatus].label,
+      "Driver":         d.driverName ?? "",
+      "ETA":            formatEta(d.drop_time),
+      "Value":          d.estimated_value ?? "",
     }));
-    const header = Object.keys(rows[0] ?? {}).join(",");
-    const body = rows
-      .map((r) =>
-        Object.values(r)
-          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
-          .join(",")
-      )
-      .join("\n");
-    const blob = new Blob([`${header}\n${body}`], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `deliveries-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const ws = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.sheet_add_aoa(ws, [[`Total: ${filtered.length} deliver${filtered.length !== 1 ? "ies" : "y"}`]], { origin: -1 });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Partner Deliveries");
+    XLSX.writeFile(wb, `partner-deliveries-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
+    setExportOpen(false);
+  };
+
+  const exportPDF = () => {
+    const doc = new jsPDF({ orientation: "landscape" });
+    let y = 14;
+
+    const orgName = provider?.provider_name ?? "Partner Deliveries";
+    doc.setFontSize(16); doc.setTextColor(22, 35, 24); doc.setFont("helvetica", "bold");
+    doc.text(orgName, 14, y); y += 7;
+
+    if (provider?.legal_name && provider.legal_name !== provider.provider_name) {
+      doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(100);
+      doc.text(provider.legal_name, 14, y); y += 5;
+    }
+    const infoParts: string[] = [];
+    if (provider?.contact_email) infoParts.push(provider.contact_email);
+    if (provider?.contact_phone) infoParts.push(provider.contact_phone);
+    if (provider?.city)          infoParts.push(provider.city);
+    if (provider?.country)       infoParts.push(provider.country);
+    if (infoParts.length) {
+      doc.setFontSize(8); doc.setTextColor(120); doc.setFont("helvetica", "normal");
+      doc.text(infoParts.join("  ·  "), 14, y); y += 5;
+    }
+    doc.setDrawColor(220); doc.line(14, y, 283, y); y += 5;
+
+    doc.setFontSize(11); doc.setTextColor(22, 35, 24); doc.setFont("helvetica", "bold");
+    doc.text("Partner Deliveries", 14, y);
+    doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(150);
+    doc.text(`Exported ${format(new Date(), "d MMM yyyy")}`, 283, y, { align: "right" }); y += 5;
+    doc.setFontSize(8); doc.setTextColor(120);
+    doc.text(`${filtered.length} deliver${filtered.length !== 1 ? "ies" : "y"}`, 14, y); y += 5;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["ID", "Customer", "Phone", "Item", "Location", "Status", "Driver", "ETA", "Value"]],
+      body: filtered.map((d) => [
+        deliveryIdLabel(d.id),
+        d.customer_name,
+        d.phone ?? "—",
+        d.item ?? "—",
+        d.location ?? "—",
+        STATUS_BADGE[d.displayStatus].label,
+        d.driverName ?? "—",
+        formatEta(d.drop_time),
+        d.estimated_value ?? "—",
+      ]),
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [22, 35, 24] },
+    });
+
+    const orgSlug = (provider?.provider_name ?? "roundi").toLowerCase().replace(/\s+/g, "-");
+    doc.save(`${orgSlug}-partner-deliveries-${format(new Date(), "yyyy-MM-dd")}.pdf`);
+    setExportOpen(false);
   };
 
   const handleCreateDelivery = async (payload: CreateDeliveryPayload) => {
@@ -988,30 +1053,44 @@ export default function DeliveriesPage() {
             Dashboard
           </Link>
           <span className="mx-1.5">/</span>
-          <span className="text-gray-600">Deliveries</span>
+          <span className="text-gray-600">Partner Deliveries</span>
         </p>
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 pb-5">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Deliveries</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Partner Deliveries</h1>
             <p className="mt-0.5 text-sm text-gray-500">
               Track and manage all active and past deliveries.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <RefreshButton onClick={fetchData} loading={loading} />
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExport}>
-              <Download className="h-4 w-4" />
-              Export
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => alert("CSV import coming soon.")}
-            >
-              <Upload className="h-4 w-4" />
-              Import CSV
-            </Button>
+
+            {/* Export dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setExportOpen((o) => !o)}
+                disabled={filtered.length === 0}
+                className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Export
+                <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+              </button>
+              {exportOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1.5 z-20 w-44 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+                    <button onClick={exportExcel} className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2.5">
+                      <span className="text-base">📊</span> Excel (.xlsx)
+                    </button>
+                    <button onClick={exportPDF} className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2.5 border-t border-gray-100">
+                      <span className="text-base">📄</span> PDF
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+
             <Button
               variant="outline"
               size="sm"
