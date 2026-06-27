@@ -793,10 +793,20 @@ export default function ProviderDriversPage() {
                   You haven&apos;t added any drivers to your fleet. Add your first driver to start managing assignments and availability.
                 </p>
               </div>
-              <Button onClick={handleAddDriver} className="gap-2 bg-emerald-700 hover:bg-emerald-800">
+              <button
+                onClick={handleAddDriver}
+                style={{
+                  padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                  color: "#162318", backgroundColor: "#CDF782",
+                  border: "none", borderRadius: 8, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
+              >
                 <Plus className="h-4 w-4" />
                 Add your first driver
-              </Button>
+              </button>
             </div>
           </div>
 
