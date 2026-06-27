@@ -1252,13 +1252,20 @@ export default function DeliveriesPage() {
               </p>
             </div>
             {pageTab === "deliveries" && (
-              <Button
-                className="gap-2 bg-emerald-700 hover:bg-emerald-800"
+              <button
                 onClick={() => setAddOpen(true)}
+                style={{
+                  padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                  color: "#162318", backgroundColor: "#CDF782",
+                  border: "none", borderRadius: 8, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
               >
                 <Plus className="h-4 w-4" />
                 Add Delivery
-              </Button>
+              </button>
             )}
           </div>
         ) : viewMode === "grid" && filtered.length > 0 ? (

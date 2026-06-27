@@ -467,10 +467,20 @@ export default function ClientsPage() {
                   Add the businesses and contacts you deliver for to start managing your clients.
                 </p>
               </div>
-              <Button onClick={handleAdd} className="gap-2 bg-emerald-700 hover:bg-emerald-800">
+              <button
+                onClick={handleAdd}
+                style={{
+                  padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                  color: "#162318", backgroundColor: "#CDF782",
+                  border: "none", borderRadius: 8, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
+              >
                 <Plus className="h-4 w-4" />
                 Add your first client
-              </Button>
+              </button>
             </div>
           </div>
 
