@@ -14,6 +14,7 @@ import RouteMapScreen from "@/app/screens/route-map-screen";
 import MapComponent from "@/components/map-component";
 import { supabase, parsePointCoordinates } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import { RefreshButton } from "@/components/ui/refresh-button";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -935,6 +936,7 @@ export default function RoutesPage() {
             </p>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
+            <RefreshButton onClick={fetchRoutes} loading={loading} />
             <button
               onClick={openCreateGroup}
               style={{

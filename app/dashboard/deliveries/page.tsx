@@ -32,6 +32,7 @@ import DeliveryViewModal, { type ViewableDelivery } from "@/components/delivery-
 import { supabase, parsePointCoordinates } from "@/lib/supabase";
 import { toWebStatus } from "@/lib/deliveryStatusMapper";
 import type { Database } from "@/lib/supabase";
+import { RefreshButton } from "@/components/ui/refresh-button";
 
 type PartnerDelivery = Database["public"]["Tables"]["partner_deliveries"]["Row"];
 
@@ -997,6 +998,7 @@ export default function DeliveriesPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <RefreshButton onClick={fetchData} loading={loading} />
             <Button variant="outline" size="sm" className="gap-1.5" onClick={handleExport}>
               <Download className="h-4 w-4" />
               Export

@@ -5,9 +5,10 @@ import Link from "next/link";
 import {
   ClipboardList, Search, X, User, Calendar, CheckCircle2,
   XCircle, ChevronRight, Users, AlertCircle,
-  Plus, Trash2, RefreshCw, LayoutGrid, List,
+  Plus, Trash2, LayoutGrid, List,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { supabase } from "@/lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -372,14 +373,7 @@ export default function AllocationRequestsPage() {
               Review requests and assign available partner drivers and vehicles.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => { setLoading(true); fetchRequests(); }}
-            className="gap-2 shrink-0"
-          >
-            <RefreshCw className="h-3.5 w-3.5" /> Refresh
-          </Button>
+          <RefreshButton onClick={fetchRequests} loading={loading} />
         </div>
       </div>
 

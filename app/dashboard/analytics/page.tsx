@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
@@ -9,6 +9,7 @@ import {
   ClipboardList,
 } from "lucide-react";
 import type { ActivityType, ActivityItem } from "@/app/api/dashboard/stats/route";
+import { RefreshButton } from "@/components/ui/refresh-button";
 
 interface DashboardStats {
   totalDrivers: number;
@@ -89,32 +90,31 @@ export default function ProviderDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token ?? "";
+  const loadStats = useCallback(async () => {
+    setError(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token ?? "";
 
-        const res = await fetch("/api/dashboard/stats", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+      const res = await fetch("/api/dashboard/stats", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err.error ?? `HTTP ${res.status}`);
-        }
-
-        const data = await res.json();
-        setStats(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load stats");
-      } finally {
-        setLoading(false);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? `HTTP ${res.status}`);
       }
-    };
 
-    load();
+      const data = await res.json();
+      setStats(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load stats");
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { loadStats(); }, [loadStats]);
 
   return (
     <div className="flex flex-col min-h-full bg-gray-50">
@@ -125,11 +125,14 @@ export default function ProviderDashboardPage() {
 
       <div className="flex-1 px-4 sm:px-6 md:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
         {/* Header */}
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Provider Dashboard</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {greeting()} — here is your operations overview
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Provider Dashboard</h1>
+            <p className="mt-1 text-sm text-gray-500">
+              {greeting()} — here is your operations overview
+            </p>
+          </div>
+          <RefreshButton onClick={loadStats} loading={loading} />
         </div>
 
         {/* Stats */}

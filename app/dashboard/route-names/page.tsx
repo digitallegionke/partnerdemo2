@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Plus, Search, MapPin, X, Eye, Upload, Download, ChevronDown, LayoutGrid, List, Pencil, Trash2 } from "lucide-react";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
@@ -443,6 +444,7 @@ export default function RouteNamesPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <RefreshButton onClick={fetchRouteNames} loading={loading} />
             {/* Import */}
             <input
               ref={importRef}
