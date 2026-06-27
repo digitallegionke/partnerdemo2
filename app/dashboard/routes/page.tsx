@@ -380,13 +380,30 @@ export default function RoutesPage() {
     } catch { /* non-blocking */ }
   };
 
-  const fetchRouteDeliveries = async (routeId: number) => {
+  const fetchRouteDeliveries = async (routeId: number): Promise<Delivery[]> => {
     setLoadingRouteDeliveries(true);
     try {
       const data = await apiFetch(`/api/deliveries?route_id=${routeId}`);
-      setRouteDeliveries(Array.isArray(data) ? data : []);
-    } catch { /* non-blocking */ }
+      const deliveries: Delivery[] = Array.isArray(data) ? data : [];
+      setRouteDeliveries(deliveries);
+      return deliveries;
+    } catch { return []; }
     finally { setLoadingRouteDeliveries(false); }
+  };
+
+  // Persist delivery_stops to the route so the data is self-contained
+  const backfillDeliveryStops = async (routeId: number, deliveries: Delivery[]) => {
+    if (!deliveries.length) return;
+    const stops = deliveries.map(buildDeliveryStop);
+    try {
+      await apiFetch(`/api/routes/${routeId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ delivery_stops: stops }),
+      });
+      setRoutes((prev) =>
+        prev.map((r) => (r.id === routeId ? { ...r, delivery_stops: stops } : r))
+      );
+    } catch { /* non-blocking */ }
   };
 
   const fetchGroups = async () => {
@@ -576,10 +593,14 @@ export default function RoutesPage() {
       }))
     );
     setModalOpen(true);
-    // Fetch unassigned for the add-delivery list; also refresh route deliveries for old routes
     fetchUnassigned();
     fetchAcceptedRequests();
-    if (storedStops.length === 0) fetchRouteDeliveries(route.id);
+    if (storedStops.length === 0) {
+      // Old route — fetch live and persist delivery_stops so future opens are instant
+      fetchRouteDeliveries(route.id).then((deliveries) => {
+        if (deliveries.length > 0) backfillDeliveryStops(route.id, deliveries);
+      });
+    }
   };
 
   // ── Save ───────────────────────────────────────────────────────────────────
@@ -824,6 +845,8 @@ export default function RoutesPage() {
           phone: d.phone, drop_time: d.drop_time,
           status: d.status as "pending" | "in-progress" | "completed" | "failed",
         }));
+        // Backfill delivery_stops so future map loads are instant
+        if (deliveriesData.length > 0) backfillDeliveryStops(route.id, deliveriesData);
       } catch {
         alert("Failed to load route deliveries");
         return;
