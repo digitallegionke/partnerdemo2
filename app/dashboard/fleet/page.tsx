@@ -9,6 +9,7 @@ import {
   LayoutGrid, List, Trash2, UserCheck, UserX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { FleetService, type FleetVehicle } from "@/lib/services/fleet";
 import FleetViewModal from "@/components/FleetViewModal";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -710,6 +711,7 @@ export default function FleetRegistryPage() {
             <h2 className="text-xl font-semibold text-gray-900">Fleet Registry</h2>
           </div>
           <div className="flex items-center gap-2">
+            <RefreshButton onClick={fetchVehicles} loading={loading} />
             {/* Hidden file input */}
             <input ref={importRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImport} />
 

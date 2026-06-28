@@ -56,30 +56,33 @@ export async function GET(req: NextRequest) {
         .from("partner_allocation_requests")
         .select("id", { count: "exact", head: true })
         .eq("service_provider_id", providerId)
-        .eq("status", "completed"),
+        .eq("status", "pending"),
 
       supabase
         .from("partner_deliveries")
         .select("id", { count: "exact", head: true })
         .eq("provider_id", providerId)
+        .eq("is_deleted", false)
         .in("status", ["awaiting_approval", "pending", "out_for_delivery", "in_transit"]),
 
       supabase
         .from("partner_routes")
         .select("id", { count: "exact", head: true })
         .eq("provider_id", providerId)
+        .eq("is_deleted", false)
         .in("status", ["active", "pending"]),
 
       supabase
         .from("partner_route_names")
         .select("id", { count: "exact", head: true })
-        .eq("provider_id", providerId),
+        .eq("provider_id", providerId)
+        .eq("is_deleted", false),
 
       supabase
         .from("partner_clients")
         .select("id", { count: "exact", head: true })
         .eq("provider_id", providerId)
-        .eq("status", "active"),
+        .eq("is_deleted", false),
     ]);
 
     return NextResponse.json({

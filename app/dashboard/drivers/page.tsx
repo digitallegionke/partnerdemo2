@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo, useRef, useCallback } from "react"
 import { useSearchParams } from "next/navigation";
 import { Users, Plus, Pencil, FileText, MapPin, Truck, Eye, Search, CheckCircle2, LayoutGrid, List, Upload, Download, ChevronDown, X, Trash2, UserCheck, UserX, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import DriverModal from "@/components/DriverModal";
 import DriverViewModal from "@/components/DriverViewModal";
 import DriverAssignModal from "@/components/DriverAssignModal";
@@ -572,6 +573,7 @@ export default function ProviderDriversPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <RefreshButton onClick={fetchDrivers} loading={loading} />
             {/* Import */}
             <input
               ref={importRef}

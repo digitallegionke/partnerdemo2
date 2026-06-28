@@ -60,6 +60,10 @@ export async function PATCH(
     const updateData: Record<string, unknown> = {};
     if (body.status) updateData.status = body.status;
     if (body.provider_notes !== undefined) updateData.provider_notes = body.provider_notes;
+    if (body.notes !== undefined) updateData.notes = body.notes;
+    if (body.drivers_requested !== undefined) updateData.drivers_requested = Number(body.drivers_requested);
+    if (body.start_date !== undefined) updateData.start_date = body.start_date;
+    if (body.end_date !== undefined) updateData.end_date = body.end_date || null;
     if (body.status === "accepted" || body.status === "rejected") {
       updateData.reviewed_at = new Date().toISOString();
     }
@@ -73,6 +77,42 @@ export async function PATCH(
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json(data);
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const token = getToken(req);
+    const providerId = await getProviderId(token);
+    if (!providerId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const supabase = makeClient(token!);
+    const { data: existing } = await supabase
+      .from("partner_allocation_requests")
+      .select("id, service_provider_id")
+      .eq("id", parseInt(id))
+      .maybeSingle();
+
+    if (!existing || existing.service_provider_id !== providerId) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    const { error } = await supabase
+      .from("partner_allocation_requests")
+      .delete()
+      .eq("id", parseInt(id));
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Server error" },
