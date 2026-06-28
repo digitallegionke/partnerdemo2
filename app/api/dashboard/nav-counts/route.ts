@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
         .from("partner_allocation_requests")
         .select("id", { count: "exact", head: true })
         .eq("service_provider_id", providerId)
-        .eq("status", "pending"),
+        .eq("status", "accepted"),
 
       supabase
         .from("partner_deliveries")
