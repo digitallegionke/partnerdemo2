@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Plus, Search, MapPin, X, Eye, Upload, Download, ChevronDown, LayoutGrid, List, Pencil, Trash2 } from "lucide-react";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
@@ -443,6 +444,7 @@ export default function RouteNamesPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <RefreshButton onClick={fetchRouteNames} loading={loading} />
             {/* Import */}
             <input
               ref={importRef}
@@ -661,10 +663,20 @@ export default function RouteNamesPage() {
                   Add names for your delivery routes to keep them organised.
                 </p>
               </div>
-              <Button onClick={handleAdd} className="gap-2 bg-emerald-700 hover:bg-emerald-800">
+              <button
+                onClick={handleAdd}
+                style={{
+                  padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                  color: "#162318", backgroundColor: "#CDF782",
+                  border: "none", borderRadius: 8, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
+              >
                 <Plus className="h-4 w-4" />
                 Add your first route name
-              </Button>
+              </button>
             </div>
           </div>
 

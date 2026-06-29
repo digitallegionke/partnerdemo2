@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo, useRef, useCallback } from "react"
 import { useSearchParams } from "next/navigation";
 import { Users, Plus, Pencil, FileText, MapPin, Truck, Eye, Search, CheckCircle2, LayoutGrid, List, Upload, Download, ChevronDown, X, Trash2, UserCheck, UserX, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import DriverModal from "@/components/DriverModal";
 import DriverViewModal from "@/components/DriverViewModal";
 import DriverAssignModal from "@/components/DriverAssignModal";
@@ -572,6 +573,7 @@ export default function ProviderDriversPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <RefreshButton onClick={fetchDrivers} loading={loading} />
             {/* Import */}
             <input
               ref={importRef}
@@ -793,10 +795,20 @@ export default function ProviderDriversPage() {
                   You haven&apos;t added any drivers to your fleet. Add your first driver to start managing assignments and availability.
                 </p>
               </div>
-              <Button onClick={handleAddDriver} className="gap-2 bg-emerald-700 hover:bg-emerald-800">
+              <button
+                onClick={handleAddDriver}
+                style={{
+                  padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                  color: "#162318", backgroundColor: "#CDF782",
+                  border: "none", borderRadius: 8, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
+              >
                 <Plus className="h-4 w-4" />
                 Add your first driver
-              </Button>
+              </button>
             </div>
           </div>
 

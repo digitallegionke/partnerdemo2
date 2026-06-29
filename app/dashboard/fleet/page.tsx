@@ -9,6 +9,7 @@ import {
   LayoutGrid, List, Trash2, UserCheck, UserX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { FleetService, type FleetVehicle } from "@/lib/services/fleet";
 import FleetViewModal from "@/components/FleetViewModal";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -710,6 +711,7 @@ export default function FleetRegistryPage() {
             <h2 className="text-xl font-semibold text-gray-900">Fleet Registry</h2>
           </div>
           <div className="flex items-center gap-2">
+            <RefreshButton onClick={fetchVehicles} loading={loading} />
             {/* Hidden file input */}
             <input ref={importRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImport} />
 
@@ -911,10 +913,20 @@ export default function FleetRegistryPage() {
                   Add your first vehicle to start building your fleet registry.
                 </p>
               </div>
-              <Button onClick={openAdd} className="gap-2 bg-emerald-700 hover:bg-emerald-800">
+              <button
+                onClick={openAdd}
+                style={{
+                  padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                  color: "#162318", backgroundColor: "#CDF782",
+                  border: "none", borderRadius: 8, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#bfe96f")}
+                onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#CDF782")}
+              >
                 <Plus className="h-4 w-4" />
                 Add your first vehicle
-              </Button>
+              </button>
             </div>
           </div>
 

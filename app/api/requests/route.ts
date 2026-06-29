@@ -86,3 +86,45 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
+export async function POST(req: NextRequest) {
+  try {
+    const token = getToken(req);
+    const providerId = await getProviderId(token);
+    if (!providerId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const body = await req.json().catch(() => null);
+    if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+
+    const { business_id, drivers_requested, start_date, end_date, notes } = body;
+    if (!business_id || !drivers_requested || !start_date) {
+      return NextResponse.json(
+        { error: "business_id, drivers_requested, and start_date are required" },
+        { status: 400 }
+      );
+    }
+
+    const supabase = makeClient(token!);
+    const { data, error } = await supabase
+      .from("partner_allocation_requests")
+      .insert({
+        business_id: Number(business_id),
+        service_provider_id: providerId,
+        drivers_requested: Number(drivers_requested),
+        start_date,
+        end_date: end_date || null,
+        notes: notes || null,
+        status: "pending",
+      })
+      .select()
+      .single();
+
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(data, { status: 201 });
+  } catch (err) {
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Server error" },
+      { status: 500 }
+    );
+  }
+}

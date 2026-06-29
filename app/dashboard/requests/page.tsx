@@ -3,11 +3,11 @@
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import {
-  ClipboardList, Search, X, User, Calendar, CheckCircle2,
-  XCircle, ChevronRight, Users, AlertCircle,
-  Plus, Trash2, RefreshCw, LayoutGrid, List,
+  ClipboardList, Search, X, Calendar,
+  Users, AlertCircle, LayoutGrid, List, Pencil, Eye,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RefreshButton } from "@/components/ui/refresh-button";
 import { supabase } from "@/lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -38,45 +38,14 @@ type AllocationRequest = {
   created_at: string;
 };
 
-type DriverAllocation = {
-  id: number;
-  request_id: number;
-  driver_id: number;
-  vehicle_id: number | null;
-  status: string;
-  allocated_from: string;
-  allocated_until: string | null;
-  allocation_notes: string | null;
-  driver: { id: number; full_name: string; phone_number: string; status: string } | null;
-  vehicle: { id: number; plate_number: string; vehicle_type: string } | null;
-};
-
-type Driver = {
-  id: number;
-  full_name: string;
-  phone_number: string;
-  status: string;
-  license_type: string;
-};
-
-type Vehicle = {
-  id: number;
-  plate_number: string;
-  vehicle_type: string;
-  status: string;
-  assigned_driver_id: number | null;
-};
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { key: "all",                label: "All" },
-  { key: "pending",            label: "Pending" },
-  { key: "accepted",           label: "Accepted" },
-  { key: "partially_allocated", label: "In Progress" },
-  { key: "fully_allocated",    label: "Fully Allocated" },
-  { key: "rejected",           label: "Rejected" },
-  { key: "completed",          label: "Completed" },
+  { key: "all",       label: "All" },
+  { key: "pending",   label: "Pending" },
+  { key: "accepted",  label: "Accepted" },
+  { key: "rejected",  label: "Rejected" },
+  { key: "completed", label: "Completed" },
 ];
 
 const STATUS_STYLE: Record<string, string> = {
@@ -102,12 +71,18 @@ const STATUS_DOT: Record<string, string> = {
 const STATUS_LABEL: Record<string, string> = {
   pending:             "Pending",
   accepted:            "Accepted",
-  partially_allocated: "Partially Allocated",
+  partially_allocated: "In Progress",
   fully_allocated:     "Fully Allocated",
   rejected:            "Rejected",
   cancelled:           "Cancelled",
   completed:           "Completed",
 };
+
+const EDITABLE_STATUSES = [
+  { value: "pending",  label: "Pending" },
+  { value: "accepted", label: "Accepted" },
+  { value: "rejected", label: "Rejected" },
+] as const;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -150,16 +125,6 @@ function formatDate(dateStr: string) {
   });
 }
 
-function formatDateTime(dateStr: string) {
-  return new Date(dateStr).toLocaleString("en-GB", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AllocationRequestsPage() {
@@ -170,24 +135,15 @@ export default function AllocationRequestsPage() {
   const [search, setSearch]       = useState("");
   const [viewMode, setViewMode]   = useState<"grid" | "list">("grid");
 
-  // Review modal (accept / reject)
-  const [reviewRequest, setReviewRequest]     = useState<AllocationRequest | null>(null);
-  const [reviewAction, setReviewAction]       = useState<"accept" | "reject" | null>(null);
-  const [providerNotes, setProviderNotes]     = useState("");
-  const [reviewing, setReviewing]             = useState(false);
-  const [reviewError, setReviewError]         = useState<string | null>(null);
+  // Detail modal
+  const [detailRequest, setDetailRequest] = useState<AllocationRequest | null>(null);
 
-  // Allocate drivers modal
-  const [allocateRequest, setAllocateRequest]     = useState<AllocationRequest | null>(null);
-  const [allocations, setAllocations]             = useState<DriverAllocation[]>([]);
-  const [availableDrivers, setAvailableDrivers]   = useState<Driver[]>([]);
-  const [availableVehicles, setAvailableVehicles] = useState<Vehicle[]>([]);
-  const [loadingAllocations, setLoadingAllocations] = useState(false);
-  const [selectedDriver, setSelectedDriver]       = useState("");
-  const [selectedVehicle, setSelectedVehicle]     = useState("");
-  const [allocNotes, setAllocNotes]               = useState("");
-  const [allocating, setAllocating]               = useState(false);
-  const [allocError, setAllocError]               = useState<string | null>(null);
+  // Edit modal
+  const [editRequest, setEditRequest] = useState<AllocationRequest | null>(null);
+  const [editStatus, setEditStatus]   = useState<"pending" | "accepted" | "rejected">("pending");
+  const [editNotes, setEditNotes]     = useState("");
+  const [saving, setSaving]           = useState(false);
+  const [saveError, setSaveError]     = useState<string | null>(null);
 
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
@@ -225,8 +181,6 @@ export default function AllocationRequestsPage() {
       all: requests.length,
       pending: 0,
       accepted: 0,
-      partially_allocated: 0,
-      fully_allocated: 0,
       rejected: 0,
       completed: 0,
     };
@@ -234,25 +188,28 @@ export default function AllocationRequestsPage() {
     return c;
   }, [requests]);
 
-  // ── Review (accept / reject) ───────────────────────────────────────────────
+  // ── Edit ───────────────────────────────────────────────────────────────────
 
-  const openReview = (req: AllocationRequest, action: "accept" | "reject") => {
-    setReviewRequest(req);
-    setReviewAction(action);
-    setProviderNotes("");
-    setReviewError(null);
+  const openEdit = (req: AllocationRequest) => {
+    setEditRequest(req);
+    const current = ["accepted", "rejected", "pending"].includes(req.status)
+      ? (req.status as "pending" | "accepted" | "rejected")
+      : "pending";
+    setEditStatus(current);
+    setEditNotes(req.provider_notes ?? "");
+    setSaveError(null);
   };
 
-  const handleReview = async () => {
-    if (!reviewRequest || !reviewAction) return;
-    setReviewing(true);
-    setReviewError(null);
+  const handleSave = async () => {
+    if (!editRequest) return;
+    setSaving(true);
+    setSaveError(null);
     try {
-      const updated = await apiFetch(`/api/requests/${reviewRequest.id}`, {
+      const updated = await apiFetch(`/api/requests/${editRequest.id}`, {
         method: "PATCH",
         body: JSON.stringify({
-          status: reviewAction === "accept" ? "accepted" : "rejected",
-          provider_notes: providerNotes.trim() || null,
+          status: editStatus,
+          provider_notes: editNotes.trim() || null,
         }),
       });
       setRequests((prev) =>
@@ -262,97 +219,13 @@ export default function AllocationRequestsPage() {
             : r
         )
       );
-      setReviewRequest(null);
+      setEditRequest(null);
     } catch (err) {
-      setReviewError(err instanceof Error ? err.message : "Failed to update request");
+      setSaveError(err instanceof Error ? err.message : "Failed to update request");
     } finally {
-      setReviewing(false);
+      setSaving(false);
     }
   };
-
-  // ── Allocate drivers ───────────────────────────────────────────────────────
-
-  const openAllocate = async (req: AllocationRequest) => {
-    setAllocateRequest(req);
-    setSelectedDriver("");
-    setSelectedVehicle("");
-    setAllocNotes("");
-    setAllocError(null);
-    setLoadingAllocations(true);
-    try {
-      const [allocs, drivers, vehicles] = await Promise.all([
-        apiFetch(`/api/requests/${req.id}/allocations`),
-        apiFetch("/api/drivers"),
-        apiFetch("/api/fleet"),
-      ]);
-      setAllocations(Array.isArray(allocs) ? allocs : []);
-      setAvailableDrivers(Array.isArray(drivers) ? drivers : []);
-      setAvailableVehicles(Array.isArray(vehicles) ? vehicles : []);
-    } catch {
-      setAllocError("Failed to load allocation data");
-    } finally {
-      setLoadingAllocations(false);
-    }
-  };
-
-  const handleAddAllocation = async () => {
-    if (!allocateRequest || !selectedDriver) {
-      setAllocError("Please select a driver.");
-      return;
-    }
-    setAllocating(true);
-    setAllocError(null);
-    try {
-      const created = await apiFetch(`/api/requests/${allocateRequest.id}/allocations`, {
-        method: "POST",
-        body: JSON.stringify({
-          driver_id: parseInt(selectedDriver),
-          vehicle_id: selectedVehicle ? parseInt(selectedVehicle) : null,
-          allocation_notes: allocNotes.trim() || null,
-        }),
-      });
-      setAllocations((prev) => [created, ...prev]);
-      setSelectedDriver("");
-      setSelectedVehicle("");
-      setAllocNotes("");
-      // Refresh request to get updated status and count
-      const updated = await apiFetch("/api/requests");
-      setRequests(Array.isArray(updated) ? updated : []);
-      const refreshed = (Array.isArray(updated) ? updated : []).find(
-        (r: AllocationRequest) => r.id === allocateRequest.id
-      );
-      if (refreshed) setAllocateRequest(refreshed);
-    } catch (err) {
-      setAllocError(err instanceof Error ? err.message : "Failed to allocate driver");
-    } finally {
-      setAllocating(false);
-    }
-  };
-
-  const handleRemoveAllocation = async (allocationId: number) => {
-    if (!allocateRequest) return;
-    try {
-      await apiFetch(
-        `/api/requests/${allocateRequest.id}/allocations?allocation_id=${allocationId}`,
-        { method: "DELETE" }
-      );
-      setAllocations((prev) => prev.filter((a) => a.id !== allocationId));
-      const updated = await apiFetch("/api/requests");
-      setRequests(Array.isArray(updated) ? updated : []);
-      const refreshed = (Array.isArray(updated) ? updated : []).find(
-        (r: AllocationRequest) => r.id === allocateRequest.id
-      );
-      if (refreshed) setAllocateRequest(refreshed);
-    } catch {
-      setAllocError("Failed to remove allocation");
-    }
-  };
-
-  // ── Drivers already allocated (exclude from dropdown) ─────────────────────
-  const allocatedDriverIds = new Set(
-    allocations.filter((a) => a.status !== "cancelled").map((a) => a.driver_id)
-  );
-  const driversToShow = availableDrivers.filter((d) => !allocatedDriverIds.has(d.id));
 
   // ─── Render ───────────────────────────────────────────────────────────────
 
@@ -369,32 +242,23 @@ export default function AllocationRequestsPage() {
           <div>
             <h1 className="text-xl font-bold text-gray-900 sm:text-2xl">Business Delivery Requests</h1>
             <p className="mt-0.5 text-sm text-gray-500">
-              Review requests and assign available partner drivers and vehicles.
+              Review and respond to delivery requests from businesses.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => { setLoading(true); fetchRequests(); }}
-            className="gap-2 shrink-0"
-          >
-            <RefreshCw className="h-3.5 w-3.5" /> Refresh
-          </Button>
+          <RefreshButton onClick={fetchRequests} loading={loading} />
         </div>
       </div>
 
       <div className="px-8 py-6 space-y-6">
         {/* Stat cards */}
         {!loading && !error && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
             {[
-              { label: "Total",           value: requests.length },
-              { label: "Pending",         value: tabCounts["pending"] },
-              { label: "Accepted",        value: tabCounts["accepted"] },
-              { label: "In Progress",     value: tabCounts["partially_allocated"] },
-              { label: "Fully Allocated", value: tabCounts["fully_allocated"] },
-              { label: "Completed",       value: tabCounts["completed"] },
-              { label: "Rejected",        value: tabCounts["rejected"] },
+              { label: "Total",     value: requests.length },
+              { label: "Pending",   value: tabCounts["pending"] },
+              { label: "Accepted",  value: tabCounts["accepted"] },
+              { label: "Completed", value: tabCounts["completed"] },
+              { label: "Rejected",  value: tabCounts["rejected"] },
             ].map(({ label, value }) => (
               <div key={label} className="bg-white rounded-xl border border-gray-200 px-4 py-4">
                 <p className="text-xs font-medium uppercase tracking-wide text-gray-400 truncate">{label}</p>
@@ -408,7 +272,6 @@ export default function AllocationRequestsPage() {
         <div className="bg-white rounded-xl border border-gray-200">
           {/* Tabs + search */}
           <div className="px-4 py-3 border-b space-y-3">
-            {/* Search — full width on its own row */}
             <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
               <input
@@ -426,7 +289,6 @@ export default function AllocationRequestsPage() {
                 </button>
               )}
             </div>
-            {/* Tabs + view toggle */}
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none flex-1">
                 {TABS.map((tab) => (
@@ -492,7 +354,7 @@ export default function AllocationRequestsPage() {
                   {search
                     ? "Try a different search term."
                     : activeTab === "all"
-                    ? "Businesses will send allocation requests here."
+                    ? "Businesses will send delivery requests here."
                     : `No ${STATUS_LABEL[activeTab]?.toLowerCase()} requests.`}
                 </p>
               </div>
@@ -502,124 +364,101 @@ export default function AllocationRequestsPage() {
                   <RequestCard
                     key={req.id}
                     req={req}
-                    onAccept={() => openReview(req, "accept")}
-                    onReject={() => openReview(req, "reject")}
-                    onAllocate={() => openAllocate(req)}
+                    onView={() => setDetailRequest(req)}
+                    onEdit={() => openEdit(req)}
                   />
                 ))}
               </div>
             ) : (
               /* ── Table view ── */
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse min-w-[700px]">
+                <table className="w-full border-collapse min-w-[600px]">
                   <thead>
                     <tr className="border-b border-gray-200">
-                      {["Business", "Status", "Drivers", "Period", "Notes", "Actions"].map((h, i) => (
-                        <th key={h} className={`pb-3 pt-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide pr-4 ${i === 5 ? "text-right pr-0" : "text-left"}`}>
+                      {["Business", "Status", "Drivers", "Period", "Notes", ""].map((h, i) => (
+                        <th key={i} className={`pb-3 pt-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wide pr-4 ${i === 5 ? "text-right pr-0 w-10" : "text-left"}`}>
                           {h}
                         </th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {filtered.map((req) => {
-                      const isPending     = req.status === "pending";
-                      const isAllocatable = ["accepted", "partially_allocated"].includes(req.status);
-                      const progress      = req.drivers_requested > 0
-                        ? Math.min((req.allocated_count / req.drivers_requested) * 100, 100)
-                        : 0;
-                      return (
-                        <tr key={req.id} className="hover:bg-gray-50/50 transition-colors">
-                          {/* Business */}
-                          <td className="py-3.5 pr-4">
-                            <div className="flex items-center gap-3">
-                              <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
-                                <ClipboardList className="h-4 w-4 text-indigo-600" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-sm font-semibold text-gray-900 truncate max-w-[160px]">{req.business_name}</p>
-                                <p className="text-xs text-gray-400 mt-0.5">
-                                  Received {new Date(req.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
-                                </p>
-                              </div>
+                    {filtered.map((req) => (
+                      <tr key={req.id} className="hover:bg-gray-50/50 transition-colors">
+                        {/* Business */}
+                        <td className="py-3.5 pr-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center shrink-0">
+                              <ClipboardList className="h-4 w-4 text-indigo-600" />
                             </div>
-                          </td>
-                          {/* Status */}
-                          <td className="py-3.5 pr-4">
-                            <StatusBadge status={req.status} />
-                          </td>
-                          {/* Drivers + progress */}
-                          <td className="py-3.5 pr-4">
-                            <p className="text-sm text-gray-700 font-medium whitespace-nowrap">
-                              {req.allocated_count} / {req.drivers_requested}
-                            </p>
-                            {["partially_allocated", "fully_allocated", "accepted"].includes(req.status) && (
-                              <div className="mt-1 h-1.5 w-20 bg-gray-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
-                              </div>
-                            )}
-                          </td>
-                          {/* Period */}
-                          <td className="py-3.5 pr-4 text-sm text-gray-600 whitespace-nowrap">
-                            {formatDate(req.start_date)}
-                            {req.end_date
-                              ? <span> → {formatDate(req.end_date)}</span>
-                              : <span className="text-gray-400 ml-1">(open)</span>}
-                          </td>
-                          {/* Notes */}
-                          <td className="py-3.5 pr-4 max-w-[200px]">
-                            {(() => {
-                              const parsed = parseNotes(req.business_notes);
-                              if (!parsed) return <span className="text-gray-300 text-sm">—</span>;
-                              if (parsed.isJson) {
-                                return (
-                                  <div className="space-y-0.5">
-                                    {parsed.entries.slice(0, 2).map(([k, v]) => (
-                                      <p key={k} className="text-xs text-gray-500 truncate">
-                                        <span className="font-medium text-gray-600">{fmtKey(k)}:</span> {v}
-                                      </p>
-                                    ))}
-                                    {parsed.entries.length > 2 && (
-                                      <p className="text-xs text-gray-400">+{parsed.entries.length - 2} more</p>
-                                    )}
-                                  </div>
-                                );
-                              }
-                              return <p className="text-xs text-gray-500 italic truncate">{parsed.text}</p>;
-                            })()}
-                          </td>
-                          {/* Actions */}
-                          <td className="py-3.5">
-                            <div className="flex items-center justify-end gap-1.5">
-                              {isPending && (
-                                <>
-                                  <button onClick={() => openReview(req, "reject")} title="Reject"
-                                    className="p-1.5 rounded text-red-400 hover:text-red-600 hover:bg-red-50 transition-colors">
-                                    <XCircle className="h-4 w-4" />
-                                  </button>
-                                  <button onClick={() => openReview(req, "accept")} title="Accept"
-                                    className="p-1.5 rounded text-emerald-500 hover:text-emerald-700 hover:bg-emerald-50 transition-colors">
-                                    <CheckCircle2 className="h-4 w-4" />
-                                  </button>
-                                </>
-                              )}
-                              {isAllocatable && (
-                                <button onClick={() => openAllocate(req)} title="Assign Drivers"
-                                  className="p-1.5 rounded text-indigo-500 hover:text-indigo-700 hover:bg-indigo-50 transition-colors">
-                                  <User className="h-4 w-4" />
-                                </button>
-                              )}
-                              {req.status === "fully_allocated" && (
-                                <button onClick={() => openAllocate(req)} title="View Allocations"
-                                  className="p-1.5 rounded text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
-                                  <Users className="h-4 w-4" />
-                                </button>
-                              )}
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 truncate max-w-[160px]">{req.business_name}</p>
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                Received {new Date(req.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                              </p>
                             </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                          </div>
+                        </td>
+                        {/* Status */}
+                        <td className="py-3.5 pr-4">
+                          <StatusBadge status={req.status} />
+                        </td>
+                        {/* Drivers */}
+                        <td className="py-3.5 pr-4">
+                          <p className="text-sm text-gray-700 font-medium whitespace-nowrap">
+                            {req.drivers_requested} requested
+                          </p>
+                        </td>
+                        {/* Period */}
+                        <td className="py-3.5 pr-4 text-sm text-gray-600 whitespace-nowrap">
+                          {formatDate(req.start_date)}
+                          {req.end_date
+                            ? <span> → {formatDate(req.end_date)}</span>
+                            : <span className="text-gray-400 ml-1">(open)</span>}
+                        </td>
+                        {/* Notes */}
+                        <td className="py-3.5 pr-4 max-w-[200px]">
+                          {(() => {
+                            const parsed = parseNotes(req.business_notes);
+                            if (!parsed) return <span className="text-gray-300 text-sm">—</span>;
+                            if (parsed.isJson) {
+                              return (
+                                <div className="space-y-0.5">
+                                  {parsed.entries.slice(0, 2).map(([k, v]) => (
+                                    <p key={k} className="text-xs text-gray-500 truncate">
+                                      <span className="font-medium text-gray-600">{fmtKey(k)}:</span> {v}
+                                    </p>
+                                  ))}
+                                  {parsed.entries.length > 2 && (
+                                    <p className="text-xs text-gray-400">+{parsed.entries.length - 2} more</p>
+                                  )}
+                                </div>
+                              );
+                            }
+                            return <p className="text-xs text-gray-500 italic truncate">{parsed.text}</p>;
+                          })()}
+                        </td>
+                        {/* Actions */}
+                        <td className="py-3.5 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => setDetailRequest(req)}
+                              title="View details"
+                              className="p-1.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => openEdit(req)}
+                              title="Edit status"
+                              className="p-1.5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
                 <p className="mt-4 text-xs text-gray-400">
@@ -631,34 +470,163 @@ export default function AllocationRequestsPage() {
         </div>
       </div>
 
-      {/* ── Review Modal ──────────────────────────────────────────────────────── */}
-      {reviewRequest && reviewAction && (
+      {/* ── Detail Modal ──────────────────────────────────────────────────────── */}
+      {detailRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+            <div className="flex items-start justify-between px-6 py-4 border-b shrink-0">
+              <div>
+                <h3 className="font-semibold text-lg">{detailRequest.business_name}</h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Received {new Date(detailRequest.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <StatusBadge status={detailRequest.status} />
+                <button onClick={() => setDetailRequest(null)} className="text-gray-400 hover:text-gray-600">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
+              {/* Core info */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Drivers Requested</p>
+                  <p className="text-lg font-bold text-gray-900">{detailRequest.drivers_requested}</p>
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Period</p>
+                  <p className="text-sm font-semibold text-gray-900">{formatDate(detailRequest.start_date)}</p>
+                  <p className="text-xs text-gray-500">
+                    {detailRequest.end_date ? `to ${formatDate(detailRequest.end_date)}` : "Open-ended"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Business notes */}
+              {detailRequest.business_notes && (() => {
+                const parsed = parseNotes(detailRequest.business_notes);
+                if (!parsed) return null;
+                return (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Delivery Details</p>
+                    {parsed.isJson ? (
+                      <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                        {parsed.entries.map(([k, v]) => (
+                          <div key={k} className="flex gap-3 text-sm">
+                            <span className="font-medium text-gray-600 shrink-0 min-w-[140px]">{fmtKey(k)}</span>
+                            <span className="text-gray-700">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-50 rounded-xl p-4">
+                        <p className="text-sm text-gray-700 italic">&ldquo;{parsed.text}&rdquo;</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Provider notes */}
+              {detailRequest.provider_notes && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Your Note</p>
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <p className="text-sm text-gray-700">{detailRequest.provider_notes}</p>
+                  </div>
+                </div>
+              )}
+
+              {/* Reviewed at */}
+              {detailRequest.reviewed_at && (
+                <p className="text-xs text-gray-400">
+                  Last updated {new Date(detailRequest.reviewed_at).toLocaleString("en-GB", {
+                    day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+                  })}
+                </p>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t shrink-0 flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => setDetailRequest(null)}>
+                Close
+              </Button>
+              <Button
+                style={{ backgroundColor: "#CDF782", color: "#162318" }}
+                className="flex-1 hover:opacity-90 transition-opacity"
+                onClick={() => { setDetailRequest(null); openEdit(detailRequest); }}
+              >
+                Edit Request
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Status Modal ─────────────────────────────────────────────────── */}
+      {editRequest && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-4 border-b">
-              <h3 className="font-semibold text-lg">
-                {reviewAction === "accept" ? "Accept Request" : "Reject Request"}
-              </h3>
-              <button onClick={() => setReviewRequest(null)} className="text-gray-400 hover:text-gray-600">
+              <div>
+                <h3 className="font-semibold text-lg">Edit Request</h3>
+                <p className="text-sm text-gray-500 mt-0.5">{editRequest.business_name}</p>
+              </div>
+              <button onClick={() => setEditRequest(null)} className="text-gray-400 hover:text-gray-600">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <div className="px-6 py-5 space-y-4">
-              <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
-                <p className="font-medium text-gray-900">{reviewRequest.business_name}</p>
+              {/* Request summary */}
+              <div className="bg-gray-50 rounded-xl p-4 space-y-1 text-sm">
                 <p className="text-gray-600">
-                  {reviewRequest.drivers_requested} driver{reviewRequest.drivers_requested !== 1 ? "s" : ""} requested
+                  <span className="font-medium text-gray-900">{editRequest.drivers_requested}</span>{" "}
+                  driver{editRequest.drivers_requested !== 1 ? "s" : ""} requested
                 </p>
                 <p className="text-gray-600">
-                  From {formatDate(reviewRequest.start_date)}
-                  {reviewRequest.end_date ? ` to ${formatDate(reviewRequest.end_date)}` : " (open-ended)"}
+                  From {formatDate(editRequest.start_date)}
+                  {editRequest.end_date ? ` to ${formatDate(editRequest.end_date)}` : " (open-ended)"}
                 </p>
-                {reviewRequest.business_notes && (
-                  <p className="text-gray-500 italic">&ldquo;{reviewRequest.business_notes}&rdquo;</p>
-                )}
+                {(() => {
+                  const parsed = parseNotes(editRequest.business_notes);
+                  if (!parsed) return null;
+                  if (parsed.isJson) {
+                    return (
+                      <div className="mt-2 border-t border-gray-200 pt-2 space-y-1">
+                        {parsed.entries.map(([k, v]) => (
+                          <div key={k} className="flex gap-2 text-sm">
+                            <span className="font-medium text-gray-600 shrink-0">{fmtKey(k)}:</span>
+                            <span className="text-gray-500">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return <p className="text-gray-500 italic mt-1">&ldquo;{parsed.text}&rdquo;</p>;
+                })()}
               </div>
 
+              {/* Status dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Status
+                </label>
+                <select
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+                  value={editStatus}
+                  onChange={(e) => setEditStatus(e.target.value as "pending" | "accepted" | "rejected")}
+                >
+                  {EDITABLE_STATUSES.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Notes */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">
                   Notes to business <span className="text-gray-400 font-normal">(optional)</span>
@@ -666,19 +634,15 @@ export default function AllocationRequestsPage() {
                 <textarea
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
                   rows={3}
-                  placeholder={
-                    reviewAction === "accept"
-                      ? "Any notes for the business…"
-                      : "Reason for rejection…"
-                  }
-                  value={providerNotes}
-                  onChange={(e) => setProviderNotes(e.target.value)}
+                  placeholder="Add a note for the business…"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
                 />
               </div>
 
-              {reviewError && (
+              {saveError && (
                 <p className="text-sm text-red-600 flex items-center gap-1">
-                  <AlertCircle className="h-3.5 w-3.5" /> {reviewError}
+                  <AlertCircle className="h-3.5 w-3.5" /> {saveError}
                 </p>
               )}
             </div>
@@ -687,196 +651,18 @@ export default function AllocationRequestsPage() {
               <Button
                 variant="outline"
                 className="flex-1"
-                onClick={() => setReviewRequest(null)}
-                disabled={reviewing}
+                onClick={() => setEditRequest(null)}
+                disabled={saving}
               >
                 Cancel
               </Button>
               <Button
-                className={`flex-1 ${
-                  reviewAction === "accept"
-                    ? "bg-emerald-600 hover:bg-emerald-700"
-                    : "bg-red-600 hover:bg-red-700"
-                } text-white`}
-                onClick={handleReview}
-                disabled={reviewing}
+                style={{ backgroundColor: "#CDF782", color: "#162318" }}
+                className="flex-1 hover:opacity-90 transition-opacity"
+                onClick={handleSave}
+                disabled={saving}
               >
-                {reviewing
-                  ? "Saving…"
-                  : reviewAction === "accept"
-                  ? "Accept Request"
-                  : "Reject Request"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Allocate Drivers Modal ─────────────────────────────────────────────── */}
-      {allocateRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
-              <div>
-                <h3 className="font-semibold text-lg">Allocate Drivers</h3>
-                <p className="text-sm text-gray-500">{allocateRequest.business_name}</p>
-              </div>
-              <button onClick={() => setAllocateRequest(null)} className="text-gray-400 hover:text-gray-600">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="overflow-y-auto flex-1 px-6 py-5 space-y-5">
-              {/* Request summary */}
-              <div className="bg-gray-50 rounded-xl p-4 flex items-center justify-between text-sm">
-                <div className="space-y-0.5">
-                  <p className="text-gray-600">
-                    <span className="font-medium text-gray-900">{allocateRequest.drivers_requested}</span> driver{allocateRequest.drivers_requested !== 1 ? "s" : ""} requested
-                  </p>
-                  <p className="text-gray-500">
-                    {formatDate(allocateRequest.start_date)}
-                    {allocateRequest.end_date ? ` – ${formatDate(allocateRequest.end_date)}` : ""}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-gray-600">
-                    <span className="font-medium text-gray-900">{allocateRequest.allocated_count}</span> / {allocateRequest.drivers_requested} allocated
-                  </p>
-                  <StatusBadge status={allocateRequest.status} />
-                </div>
-              </div>
-
-              {/* Current allocations */}
-              <div>
-                <h4 className="text-sm font-semibold text-gray-700 mb-2">Assigned Drivers</h4>
-                {loadingAllocations ? (
-                  <div className="space-y-2">
-                    {[1, 2].map((i) => (
-                      <div key={i} className="h-12 bg-gray-100 rounded-lg animate-pulse" />
-                    ))}
-                  </div>
-                ) : allocations.filter((a) => a.status !== "cancelled").length === 0 ? (
-                  <p className="text-sm text-gray-400 italic">No drivers assigned yet.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {allocations
-                      .filter((a) => a.status !== "cancelled")
-                      .map((alloc) => (
-                        <div
-                          key={alloc.id}
-                          className="flex items-center justify-between bg-white border border-gray-200 rounded-xl px-4 py-3"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                              <User className="h-4 w-4 text-indigo-600" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">
-                                {alloc.driver?.full_name ?? "Unknown Driver"}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {alloc.driver?.phone_number ?? ""}
-                                {alloc.vehicle && (
-                                  <span className="ml-2">
-                                    · {alloc.vehicle.plate_number} ({alloc.vehicle.vehicle_type})
-                                  </span>
-                                )}
-                              </p>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => handleRemoveAllocation(alloc.id)}
-                            className="text-gray-400 hover:text-red-500 transition-colors"
-                            title="Remove allocation"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Add driver form */}
-              {allocateRequest.allocated_count < allocateRequest.drivers_requested && (
-                <div className="border border-dashed border-gray-300 rounded-xl p-4 space-y-3">
-                  <h4 className="text-sm font-semibold text-gray-700">Add Driver</h4>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Driver *</label>
-                      <select
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                        value={selectedDriver}
-                        onChange={(e) => setSelectedDriver(e.target.value)}
-                      >
-                        <option value="">Select driver…</option>
-                        {driversToShow.map((d) => (
-                          <option key={d.id} value={d.id}>
-                            {d.full_name} ({d.status})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Vehicle (optional)</label>
-                      <select
-                        className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                        value={selectedVehicle}
-                        onChange={(e) => setSelectedVehicle(e.target.value)}
-                      >
-                        <option value="">No vehicle</option>
-                        {availableVehicles
-                          .filter((v) => v.status !== "in_maintenance")
-                          .map((v) => (
-                            <option key={v.id} value={v.id}>
-                              {v.plate_number} – {v.vehicle_type}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Notes (optional)</label>
-                    <input
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
-                      placeholder="Any notes for this allocation…"
-                      value={allocNotes}
-                      onChange={(e) => setAllocNotes(e.target.value)}
-                    />
-                  </div>
-
-                  {allocError && (
-                    <p className="text-sm text-red-600 flex items-center gap-1">
-                      <AlertCircle className="h-3.5 w-3.5" /> {allocError}
-                    </p>
-                  )}
-
-                  <Button
-                    size="sm"
-                    onClick={handleAddAllocation}
-                    disabled={allocating || !selectedDriver}
-                    className="gap-2"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    {allocating ? "Assigning…" : "Assign Driver"}
-                  </Button>
-                </div>
-              )}
-
-              {allocateRequest.allocated_count >= allocateRequest.drivers_requested && (
-                <div className="flex items-center gap-2 text-emerald-700 text-sm bg-emerald-50 rounded-xl p-3">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  All requested drivers have been allocated.
-                </div>
-              )}
-            </div>
-
-            <div className="px-6 py-4 border-t shrink-0">
-              <Button variant="outline" className="w-full" onClick={() => setAllocateRequest(null)}>
-                Done
+                {saving ? "Saving…" : "Save Changes"}
               </Button>
             </div>
           </div>
@@ -890,37 +676,44 @@ export default function AllocationRequestsPage() {
 
 function RequestCard({
   req,
-  onAccept,
-  onReject,
-  onAllocate,
+  onView,
+  onEdit,
 }: {
   req: AllocationRequest;
-  onAccept: () => void;
-  onReject: () => void;
-  onAllocate: () => void;
+  onView: () => void;
+  onEdit: () => void;
 }) {
-  const isPending   = req.status === "pending";
-  const isAllocatable = ["accepted", "partially_allocated"].includes(req.status);
-  const progress = req.drivers_requested > 0
-    ? Math.min((req.allocated_count / req.drivers_requested) * 100, 100)
-    : 0;
-
   return (
     <div className="bg-white rounded-2xl border border-gray-200 hover:shadow-md transition-shadow flex flex-col overflow-hidden">
       {/* Card header */}
       <div className="px-5 py-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="h-10 w-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0">
+        <div className="flex items-start gap-3">
+          <div className="h-10 w-10 rounded-xl bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5">
             <ClipboardList className="h-5 w-5 text-indigo-600" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="font-semibold text-gray-900 truncate">{req.business_name}</p>
             <p className="text-xs text-gray-500 mt-0.5">
               Received {new Date(req.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
             </p>
           </div>
+          <div className="flex items-center gap-0.5 shrink-0">
+            <button
+              onClick={onView}
+              title="View details"
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <Eye className="h-4 w-4" />
+            </button>
+            <button
+              onClick={onEdit}
+              title="Edit request"
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          </div>
         </div>
-        {/* Badge — on its own row, never overlaps */}
         <div className="mt-2.5">
           <StatusBadge status={req.status} />
         </div>
@@ -964,69 +757,14 @@ function RequestCard({
         })()}
       </div>
 
-      {/* Allocation progress bar (for in-progress states) */}
-      {["partially_allocated", "fully_allocated", "accepted"].includes(req.status) && (
-        <div className="px-5 pb-3">
-          <div className="flex justify-between text-xs text-gray-500 mb-1">
-            <span>{req.allocated_count} assigned</span>
-            <span>{req.drivers_requested} needed</span>
-          </div>
-          <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-indigo-500 rounded-full transition-all"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-        </div>
-      )}
-
+      {/* Provider note */}
       {req.provider_notes && (
-        <div className="px-5 pb-3">
-          <p className="text-xs text-gray-400">Your note: <span className="text-gray-600">{req.provider_notes}</span></p>
+        <div className="px-5 pb-4">
+          <p className="text-xs text-gray-400">
+            Your note: <span className="text-gray-600">{req.provider_notes}</span>
+          </p>
         </div>
       )}
-
-      {/* Actions */}
-      <div className="px-5 py-3 border-t border-gray-100 flex gap-2 mt-auto">
-        {isPending && (
-          <>
-            <button
-              onClick={onReject}
-              className="flex-1 flex items-center justify-center gap-1.5 text-sm text-red-600 border border-red-200 rounded-lg py-2 hover:bg-red-50 transition-colors"
-            >
-              <XCircle className="h-4 w-4" /> Reject
-            </button>
-            <button
-              onClick={onAccept}
-              className="flex-1 flex items-center justify-center gap-1.5 text-sm text-white bg-emerald-600 rounded-lg py-2 hover:bg-emerald-700 transition-colors"
-            >
-              <CheckCircle2 className="h-4 w-4" /> Accept
-            </button>
-          </>
-        )}
-        {isAllocatable && (
-          <button
-            onClick={onAllocate}
-            className="flex-1 flex items-center justify-center gap-1.5 text-sm text-white bg-indigo-600 rounded-lg py-2 hover:bg-indigo-700 transition-colors"
-          >
-            <User className="h-4 w-4" /> Assign Drivers
-            <ChevronRight className="h-3.5 w-3.5" />
-          </button>
-        )}
-        {req.status === "fully_allocated" && (
-          <button
-            onClick={onAllocate}
-            className="flex-1 flex items-center justify-center gap-1.5 text-sm text-indigo-600 border border-indigo-200 rounded-lg py-2 hover:bg-indigo-50 transition-colors"
-          >
-            <Users className="h-4 w-4" /> View Allocations
-          </button>
-        )}
-        {req.status === "rejected" && (
-          <span className="flex-1 text-center text-xs text-gray-400 py-2">
-            Reviewed {req.reviewed_at ? formatDate(req.reviewed_at) : ""}
-          </span>
-        )}
-      </div>
     </div>
   );
 }
@@ -1036,7 +774,7 @@ function RequestCard({
 function StatusBadge({ status }: { status: RequestStatus }) {
   return (
     <span
-      className={`flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${
+      className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${
         STATUS_STYLE[status] ?? "bg-gray-100 text-gray-600"
       }`}
     >
