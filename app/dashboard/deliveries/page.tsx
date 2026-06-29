@@ -31,6 +31,7 @@ import { useToast } from "@/hooks/use-toast";
 import AddDeliveryModal, {
   type CreateDeliveryPayload,
 } from "@/components/add-delivery-modal";
+import NewBusinessDeliveryModal from "@/components/new-business-delivery-modal";
 import EditDeliveryModal from "@/components/edit-delivery-modal";
 import DeliveryViewModal, { type ViewableDelivery } from "@/components/delivery-view-modal";
 import { supabase, parsePointCoordinates } from "@/lib/supabase";
@@ -522,6 +523,7 @@ export default function DeliveriesPage() {
   const [pageTab, setPageTab] = useState<PageTab>("deliveries");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [addOpen, setAddOpen] = useState(false);
+  const [businessDeliveryOpen, setBusinessDeliveryOpen] = useState(false);
   const [viewDelivery, setViewDelivery] = useState<ViewableDelivery | null>(null);
   const [editDelivery, setEditDelivery] = useState<PartnerDelivery | null>(null);
   const [saving, setSaving] = useState(false);
@@ -893,6 +895,23 @@ export default function DeliveriesPage() {
     }
   };
 
+  const handleCreateBusinessDelivery = async (payload: CreateDeliveryPayload) => {
+    setSaving(true);
+    try {
+      await apiFetch("/api/deliveries", {
+        method: "POST",
+        body: JSON.stringify({ ...payload, status: "awaiting_approval" }),
+      });
+      setBusinessDeliveryOpen(false);
+      await fetchData();
+      toast({ title: "Business delivery created", description: "The business delivery has been added." });
+    } catch (err) {
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleUpdateDelivery = async (id: number, payload: CreateDeliveryPayload) => {
     setEditDelivery(null);
     setConfirmUpdate({ id, payload });
@@ -1100,6 +1119,20 @@ export default function DeliveriesPage() {
               <Link2 className="h-4 w-4" />
               Client Order Link
             </Button>
+            <button
+              onClick={() => setBusinessDeliveryOpen(true)}
+              style={{
+                padding: "10px 20px", fontSize: 14, fontWeight: 600,
+                color: "#162318", backgroundColor: "#e8f5d0",
+                border: "1px solid #a8d44f", borderRadius: 8, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 8, transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#d4edb0")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#e8f5d0")}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New Business Delivery
+            </button>
             <button
               onClick={() => setAddOpen(true)}
               style={{
@@ -1372,6 +1405,13 @@ export default function DeliveriesPage() {
         onSubmit={handleCreateDelivery}
         saving={saving}
         clientOptions={clientOptions}
+      />
+
+      <NewBusinessDeliveryModal
+        open={businessDeliveryOpen}
+        onClose={() => setBusinessDeliveryOpen(false)}
+        onSubmit={handleCreateBusinessDelivery}
+        saving={saving}
       />
 
       <EditDeliveryModal
