@@ -232,7 +232,7 @@ export default function AllocationRequestsPage() {
   return (
     <div className="flex flex-col min-h-screen bg-gray-50/40">
       {/* Page header */}
-      <div className="bg-white border-b px-8 pt-5 pb-0">
+      <div className="bg-white border-b px-5 pt-5 pb-0">
         <p className="text-xs text-gray-400 mb-3 flex items-center gap-1">
           <Link href="/dashboard/analytics" className="hover:text-gray-600 transition-colors">Dashboard</Link>
           <span>/</span>
@@ -249,7 +249,7 @@ export default function AllocationRequestsPage() {
         </div>
       </div>
 
-      <div className="px-8 py-6 space-y-6">
+      <div className="px-5 py-6 space-y-6">
         {/* Stat cards */}
         {!loading && !error && (
           <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
@@ -295,7 +295,7 @@ export default function AllocationRequestsPage() {
                   <button
                     key={tab.key}
                     onClick={() => setActiveTab(tab.key)}
-                    style={activeTab === tab.key ? { backgroundColor: "#CDF782", color: "#162318" } : {}}
+                    style={activeTab === tab.key ? { backgroundColor: "#162318", color: "#ffffff" } : {}}
                     className={`px-3.5 py-1.5 rounded-full text-sm font-semibold transition-colors whitespace-nowrap shrink-0 ${
                       activeTab === tab.key
                         ? ""

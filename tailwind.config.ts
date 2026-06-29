@@ -13,7 +13,7 @@ const config: Config = {
   theme: {
   	extend: {
   		fontFamily: {
-  			sans: ['var(--font-outfit)', 'sans-serif'],
+  			sans: ['Open Runde', 'sans-serif'],
   			mono: ['var(--font-geist-mono)', 'monospace'],
   		},
   		colors: {

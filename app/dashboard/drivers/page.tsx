@@ -565,7 +565,7 @@ export default function ProviderDriversPage() {
       <div className="flex flex-col h-full">
 
         {/* Page header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b px-4 sm:px-8 py-4 sm:py-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b px-4 sm:px-5 py-4 sm:py-5">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Drivers</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
@@ -642,7 +642,7 @@ export default function ProviderDriversPage() {
 
         {/* Stats cards */}
         {!loading && !error && drivers.length > 0 && (
-          <div className="px-4 sm:px-8 pt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="px-4 sm:px-5 pt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
               { label: "Total Drivers", value: tabCounts.all },
               { label: "Active",        value: tabCounts.active },
@@ -661,7 +661,7 @@ export default function ProviderDriversPage() {
 
         {/* Search + filter tabs + view toggle */}
         {!loading && !error && (
-          <div className="px-4 sm:px-8 pt-5 pb-4 space-y-2.5">
+          <div className="px-4 sm:px-5 pt-5 pb-4 space-y-2.5">
             {/* Row 1: Search */}
             <div className="relative w-full sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
@@ -697,7 +697,7 @@ export default function ProviderDriversPage() {
                       {i === 3 && <span className="mx-1 h-4 w-px bg-gray-200 hidden sm:block shrink-0" />}
                       <button
                         onClick={() => setActiveTab(tab.key)}
-                        style={activeTab === tab.key ? { backgroundColor: "#CDF782", color: "#162318" } : {}}
+                        style={activeTab === tab.key ? { backgroundColor: "#162318", color: "#ffffff" } : {}}
                         className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${
                           activeTab === tab.key ? "" : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
                         }`}
@@ -736,7 +736,7 @@ export default function ProviderDriversPage() {
 
         {/* Bulk action bar */}
         {selectedIds.size > 0 && (
-          <div className="px-4 sm:px-8 mb-3">
+          <div className="px-4 sm:px-5 mb-3">
             <div className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2">
               <button onClick={clearSelection} className="text-gray-400 hover:text-gray-600 transition-colors">
                 <X className="h-3.5 w-3.5" />
@@ -784,7 +784,7 @@ export default function ProviderDriversPage() {
           </div>
 
         ) : drivers.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center px-8 py-8">
+          <div className="flex-1 flex items-center justify-center px-5 py-8">
             <div className="flex flex-col items-center justify-center gap-4 text-center rounded-2xl border border-dashed border-gray-200 w-full max-w-lg py-16 px-10">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
                 <Users className="h-8 w-8 text-emerald-600" />
@@ -813,14 +813,14 @@ export default function ProviderDriversPage() {
           </div>
 
         ) : filtered.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-8">
+          <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-5">
             <p className="text-sm font-medium text-gray-700">No drivers found</p>
             <p className="text-xs text-muted-foreground">Try a different search or filter.</p>
           </div>
 
         ) : viewMode === "list" ? (
           /* ── Table view ── */
-          <div className="px-4 sm:px-8 pb-8 overflow-x-auto">
+          <div className="px-4 sm:px-5 pb-8 overflow-x-auto">
             <table className="w-full border-collapse min-w-[700px]">
               <thead>
                 <tr className="border-b border-gray-200">
@@ -943,7 +943,7 @@ export default function ProviderDriversPage() {
 
         ) : (
           /* ── Card / Grid view ── */
-          <div className="px-4 sm:px-8 pb-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="px-4 sm:px-5 pb-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
             {filtered.map((driver) => (
               <div
                 key={driver.id}

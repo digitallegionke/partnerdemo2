@@ -248,23 +248,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           key={item.href}
                           href={item.href}
                           title={!expanded ? item.label : undefined}
-                          className={`relative flex items-center rounded-lg py-2 text-sm transition-all duration-150 ${
+                          className={`relative flex items-center rounded-lg py-2.5 text-sm transition-all duration-150 ${
                             expanded ? "justify-between gap-2 px-3" : "justify-center px-2"
                           } ${
                             isActive
                               ? "font-semibold"
                               : "text-gray-500 hover:bg-gray-50 hover:text-gray-800"
                           }`}
-                          style={isActive ? { backgroundColor: "#e8fca0", color: "#162318" } : {}}
+                          style={isActive ? { backgroundColor: "#f0f0f0", color: "#111827" } : {}}
                         >
                           {/* Active left-border accent */}
                           {isActive && (
-                            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full" style={{ backgroundColor: "#a8d44f" }} />
+                            <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full" style={{ backgroundColor: "#9ca3af" }} />
                           )}
                           <span className={`flex items-center min-w-0 ${expanded ? "gap-2.5" : ""}`}>
                             <item.icon
                               className="h-[15px] w-[15px] shrink-0 transition-colors"
-                              style={isActive ? { color: "#4a7c10" } : {}}
+                              style={isActive ? { color: "#374151" } : {}}
                             />
                             {expanded && (
                               <span className="truncate">{item.label}</span>
@@ -272,10 +272,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           </span>
                           {expanded && badge !== null && badge !== undefined && (
                             <span
-                              className={`ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums ${
-                                isActive ? "bg-gray-100 text-gray-500" : "bg-gray-100 text-gray-500"
-                              }`}
-                              style={isActive ? { backgroundColor: "#CDF782", color: "#162318" } : {}}
+                              className="ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold tabular-nums"
+                              style={{ backgroundColor: isActive ? "#c6e3c8" : "#edf7ee", color: "#162318" }}
                             >
                               {badge}
                             </span>

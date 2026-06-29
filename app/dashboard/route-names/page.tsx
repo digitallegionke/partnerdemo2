@@ -429,7 +429,7 @@ export default function RouteNamesPage() {
       <div className="flex flex-col h-full">
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b px-4 sm:px-8 py-4 sm:py-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b px-4 sm:px-5 py-4 sm:py-5">
           <div>
             <nav className="flex items-center gap-1.5 text-sm text-muted-foreground mb-1">
               <Link href="/dashboard/analytics" className="hover:text-gray-700 transition-colors">
@@ -514,7 +514,7 @@ export default function RouteNamesPage() {
 
         {/* Stats cards */}
         {!loading && !error && routeNames.length > 0 && (
-          <div className="px-4 sm:px-8 pt-5 sm:pt-6 pb-2 grid grid-cols-3 gap-3 sm:gap-4 max-w-2xl">
+          <div className="px-4 sm:px-5 pt-5 sm:pt-6 pb-2 grid grid-cols-3 gap-3 sm:gap-4">
             {[
               { label: "Total Routes",    value: stats.total    },
               { label: "Active Routes",   value: stats.active   },
@@ -530,7 +530,7 @@ export default function RouteNamesPage() {
 
         {/* Search + Filters + View toggle — all one row */}
         {!loading && !error && (
-          <div className="px-4 sm:px-8 pt-5 pb-3 flex flex-wrap items-center gap-2.5">
+          <div className="px-4 sm:px-5 pt-5 pb-3 flex flex-wrap items-center gap-2.5">
             {/* Select-all checkbox */}
             <button
               onClick={toggleSelectAll}
@@ -604,7 +604,7 @@ export default function RouteNamesPage() {
 
         {/* Bulk action bar */}
         {someFilteredSelected && (
-          <div className="px-4 sm:px-8 pb-3">
+          <div className="px-4 sm:px-5 pb-3">
             <div className="inline-flex items-center gap-3 rounded-full border border-gray-200 bg-white px-4 py-2 shadow-sm text-sm">
               <span className="font-semibold text-gray-700">{selectedIds.size} selected</span>
               <div className="h-4 w-px bg-gray-200" />
@@ -652,7 +652,7 @@ export default function RouteNamesPage() {
           </div>
 
         ) : routeNames.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center px-8 py-8">
+          <div className="flex-1 flex items-center justify-center px-5 py-8">
             <div className="flex flex-col items-center justify-center gap-4 text-center rounded-2xl border border-dashed border-gray-200 w-full max-w-lg py-16 px-10">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 border border-emerald-100">
                 <MapPin className="h-8 w-8 text-emerald-600" />
@@ -681,14 +681,14 @@ export default function RouteNamesPage() {
           </div>
 
         ) : filtered.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-8">
+          <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-5">
             <p className="text-sm font-medium text-gray-700">No route names found</p>
             <p className="text-xs text-muted-foreground">Try a different search term.</p>
           </div>
 
         ) : viewMode === "grid" ? (
           /* ── Card / Grid view ── */
-          <div className="px-4 sm:px-8 pb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="px-4 sm:px-5 pb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map((item) => (
               <div
                 key={item.id}
@@ -777,7 +777,7 @@ export default function RouteNamesPage() {
 
         ) : (
           /* ── Table view ── */
-          <div className="px-4 sm:px-8 pb-8 overflow-x-auto">
+          <div className="px-4 sm:px-5 pb-8 overflow-x-auto">
             <table className="w-full border-collapse min-w-[560px]">
               <thead>
                 <tr className="border-b border-gray-200">

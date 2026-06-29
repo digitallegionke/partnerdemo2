@@ -119,11 +119,11 @@ export default function ProviderDashboardPage() {
   return (
     <div className="flex flex-col min-h-full bg-gray-50">
       {/* Breadcrumb */}
-      <div className="px-4 sm:px-6 md:px-8 py-3 border-b bg-white">
+      <div className="px-4 sm:px-4 md:px-5 py-3 border-b bg-white">
         <p className="text-sm text-gray-400">Dashboard</p>
       </div>
 
-      <div className="flex-1 px-4 sm:px-6 md:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
+      <div className="flex-1 px-4 sm:px-4 md:px-5 py-6 sm:py-8 space-y-6 sm:space-y-8">
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div>

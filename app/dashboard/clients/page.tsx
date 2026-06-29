@@ -470,7 +470,7 @@ export default function ClientsPage() {
       <div className="flex flex-col h-full">
 
         {/* Page header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b px-4 sm:px-8 py-4 sm:py-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b px-4 sm:px-5 py-4 sm:py-5">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Clients</h2>
             <p className="mt-0.5 text-sm text-muted-foreground">
@@ -539,7 +539,7 @@ export default function ClientsPage() {
 
         {/* Stats */}
         {!loading && !error && (
-          <div className="px-4 sm:px-8 pt-5 sm:pt-6 pb-2 grid grid-cols-3 gap-3 sm:gap-4 max-w-2xl">
+          <div className="px-4 sm:px-5 pt-5 sm:pt-6 pb-2 grid grid-cols-3 gap-3 sm:gap-4">
             {[
               { label: "Total Clients", value: tabCounts.all },
               { label: "Active",        value: tabCounts.active },
@@ -555,7 +555,7 @@ export default function ClientsPage() {
 
         {/* Controls */}
         {!loading && !error && (
-          <div className="px-4 sm:px-8 pt-4 pb-3 space-y-2.5">
+          <div className="px-4 sm:px-5 pt-4 pb-3 space-y-2.5">
             <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
               <input
@@ -675,7 +675,7 @@ export default function ClientsPage() {
           </div>
 
         ) : clients.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center px-8 py-8">
+          <div className="flex-1 flex items-center justify-center px-5 py-8">
             <div className="flex flex-col items-center justify-center gap-4 text-center rounded-2xl border border-dashed border-gray-200 w-full max-w-lg py-16 px-10">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
                 <Users className="h-8 w-8 text-emerald-600" />
@@ -704,7 +704,7 @@ export default function ClientsPage() {
           </div>
 
         ) : filtered.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-8">
+          <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-5">
             <p className="text-sm font-medium text-gray-700">No clients found</p>
             <p className="text-xs text-muted-foreground">Try a different search or filter.</p>
           </div>
@@ -850,7 +850,7 @@ function GridView({ clients, selectedIds, onView, onEdit, onDelete, onToggleSele
   onDelete: (c: Client) => void; onToggleSelect: (id: number) => void;
 }) {
   return (
-    <div className="px-4 sm:px-8 pb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+    <div className="px-4 sm:px-5 pb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
       {clients.map((c) => (
         <ClientCard key={c.id} client={c} selectedIds={selectedIds} onView={onView} onEdit={onEdit} onDelete={onDelete} onToggleSelect={onToggleSelect} />
       ))}
@@ -944,7 +944,7 @@ function ListView({ clients, selectedIds, onView, onEdit, onDelete, onToggleSele
   onDelete: (c: Client) => void; onToggleSelect: (id: number) => void;
 }) {
   return (
-    <div className="px-4 sm:px-8 pb-8 overflow-x-auto">
+    <div className="px-4 sm:px-5 pb-8 overflow-x-auto">
       <table className="w-full border-collapse min-w-[640px]">
         <thead>
           <tr className="border-b border-gray-200">

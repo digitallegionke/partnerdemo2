@@ -29,6 +29,8 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 import { RefreshButton } from "@/components/ui/refresh-button";
+import NewBusinessDeliveryModal from "@/components/new-business-delivery-modal";
+import type { CreateDeliveryPayload } from "@/components/add-delivery-modal";
 
 type RequestStatus =
   | "pending"
@@ -829,6 +831,22 @@ export default function BusinessDeliveriesPage() {
     }
   };
 
+  const handleCreateNewDelivery = async (payload: CreateDeliveryPayload) => {
+    setSaving(true);
+    try {
+      await apiFetch("/api/deliveries", {
+        method: "POST",
+        body: JSON.stringify({ ...payload, status: "awaiting_approval" }),
+      });
+      setAddOpen(false);
+      toast({ title: "Business delivery created", description: "The business delivery has been added." });
+    } catch (err) {
+      throw err;
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleCreate = async (data: { business_id?: number; drivers_requested: number; start_date: string; end_date: string; notes: string; provider_notes: string }) => {
     setSaving(true);
     try {
@@ -1029,7 +1047,7 @@ export default function BusinessDeliveriesPage() {
 
   return (
     <div className="flex flex-col min-h-full bg-gray-50">
-      <div className="border-b bg-white px-4 sm:px-8 pt-4 pb-0">
+      <div className="border-b bg-white px-4 sm:px-5 pt-4 pb-0">
         <p className="text-xs text-gray-400 mb-4">
           <Link href="/dashboard/analytics" className="hover:text-gray-600 transition-colors">
             Dashboard
@@ -1091,7 +1109,7 @@ export default function BusinessDeliveriesPage() {
         </div>
       </div>
 
-      <div className="px-4 sm:px-8 py-6 space-y-6 flex-1">
+      <div className="px-4 sm:px-5 py-6 space-y-6 flex-1">
         {!loading && !error && (
           <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4">
             <StatCard label="Total"          value={stats.total} />
@@ -1300,12 +1318,11 @@ export default function BusinessDeliveriesPage() {
         onEdit={(r) => { setViewRequest(null); setEditRequest(r); }}
       />
 
-      <RequestFormModal
+      <NewBusinessDeliveryModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        onSubmit={handleCreate}
+        onSubmit={handleCreateNewDelivery}
         saving={saving}
-        businesses={businesses}
       />
 
       <RequestFormModal

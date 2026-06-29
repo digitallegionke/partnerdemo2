@@ -706,7 +706,7 @@ export default function FleetRegistryPage() {
       <div className="flex flex-col h-full">
 
         {/* Header */}
-        <div className="flex items-center justify-between gap-4 border-b px-8 py-5">
+        <div className="flex items-center justify-between gap-4 border-b px-5 py-5">
           <div>
             <h2 className="text-xl font-semibold text-gray-900">Fleet Registry</h2>
           </div>
@@ -771,7 +771,7 @@ export default function FleetRegistryPage() {
 
         {/* Stat cards */}
         {!loading && !error && (
-          <div className="px-8 pt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="px-5 pt-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {[
               { label: "Total Vehicles",  value: vehicles.length          },
               { label: "Active",          value: tabCounts.active         },
@@ -790,7 +790,7 @@ export default function FleetRegistryPage() {
 
         {/* Search + tabs + view toggle */}
         {!loading && !error && (
-          <div className="px-4 sm:px-8 pt-5 pb-4 space-y-2.5">
+          <div className="px-4 sm:px-5 pt-5 pb-4 space-y-2.5">
             {/* Row 1: search */}
             <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
@@ -825,7 +825,7 @@ export default function FleetRegistryPage() {
                     {i === 3 && <span className="mx-1 h-4 w-px bg-gray-200 hidden sm:block shrink-0" />}
                     <button
                       onClick={() => setActiveTab(tab.key)}
-                      style={activeTab === tab.key ? { backgroundColor: "#CDF782", color: "#162318" } : {}}
+                      style={activeTab === tab.key ? { backgroundColor: "#162318", color: "#ffffff" } : {}}
                       className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors shrink-0 ${
                         activeTab === tab.key ? "" : "text-gray-500 hover:text-gray-800 hover:bg-gray-100"
                       }`}
@@ -864,7 +864,7 @@ export default function FleetRegistryPage() {
 
         {/* Bulk action bar */}
         {someFilteredSelected && (
-          <div className="px-8 pb-3">
+          <div className="px-5 pb-3">
             <div className="inline-flex items-center gap-3 rounded-full border border-gray-200 bg-white px-4 py-2 shadow-sm text-sm">
               <span className="font-semibold text-gray-700">{selectedIds.size} selected</span>
               <div className="h-4 w-px bg-gray-200" />
@@ -902,7 +902,7 @@ export default function FleetRegistryPage() {
           </div>
 
         ) : vehicles.length === 0 ? (
-          <div className="flex-1 flex items-center justify-center px-8 py-8">
+          <div className="flex-1 flex items-center justify-center px-5 py-8">
             <div className="flex flex-col items-center gap-4 text-center rounded-2xl border border-dashed border-gray-200 w-full max-w-lg py-16 px-10">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50">
                 <Truck className="h-8 w-8 text-emerald-600" />
@@ -931,14 +931,14 @@ export default function FleetRegistryPage() {
           </div>
 
         ) : filtered.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-8">
+          <div className="flex-1 flex flex-col items-center justify-center gap-2 text-center px-5">
             <p className="text-sm font-medium text-gray-700">No vehicles found</p>
             <p className="text-xs text-muted-foreground">Try a different search or filter.</p>
           </div>
 
         ) : viewMode === "list" ? (
           /* ── Table view ── */
-          <div className="px-4 sm:px-8 pb-8 overflow-x-auto">
+          <div className="px-4 sm:px-5 pb-8 overflow-x-auto">
             <table className="w-full border-collapse min-w-[700px]">
               <thead>
                 <tr className="border-b border-gray-200">
@@ -1049,7 +1049,7 @@ export default function FleetRegistryPage() {
 
         ) : (
           /* ── Card / Grid view ── */
-          <div className="px-4 sm:px-8 pb-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="px-4 sm:px-5 pb-8 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
             {filtered.map((vehicle) => {
               const licenses = vehicle.allowed_license
                 ? vehicle.allowed_license.split(",").map((c) => c.trim()).filter(Boolean)
@@ -1168,7 +1168,7 @@ export default function FleetRegistryPage() {
       {/* Add / Edit Modal */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-h-[90vh] flex flex-col">
 
             {/* Modal header */}
             <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b shrink-0">
@@ -1647,7 +1647,7 @@ export default function FleetRegistryPage() {
       {importGuideOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setImportGuideOpen(false)} />
-          <div className="relative z-10 w-full max-w-2xl rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+          <div className="relative z-10 w-full rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
             <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-5 border-b border-gray-100">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-100">

@@ -1005,8 +1005,8 @@ export default function RoutesPage() {
                       onClick={() => setActiveTab(key)}
                       style={{
                         padding: "8px 16px", fontSize: 13, fontWeight: 600, borderRadius: 6, cursor: "pointer", transition: "all 0.2s",
-                        backgroundColor: activeTab === key ? "#CDF782" : "transparent",
-                        color: activeTab === key ? "#162318" : "#6B7280",
+                        backgroundColor: activeTab === key ? "#162318" : "transparent",
+                        color: activeTab === key ? "#ffffff" : "#6B7280",
                         border: activeTab === key ? "1px solid transparent" : "1px solid transparent",
                         boxShadow: activeTab === key ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
                       }}
@@ -1024,8 +1024,8 @@ export default function RoutesPage() {
                       onClick={() => setModeTab(key)}
                       style={{
                         padding: "8px 16px", fontSize: 13, fontWeight: 600, borderRadius: 6, cursor: "pointer", transition: "all 0.2s",
-                        backgroundColor: modeTab === key ? "#CDF782" : "transparent",
-                        color: modeTab === key ? "#162318" : "#6B7280",
+                        backgroundColor: modeTab === key ? "#162318" : "transparent",
+                        color: modeTab === key ? "#ffffff" : "#6B7280",
                         border: "1px solid transparent",
                         boxShadow: modeTab === key ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
                       }}
@@ -1227,7 +1227,7 @@ export default function RoutesPage() {
             {filtered.length > 0 && viewMode === "grid" && (() => {
               const gridStyle = {
                 display: "grid" as const,
-                gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 340px), 1fr))",
+                gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 400px), 1fr))",
                 gap: 20,
               };
 

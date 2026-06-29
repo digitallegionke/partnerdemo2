@@ -553,8 +553,8 @@ export default function AddDeliveryModal({
                         onClick={() => setForm((f) => ({ ...f, deliverySize: key }))}
                         className={`rounded-xl border-2 p-3 text-left transition-all ${
                           selected
-                            ? "border-[#a8d44f] ring-1 ring-[#CDF782]/60"
-                            : "border-gray-200 bg-white hover:border-[#CDF782]"
+                            ? "border-[#162318] ring-1 ring-[#162318]/60"
+                            : "border-gray-200 bg-white hover:border-[#162318]"
                         }`}
                         style={selected ? { backgroundColor: "#f5ffd6" } : {}}
                       >
