@@ -39,6 +39,7 @@ export default function HomePage() {
     getProviderAccessProfile().then((profile) => {
       if (profile) router.replace("/dashboard");
     });
+    
   }, [router]);
 
   return (
