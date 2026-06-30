@@ -11,6 +11,7 @@ type DriverCreateInput = Omit<DriverInsert, 'provider_id'>;
 // Extended response type for driver creation that includes the setup OTP
 export interface DriverCreateResponse extends Driver {
   setupOtp?: string;
+  setupOtpExpiresAt?: string;
 }
 
 export class DriverService {

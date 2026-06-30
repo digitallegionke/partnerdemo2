@@ -1,14 +1,24 @@
 import { createClient } from "@supabase/supabase-js";
+import { createServerClient } from "@supabase/ssr";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
+// Uses createServerClient (from @supabase/ssr) so that the Bearer token is
+// correctly forwarded to PostgREST for RLS — plain createClient falls back
+// to the anon key as the Authorization header when there is no active session,
+// which makes auth.uid() NULL and causes RLS to reject every insert/update.
 export const createAuthenticatedClient = (authorization: string | null) => {
   if (!authorization) {
     throw new Error('Authorization header required')
   }
   const token = authorization.replace('Bearer ', '')
-  return createClient(supabaseUrl, supabaseAnonKey, {
+  return createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      get: () => undefined,
+      set: () => {},
+      remove: () => {},
+    },
     global: {
       headers: {
         Authorization: `Bearer ${token}`
@@ -19,6 +29,20 @@ export const createAuthenticatedClient = (authorization: string | null) => {
 
 /** Public (anon) key — use for unauthenticated driver-auth routes; pair with RPCs / RLS, not service role. */
 export const createAnonClient = () => createClient(supabaseUrl, supabaseAnonKey)
+
+/**
+ * Service-role client — bypasses RLS. Use ONLY for Auth Admin operations
+ * (e.g. setting a one-time password on an existing driver auth user during OTP login).
+ * Never use this for tenant `public.*` data queries; those must go through the user JWT.
+ * Returns null when SUPABASE_SERVICE_ROLE_KEY is not configured.
+ */
+export const createAdminClient = () => {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+  if (!serviceRoleKey) return null
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  })
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -701,6 +725,12 @@ export interface Database {
           last_known_lat: number | null;
           last_known_lng: number | null;
           last_location_at: string | null;
+          // OTP driver authentication fields
+          user_id: string | null;
+          phone_verified_at: string | null;
+          setup_otp_hash: string | null;
+          setup_otp_expires_at: string | null;
+          setup_otp_used: boolean | null;
           created_at: string;
           updated_at: string;
         };
@@ -720,6 +750,12 @@ export interface Database {
           last_known_lat?: number | null;
           last_known_lng?: number | null;
           last_location_at?: string | null;
+          // OTP driver authentication fields
+          user_id?: string | null;
+          phone_verified_at?: string | null;
+          setup_otp_hash?: string | null;
+          setup_otp_expires_at?: string | null;
+          setup_otp_used?: boolean | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -739,6 +775,12 @@ export interface Database {
           last_known_lat?: number | null;
           last_known_lng?: number | null;
           last_location_at?: string | null;
+          // OTP driver authentication fields
+          user_id?: string | null;
+          phone_verified_at?: string | null;
+          setup_otp_hash?: string | null;
+          setup_otp_expires_at?: string | null;
+          setup_otp_used?: boolean | null;
           created_at?: string;
           updated_at?: string;
         };

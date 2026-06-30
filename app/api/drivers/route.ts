@@ -1,5 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
+import bcrypt from "bcryptjs";
+
+/**
+ * Generate a secure 6-digit setup OTP for a driver's initial login.
+ * Only the bcrypt hash is stored; the raw code is returned once to the admin.
+ */
+function generateSetupOtp(): { otp: string; hash: string; expiresAt: string } {
+  const otp = crypto.randomInt(100000, 999999).toString();
+  const hash = bcrypt.hashSync(otp, 10);
+  // Setup OTP expires in 7 days
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  return { otp, hash, expiresAt };
+}
 
 function makeClient(authToken?: string) {
   return createClient(
@@ -123,6 +137,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const setupOtpData = generateSetupOtp();
+
     const supabase = makeClient(token!);
     const { data, error } = await supabase
       .from("partner_drivers")
@@ -137,6 +153,9 @@ export async function POST(req: NextRequest) {
         is_active:       is_active !== undefined ? Boolean(is_active) : true,
         availability:    availability    ?? "available",
         provider_id: providerId,
+        setup_otp_hash:       setupOtpData.hash,
+        setup_otp_expires_at: setupOtpData.expiresAt,
+        setup_otp_used:       false,
       })
       .select()
       .single();
@@ -145,7 +164,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json(data, { status: 201 });
+    return NextResponse.json(
+      {
+        ...data,
+        setupOtp: setupOtpData.otp,
+        setupOtpExpiresAt: setupOtpData.expiresAt,
+      },
+      { status: 201 }
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Server error";
     return NextResponse.json({ error: message }, { status: 500 });

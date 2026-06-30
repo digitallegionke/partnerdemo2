@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Users, Plus, Pencil, FileText, MapPin, Truck, Eye, Search, CheckCircle2, LayoutGrid, List, Upload, Download, ChevronDown, X, Trash2, UserCheck, UserX, Mail } from "lucide-react";
+import { Users, Plus, Pencil, FileText, MapPin, Truck, Eye, Search, CheckCircle2, LayoutGrid, List, Upload, Download, ChevronDown, X, Trash2, UserCheck, UserX, Mail, MoreVertical, KeyRound, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RefreshButton } from "@/components/ui/refresh-button";
 import DriverModal from "@/components/DriverModal";
@@ -102,6 +102,9 @@ export default function ProviderDriversPage() {
   const [pendingFormData, setPendingFormData] = useState<DriverFormData | null>(null);
   const [confirmUpdate, setConfirmUpdate]     = useState(false);
   const [confirmBulkAction, setConfirmBulkAction] = useState<{ type: "delete" | "activate" | "deactivate"; count: number } | null>(null);
+  const [openMenuId, setOpenMenuId]           = useState<number | null>(null);
+  const [regeneratingId, setRegeneratingId]   = useState<number | null>(null);
+  const [otpResult, setOtpResult]             = useState<{ driver: Driver; otp: string; expiresAt: string } | null>(null);
 
   const fetchDrivers = async () => {
     try {
@@ -384,6 +387,19 @@ export default function ProviderDriversPage() {
 
   const handleDeleteDriver = (d: Driver) => setDeleteTarget(d);
 
+  const handleRegenerateOtp = async (d: Driver) => {
+    setOpenMenuId(null);
+    setRegeneratingId(d.id);
+    try {
+      const { setupOtp, expiresAt } = await DriverService.regenerateSetupOtp(d.id);
+      setOtpResult({ driver: d, otp: setupOtp, expiresAt });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't regenerate OTP", description: err instanceof Error ? err.message : "Please try again." });
+    } finally {
+      setRegeneratingId(null);
+    }
+  };
+
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -498,6 +514,14 @@ export default function ProviderDriversPage() {
       toast({ title: "Driver added", description: `${formData.name} has been added successfully.` });
       window.dispatchEvent(new Event("navcount:refresh"));
       setModalOpen(false);
+      // Surface the one-time setup OTP generated for this new driver
+      if (created.setupOtp) {
+        setOtpResult({
+          driver: created,
+          otp: created.setupOtp,
+          expiresAt: created.setupOtpExpiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        });
+      }
     } catch (err) {
       toast({ variant: "destructive", title: "Save failed", description: err instanceof Error ? err.message : "Failed to save driver." });
     }
@@ -966,6 +990,31 @@ export default function ProviderDriversPage() {
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
+                    {/* Three-dots menu */}
+                    <div className="relative">
+                      <button
+                        onClick={() => setOpenMenuId((cur) => (cur === driver.id ? null : driver.id))}
+                        className="p-1.5 rounded-lg text-gray-300 hover:text-gray-500 hover:bg-gray-100 transition-colors"
+                        title="More actions"
+                      >
+                        <MoreVertical className="h-3.5 w-3.5" />
+                      </button>
+                      {openMenuId === driver.id && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
+                          <div className="absolute right-0 top-full mt-1 z-20 w-44 rounded-xl border border-gray-100 bg-white shadow-lg py-1">
+                            <button
+                              onClick={() => handleRegenerateOtp(driver)}
+                              disabled={regeneratingId === driver.id}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                            >
+                              <KeyRound className="h-3.5 w-3.5 text-gray-400" />
+                              {regeneratingId === driver.id ? "Regenerating…" : "Regenerate OTP"}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
                     {/* Checkbox */}
                     <button
                       onClick={() => toggleSelect(driver.id)}
@@ -1138,6 +1187,44 @@ export default function ProviderDriversPage() {
         onClose={() => setImportGuideOpen(false)}
         onProceed={() => { setImportGuideOpen(false); importRef.current?.click(); }}
       />
+
+      {/* Regenerated OTP modal */}
+      {otpResult && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOtpResult(null)} />
+          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+            <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-2">
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-9 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <KeyRound className="h-4 w-4 text-emerald-600" />
+                </div>
+                <h3 className="text-sm font-semibold text-gray-900">Setup OTP</h3>
+              </div>
+              <button onClick={() => setOtpResult(null)} className="p-1 rounded-lg text-gray-400 hover:bg-gray-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="px-6 pb-6">
+              <p className="text-xs text-gray-500 mb-4">
+                Share this code with <span className="font-semibold text-gray-700">{otpResult.driver.full_name}</span> to set up their account.
+                Expires {new Date(otpResult.expiresAt).toLocaleDateString()}.
+              </p>
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                <span className="text-2xl font-bold tracking-[0.3em] text-gray-900">{otpResult.otp}</span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard?.writeText(otpResult.otp);
+                    toast({ title: "Copied", description: "OTP copied to clipboard." });
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                >
+                  <Copy className="h-3.5 w-3.5" /> Copy
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirm update modal */}
       {confirmUpdate && pendingFormData && (
