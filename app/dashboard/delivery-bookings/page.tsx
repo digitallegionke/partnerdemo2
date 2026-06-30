@@ -20,6 +20,7 @@ import {
   Users,
   Calendar,
   RefreshCw,
+  Link2,
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -664,6 +665,7 @@ export default function BusinessDeliveriesPage() {
   const [confirmUpdate, setConfirmUpdate] = useState<{ id: number; payload: Record<string, unknown> } | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [provider, setProvider] = useState<{ provider_name?: string; legal_name?: string; contact_email?: string; contact_phone?: string; city?: string; country?: string } | null>(null);
+  const [providerId, setProviderId] = useState<number | null>(null);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const { toast } = useToast();
 
@@ -695,9 +697,11 @@ export default function BusinessDeliveriesPage() {
         .from("partner_provider_users").select("provider_id")
         .eq("user_id", user.id).eq("is_active", true).maybeSingle();
       if (!membership) return;
+      const pid = (membership as { provider_id: number }).provider_id;
+      setProviderId(pid);
       const { data: prov } = await supabase
         .from("partner_providers").select("provider_name,legal_name,contact_email,contact_phone,city,country")
-        .eq("id", (membership as { provider_id: number }).provider_id).single();
+        .eq("id", pid).single();
       if (prov) setProvider(prov);
     })();
   }, []);
@@ -1090,6 +1094,25 @@ export default function BusinessDeliveriesPage() {
                 </>
               )}
             </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={!providerId}
+              onClick={() => {
+                if (!providerId) return;
+                const link = `${window.location.origin}/client-order?p=${providerId}`;
+                navigator.clipboard.writeText(link).then(() => {
+                  toast({ title: "Link copied!", description: "Share this link with your clients so they can place delivery orders." });
+                }).catch(() => {
+                  toast({ variant: "destructive", title: "Copy failed", description: link });
+                });
+              }}
+            >
+              <Link2 className="h-4 w-4" />
+              Client Order Link
+            </Button>
 
             <button
               onClick={() => setAddOpen(true)}
