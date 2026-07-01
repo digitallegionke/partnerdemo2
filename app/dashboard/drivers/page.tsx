@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Users, Plus, Pencil, FileText, MapPin, Truck, Eye, Search, CheckCircle2, LayoutGrid, List, Upload, Download, ChevronDown, X, Trash2, UserCheck, UserX, Mail, MoreVertical, KeyRound, Copy } from "lucide-react";
+import { Users, Plus, Pencil, FileText, MapPin, Truck, Eye, Search, CheckCircle2, LayoutGrid, List, Upload, Download, ChevronDown, X, Trash2, UserCheck, UserX, Mail, MoreVertical, KeyRound, Copy, User, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RefreshButton } from "@/components/ui/refresh-button";
 import DriverModal from "@/components/DriverModal";
@@ -104,7 +104,7 @@ export default function ProviderDriversPage() {
   const [confirmBulkAction, setConfirmBulkAction] = useState<{ type: "delete" | "activate" | "deactivate"; count: number } | null>(null);
   const [openMenuId, setOpenMenuId]           = useState<number | null>(null);
   const [regeneratingId, setRegeneratingId]   = useState<number | null>(null);
-  const [otpResult, setOtpResult]             = useState<{ driver: Driver; otp: string; expiresAt: string } | null>(null);
+  const [otpResult, setOtpResult]             = useState<{ driver: Driver; otp: string; expiresAt: string; isNew: boolean } | null>(null);
 
   const fetchDrivers = async () => {
     try {
@@ -392,7 +392,7 @@ export default function ProviderDriversPage() {
     setRegeneratingId(d.id);
     try {
       const { setupOtp, expiresAt } = await DriverService.regenerateSetupOtp(d.id);
-      setOtpResult({ driver: d, otp: setupOtp, expiresAt });
+      setOtpResult({ driver: d, otp: setupOtp, expiresAt, isNew: false });
     } catch (err) {
       toast({ variant: "destructive", title: "Couldn't regenerate OTP", description: err instanceof Error ? err.message : "Please try again." });
     } finally {
@@ -520,6 +520,7 @@ export default function ProviderDriversPage() {
           driver: created,
           otp: created.setupOtp,
           expiresAt: created.setupOtpExpiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          isNew: true,
         });
       }
     } catch (err) {
@@ -1188,38 +1189,84 @@ export default function ProviderDriversPage() {
         onProceed={() => { setImportGuideOpen(false); importRef.current?.click(); }}
       />
 
-      {/* Regenerated OTP modal */}
+      {/* Setup OTP modal */}
       {otpResult && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setOtpResult(null)} />
-          <div className="relative z-10 w-full max-w-sm rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
+          <div className="relative z-10 w-full max-w-md rounded-2xl bg-white shadow-xl mx-4 overflow-hidden">
             <div className="flex items-start justify-between gap-3 px-6 pt-6 pb-2">
               <div className="flex items-center gap-2">
-                <div className="h-9 w-9 rounded-full bg-emerald-100 flex items-center justify-center">
-                  <KeyRound className="h-4 w-4 text-emerald-600" />
-                </div>
-                <h3 className="text-sm font-semibold text-gray-900">Setup OTP</h3>
+                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                <h3 className="text-sm font-semibold text-gray-900">
+                  {otpResult.isNew ? "Driver Created Successfully" : "New Setup Code Generated"}
+                </h3>
               </div>
-              <button onClick={() => setOtpResult(null)} className="p-1 rounded-lg text-gray-400 hover:bg-gray-100">
+              <button onClick={() => setOtpResult(null)} className="p-1 rounded-lg text-gray-400 hover:bg-gray-100 shrink-0">
                 <X className="h-4 w-4" />
               </button>
             </div>
             <div className="px-6 pb-6">
               <p className="text-xs text-gray-500 mb-4">
-                Share this code with <span className="font-semibold text-gray-700">{otpResult.driver.full_name}</span> to set up their account.
-                Expires {new Date(otpResult.expiresAt).toLocaleDateString()}.
+                Share this one-time setup code with <span className="font-semibold text-gray-700">{otpResult.driver.full_name}</span> to activate their account in the driver app.
               </p>
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
-                <span className="text-2xl font-bold tracking-[0.3em] text-gray-900">{otpResult.otp}</span>
+
+              <div className="flex flex-col gap-2 rounded-xl bg-gray-50 px-4 py-3 mb-4">
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <User className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                  <span>{otpResult.driver.full_name}</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-gray-700">
+                  <Phone className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                  <span>{otpResult.driver.phone_number}</span>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-dashed border-emerald-300 bg-emerald-50/40 px-4 py-4 mb-4">
+                <div className="flex items-center justify-center gap-1.5 text-xs font-medium text-emerald-700 mb-2">
+                  <KeyRound className="h-3.5 w-3.5" />
+                  One-Time Setup Code
+                </div>
+                <div className="text-center text-3xl font-bold tracking-[0.3em] text-gray-900 mb-3">
+                  {otpResult.otp}
+                </div>
                 <button
                   onClick={() => {
                     navigator.clipboard?.writeText(otpResult.otp);
                     toast({ title: "Copied", description: "OTP copied to clipboard." });
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                  className="w-full flex items-center justify-center gap-2 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
-                  <Copy className="h-3.5 w-3.5" /> Copy
+                  <Copy className="h-3.5 w-3.5" /> Copy Code
                 </button>
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 mb-5 text-xs text-amber-800 leading-relaxed">
+                <span className="font-semibold">Important:</span> This code can only be used once and expires in{" "}
+                {Math.max(1, Math.ceil((new Date(otpResult.expiresAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000)))} days.
+                The driver should enter this code in the mobile app to activate their account.
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setOtpResult(null)}
+                  className="flex-1 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-sm font-medium text-gray-700 py-2.5 transition-colors"
+                >
+                  Close
+                </button>
+                <a
+                  href={`https://wa.me/${otpResult.driver.phone_number.replace(/[^\d]/g, "")}?text=${encodeURIComponent(
+                    `Hi ${otpResult.driver.full_name}, your one-time setup code to activate your driver account is: ${otpResult.otp}. This code expires in 7 days.`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-2 rounded-xl text-sm font-semibold py-2.5 transition-colors bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4 fill-current">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
+                    <path d="M12.017 2C6.478 2 2 6.477 2 12.017c0 1.986.552 3.868 1.517 5.485L2 22l4.626-1.485A9.953 9.953 0 0 0 12.017 22C17.556 22 22 17.523 22 12.017 22 6.477 17.556 2 12.017 2zm0 18.19a8.15 8.15 0 0 1-4.166-1.14l-.299-.177-3.104.995 1.011-2.999-.194-.31a8.183 8.183 0 0 1-1.264-4.38c0-4.518 3.68-8.198 8.216-8.198 4.523 0 8.196 3.68 8.196 8.198 0 4.518-3.673 8.011-8.216 8.011z" />
+                  </svg>
+                  Send via WhatsApp
+                </a>
               </div>
             </div>
           </div>

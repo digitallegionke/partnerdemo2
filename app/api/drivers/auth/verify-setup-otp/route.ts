@@ -7,9 +7,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createAnonClient, createAuthenticatedClient, createAdminClient } from '@/lib/supabase'
-import { obtainDriverSessionAfterOtpVerified } from '@/lib/driver-auth-session'
+import { createAdminClient } from '@/lib/supabase'
 import { validateAndNormalizePhone } from '@/lib/phone-validation'
+import {
+  getDemoAuthState,
+  markDemoPhoneVerified,
+  markDemoSetupOtpUsed,
+  buildDemoSession,
+} from '@/lib/driver-auth-demo-store'
 import bcrypt from 'bcryptjs'
 
 interface VerifySetupOtpRequest {
@@ -87,7 +92,15 @@ export async function POST(
       return NextResponse.json({ error: 'No driver found with this phone number' }, { status: 404 })
     }
 
-    if (!driverAny.setup_otp_hash) {
+    const driverId = Number(driverAny.id)
+    const driverEmail = `${phone.replace('+', '')}@driver.internal`
+
+    // DEMO MODE: setup_otp_*/user_id columns aren't provisioned on
+    // partner_drivers yet, so this state lives in the in-memory demo store.
+    // See lib/driver-auth-demo-store.ts.
+    const authState = getDemoAuthState(driverId)
+
+    if (!authState.setupOtpHash) {
       return NextResponse.json(
         {
           error:
@@ -97,7 +110,7 @@ export async function POST(
       )
     }
 
-    if (driverAny.setup_otp_used) {
+    if (authState.setupOtpUsed) {
       return NextResponse.json(
         {
           error:
@@ -108,8 +121,8 @@ export async function POST(
     }
 
     if (
-      driverAny.setup_otp_expires_at &&
-      new Date(driverAny.setup_otp_expires_at as string) < new Date()
+      authState.setupOtpExpiresAt &&
+      new Date(authState.setupOtpExpiresAt) < new Date()
     ) {
       return NextResponse.json(
         {
@@ -119,7 +132,7 @@ export async function POST(
       )
     }
 
-    const isValid = await bcrypt.compare(otp, driverAny.setup_otp_hash as string)
+    const isValid = await bcrypt.compare(otp, authState.setupOtpHash)
     if (!isValid) {
       console.log('[verify-setup-otp] Invalid setup OTP provided')
       return NextResponse.json(
@@ -128,55 +141,17 @@ export async function POST(
       )
     }
 
-    const driverId = Number(driverAny.id)
-    const driverEmail = `${phone.replace('+', '')}@driver.internal`
+    // Mark phone verified and burn the setup code.
+    markDemoPhoneVerified(driverId)
+    markDemoSetupOtpUsed(driverId)
 
-    let accessToken: string
-    let driverSession: Awaited<ReturnType<typeof obtainDriverSessionAfterOtpVerified>>['session']
-    try {
-      const anon = createAnonClient()
-      const { accessToken: token, session } = await obtainDriverSessionAfterOtpVerified({
-        anon,
-        driverEmail,
-        fullName: typeof driverAny.full_name === 'string' ? driverAny.full_name : 'Driver',
-        linkedAuthUserId: (driverAny.user_id as string | null) ?? null,
-      })
-      accessToken = token
-      driverSession = session
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Session could not be created after setup OTP verification'
-      console.error('[verify-setup-otp] obtainDriverSessionAfterOtpVerified:', e)
-      return NextResponse.json({ error: msg }, { status: 500 })
-    }
-
-    // Link the auth user, mark phone verified and burn the setup code.
-    const { data: authUser } = await createAuthenticatedClient(`Bearer ${accessToken}`).auth.getUser()
-    const uid = authUser.user?.id
-
-    const { data: updatedDriver, error: updateErr } = await admin
-      .from('partner_drivers')
-      .update({
-        ...(driverAny.user_id ? {} : uid ? { user_id: uid } : {}),
-        phone_verified_at: new Date().toISOString(),
-        setup_otp_used: true,
-      })
-      .eq('id', driverId)
-      .select()
-      .maybeSingle()
-
-    if (updateErr) {
-      console.error('[verify-setup-otp] partner_drivers link/verify update:', updateErr)
-      return NextResponse.json(
-        { error: 'Failed to complete verification. Please try again.' },
-        { status: 500 }
-      )
-    }
+    const driverSession = buildDemoSession(driverId, driverEmail)
 
     const response: VerifySetupOtpResponse = {
       success: true,
       message: 'Setup OTP verified successfully. Welcome!',
       session: driverSession,
-      driver: updatedDriver ?? driverAny,
+      driver: { ...driverAny, user_id: authState.userId, phone_verified_at: authState.phoneVerifiedAt },
     }
 
     return NextResponse.json(response, { status: 200 })

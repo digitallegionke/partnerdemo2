@@ -5,7 +5,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createAuthenticatedClient, createAdminClient } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabase'
+import { resolveDemoSession, setDemoPasswordHash } from '@/lib/driver-auth-demo-store'
+import bcrypt from 'bcryptjs'
 
 interface SetupCredentialsRequest {
   email: string
@@ -33,20 +35,10 @@ export async function POST(
       return NextResponse.json({ error: 'Authorization header required' }, { status: 401 })
     }
 
-    let userSupabase: ReturnType<typeof createAuthenticatedClient>
-    try {
-      userSupabase = createAuthenticatedClient(authHeader)
-    } catch {
-      return NextResponse.json({ error: 'Invalid authorization token' }, { status: 401 })
-    }
-
-    const {
-      data: { user },
-      error: authError,
-    } = await userSupabase.auth.getUser()
-
-    if (authError || !user) {
-      console.error('[setup-credentials] Auth error:', authError?.message)
+    // DEMO MODE: sessions are demo tokens issued by verify-otp/verify-setup-otp,
+    // not real Supabase Auth JWTs. See lib/driver-auth-demo-store.ts.
+    const driverId = resolveDemoSession(authHeader.slice('Bearer '.length))
+    if (driverId === null) {
       return NextResponse.json({ error: 'Invalid or expired session' }, { status: 401 })
     }
 
@@ -87,7 +79,7 @@ export async function POST(
     const { data: driver, error: driverError } = await admin
       .from('partner_drivers')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('id', driverId)
       .maybeSingle()
 
     if (driverError && driverError.code !== 'PGRST116') {
@@ -99,23 +91,25 @@ export async function POST(
       return NextResponse.json({ error: 'No driver record associated with this account' }, { status: 403 })
     }
 
-    const { error: updateAuthError } = await userSupabase.auth.updateUser({
-      email,
-      password,
-    })
+    const { data: emailInUse } = await admin
+      .from('partner_drivers')
+      .select('id')
+      .eq('email', email)
+      .neq('id', driverId)
+      .maybeSingle()
 
-    if (updateAuthError) {
-      console.error('[setup-credentials] Failed to update auth user:', updateAuthError)
-      const msg = updateAuthError.message?.toLowerCase().includes('already')
-        ? 'Email address is already in use'
-        : 'Failed to update credentials. Please try again.'
-      return NextResponse.json({ error: msg }, { status: 409 })
+    if (emailInUse) {
+      return NextResponse.json({ error: 'Email address is already in use' }, { status: 409 })
     }
+
+    // DEMO MODE: password is stored in the in-memory demo store rather than a
+    // real Supabase Auth user. See lib/driver-auth-demo-store.ts.
+    setDemoPasswordHash(driverId, await bcrypt.hash(password, 10))
 
     const { data: updatedDriver, error: updateDriverError } = await admin
       .from('partner_drivers')
       .update({ email })
-      .eq('id', (driver as { id: number }).id)
+      .eq('id', driverId)
       .select()
       .single()
 

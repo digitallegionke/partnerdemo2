@@ -11,8 +11,8 @@ const ALLOWED_ORIGINS = envOrigins ? envOrigins.split(',').map(s => s.trim()).fi
 // When using a wildcard ('*') with credentials=true, browsers will reject it. Set CORS_ALLOW_CREDENTIALS to 'false' to allow '*'.
 const ALLOW_CREDENTIALS = (process.env.CORS_ALLOW_CREDENTIALS || 'true') === 'true'
 
-export function middleware(req: NextRequest) {
-  // Only apply middleware to API routes
+export function proxy(req: NextRequest) {
+  // Only apply proxy to API routes
   if (!req.nextUrl.pathname.startsWith('/api/')) return NextResponse.next()
 
   const origin = req.headers.get('origin') || ''

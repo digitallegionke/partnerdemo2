@@ -12,6 +12,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAuthenticatedClient } from '@/lib/supabase';
+import { setDemoSetupOtp } from '@/lib/driver-auth-demo-store';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 
@@ -86,27 +87,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const setupOtpData = generateSetupOtp();
     console.log(`[regenerate-otp] Generated new setup OTP for partner driver ${driverId}`);
 
-    // Update driver with new OTP
-    const { data: updatedDriver, error: updateError } = await supabase
-      .from('partner_drivers')
-      .update({
-        setup_otp_hash: setupOtpData.hash,
-        setup_otp_expires_at: setupOtpData.expiresAt,
-        setup_otp_used: false,
-      })
-      .eq('id', driverId)
-      .eq('provider_id', providerId)
-      .select()
-      .single();
-
-    if (updateError) {
-      console.error('Error updating driver with new OTP:', updateError);
-      return NextResponse.json({ error: 'Failed to regenerate OTP' }, { status: 500 });
-    }
+    // DEMO MODE: setup_otp_* columns aren't provisioned on partner_drivers yet,
+    // so the OTP state lives in the in-memory demo store instead of the DB.
+    // See lib/driver-auth-demo-store.ts.
+    setDemoSetupOtp(driverId, setupOtpData.hash, setupOtpData.expiresAt);
 
     return NextResponse.json({
       success: true,
-      driver: updatedDriver,
+      driver,
       setupOtp: setupOtpData.otp,
       expiresAt: setupOtpData.expiresAt,
     }, { status: 200 });

@@ -8,8 +8,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { createAnonClient, createAdminClient } from '@/lib/supabase'
+import { createAdminClient } from '@/lib/supabase'
 import { validateAndNormalizePhone } from '@/lib/phone-validation'
+import { getDemoAuthState, buildDemoSession } from '@/lib/driver-auth-demo-store'
+import bcrypt from 'bcryptjs'
 
 interface LoginRequest {
   identifier: string
@@ -50,46 +52,30 @@ export async function POST(
       )
     }
 
-    let email: string
-
-    if (isPhoneNumber(identifier)) {
-      const phone = validateAndNormalizePhone(identifier)
-      if (!phone) {
-        return NextResponse.json({ error: 'Invalid phone number format' }, { status: 400 })
-      }
-      email = `${phone.replace('+', '')}@driver.internal`
-      console.log('[driver-login] Phone login, using internal email:', email)
-    } else {
-      email = identifier.trim().toLowerCase()
-      console.log('[driver-login] Email login:', email)
-    }
-
-    const anon = createAnonClient()
-
-    const { data: signInData, error: signInError } = await anon.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (signInError || !signInData?.session) {
-      console.error('[driver-login] Sign-in failed:', signInError?.message)
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
-    }
-
-    const authUserId = signInData.session.user.id
-
     const admin = createAdminClient()
     if (!admin) {
       console.error('[driver-login] SUPABASE_SERVICE_ROLE_KEY is not configured')
       return NextResponse.json({ error: 'Failed to fetch driver record' }, { status: 500 })
     }
 
-    const { data: driver, error: driverError } = await admin
-      .from('partner_drivers')
-      .select('*')
-      .eq('user_id', authUserId)
-      .eq('is_deleted', false)
-      .maybeSingle()
+    // DEMO MODE: no real Supabase Auth user exists for drivers, so the
+    // driver row is resolved directly from phone/email and the password is
+    // checked against the in-memory demo store. See lib/driver-auth-demo-store.ts.
+    let driverQuery = admin.from('partner_drivers').select('*').eq('is_deleted', false)
+    if (isPhoneNumber(identifier)) {
+      const phone = validateAndNormalizePhone(identifier)
+      if (!phone) {
+        return NextResponse.json({ error: 'Invalid phone number format' }, { status: 400 })
+      }
+      console.log('[driver-login] Phone login:', phone)
+      driverQuery = driverQuery.eq('phone_number', phone)
+    } else {
+      const email = identifier.trim().toLowerCase()
+      console.log('[driver-login] Email login:', email)
+      driverQuery = driverQuery.eq('email', email)
+    }
+
+    const { data: driver, error: driverError } = await driverQuery.maybeSingle()
 
     if (driverError && driverError.code !== 'PGRST116') {
       console.error('[driver-login] Error fetching driver:', driverError)
@@ -97,14 +83,24 @@ export async function POST(
     }
 
     if (!driver) {
-      console.error('[driver-login] No driver record for auth user:', authUserId)
-      return NextResponse.json({ error: 'No driver found for these credentials' }, { status: 404 })
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
     }
 
-    console.log('[driver-login] Driver login successful:', (driver as { id: number }).id)
+    const driverId = (driver as { id: number }).id
+    const authState = getDemoAuthState(driverId)
+
+    if (!authState.passwordHash || !(await bcrypt.compare(password, authState.passwordHash))) {
+      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+    }
+
+    console.log('[driver-login] Driver login successful:', driverId)
+
+    const driverEmail = (driver as { email?: string }).email ?? identifier
+    const session = buildDemoSession(driverId, driverEmail)
+    const responseDriver = { ...driver, user_id: authState.userId, phone_verified_at: authState.phoneVerifiedAt }
 
     return NextResponse.json(
-      { driver, session: signInData.session },
+      { driver: responseDriver, session },
       { status: 200 }
     )
   } catch (error: unknown) {

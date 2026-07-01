@@ -65,24 +65,27 @@ type AllocationRequest = {
 type Business = { id: number; name: string };
 
 const FILTER_TABS: { key: FilterKey; label: string }[] = [
-  { key: "all",                label: "All" },
-  { key: "pending",            label: "Pending" },
-  { key: "accepted",           label: "Accepted" },
-  { key: "partially_allocated", label: "In Progress" },
-  { key: "fully_allocated",    label: "Fully Allocated" },
-  { key: "rejected",           label: "Rejected" },
-  { key: "cancelled",          label: "Cancelled" },
-  { key: "completed",          label: "Completed" },
+  { key: "all",                 label: "All" },
+  { key: "partially_allocated", label: "Out for Delivery" },
+  { key: "fully_allocated",     label: "In Transit" },
+  { key: "completed",           label: "Delivered" },
+  { key: "accepted",            label: "Accepted" },
 ];
+
+// The tab bar is rendered as two visually separate pill groups: the delivery
+// lifecycle statuses, and "Accepted" on its own. Both drive the same
+// `activeFilter` state — they're just grouped differently in the UI.
+const PRIMARY_FILTER_TABS = FILTER_TABS.filter((t) => t.key !== "accepted");
+const SECONDARY_FILTER_TABS = FILTER_TABS.filter((t) => t.key === "accepted");
 
 const STATUS_BADGE: Record<RequestStatus, { label: string; cls: string; dot: string }> = {
   pending:             { label: "Pending",         cls: "bg-amber-50 text-amber-700",     dot: "bg-amber-400"   },
   accepted:            { label: "Accepted",        cls: "bg-blue-50 text-blue-700",       dot: "bg-blue-500"    },
-  partially_allocated: { label: "In Progress",     cls: "bg-indigo-50 text-indigo-700",   dot: "bg-indigo-500"  },
-  fully_allocated:     { label: "Fully Allocated", cls: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" },
+  partially_allocated: { label: "Out for Delivery", cls: "bg-violet-50 text-violet-700",  dot: "bg-violet-500"  },
+  fully_allocated:     { label: "In Transit",       cls: "bg-sky-50 text-sky-700",        dot: "bg-sky-500"     },
   rejected:            { label: "Rejected",        cls: "bg-rose-50 text-rose-700",       dot: "bg-rose-500"    },
   cancelled:           { label: "Cancelled",       cls: "bg-gray-100 text-gray-500",      dot: "bg-gray-400"    },
-  completed:           { label: "Completed",       cls: "bg-gray-100 text-gray-600",      dot: "bg-gray-500"    },
+  completed:           { label: "Delivered",       cls: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" },
 };
 
 async function getAuthHeader() {
@@ -1135,13 +1138,13 @@ export default function BusinessDeliveriesPage() {
       <div className="px-4 sm:px-5 py-6 space-y-6 flex-1">
         {!loading && !error && (
           <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3 sm:gap-4">
-            <StatCard label="Total"          value={stats.total} />
-            <StatCard label="Pending"        value={stats.pending} />
-            <StatCard label="Accepted"       value={stats.accepted} />
-            <StatCard label="In Progress"    value={stats.inProgress} />
-            <StatCard label="Fully Allocated" value={stats.fullyAllocated} />
-            <StatCard label="Rejected"       value={stats.rejected} />
-            <StatCard label="Completed"      value={stats.completed} />
+            <StatCard label="Total"            value={stats.total} />
+            <StatCard label="Pending"          value={stats.pending} />
+            <StatCard label="Accepted"         value={stats.accepted} />
+            <StatCard label="Out for Delivery" value={stats.inProgress} />
+            <StatCard label="In Transit"       value={stats.fullyAllocated} />
+            <StatCard label="Rejected"         value={stats.rejected} />
+            <StatCard label="Delivered"        value={stats.completed} />
           </div>
         )}
 
@@ -1193,32 +1196,31 @@ export default function BusinessDeliveriesPage() {
                 )}
               </button>
               <div className="h-4 w-px bg-gray-200 shrink-0" />
-              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
-                {FILTER_TABS.map((tab) => (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setActiveFilter(tab.key)}
-                    className="px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors shrink-0"
-                    style={
-                      activeFilter === tab.key
-                        ? { backgroundColor: "#CDF782", color: "#162318" }
-                        : { color: "#6b7280" }
-                    }
-                    onMouseEnter={(e) => {
-                      if (activeFilter !== tab.key)
-                        (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f3f4f6";
-                    }}
-                    onMouseLeave={(e) => {
-                      if (activeFilter !== tab.key)
-                        (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
-                    }}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
+                {[PRIMARY_FILTER_TABS, SECONDARY_FILTER_TABS].map((group, i) => (
+                  <div
+                    key={i}
+                    style={{ display: "flex", gap: 8, backgroundColor: "#F9FAFB", padding: 4, borderRadius: 8, border: "1px solid #E5E7EB" }}
                   >
-                    {tab.label}
-                    {filterCounts[tab.key] > 0 && (
-                      <span className="ml-1 text-xs opacity-60">({filterCounts[tab.key]})</span>
-                    )}
-                  </button>
+                    {group.map((tab) => (
+                      <span
+                        key={tab.key}
+                        onClick={() => setActiveFilter(tab.key)}
+                        style={{
+                          padding: "8px 16px", fontSize: 13, fontWeight: 600, borderRadius: 6, cursor: "pointer", transition: "all 0.2s",
+                          backgroundColor: activeFilter === tab.key ? "#162318" : "transparent",
+                          color: activeFilter === tab.key ? "#ffffff" : "#6B7280",
+                          border: "1px solid transparent",
+                          boxShadow: activeFilter === tab.key ? "0 1px 3px rgba(0,0,0,0.06)" : "none",
+                        }}
+                      >
+                        {tab.label}
+                        {filterCounts[tab.key] > 0 && (
+                          <span className="ml-1 text-xs opacity-60">({filterCounts[tab.key]})</span>
+                        )}
+                      </span>
+                    ))}
+                  </div>
                 ))}
               </div>
             </div>
