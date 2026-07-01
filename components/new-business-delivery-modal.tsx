@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   X,
   MapPin,
@@ -9,6 +9,11 @@ import {
   RefreshCw,
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Package,
+  Phone,
+  Banknote,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -88,6 +93,51 @@ function getSizeFromDriverTotal(total: number): DeliverySizeKey {
 
 const APPROVED_STATUSES = ["accepted", "partially_allocated", "fully_allocated"];
 
+const MOCK_ITEMS = [
+  "Office Chairs", "Bottled Water Crates", "Printer Paper Reams", "Cleaning Supplies",
+  "Branded T-Shirts", "Snack Cartons", "Electronics Accessories", "Stationery Kits",
+  "Packaged Beverages", "Laptop Bags",
+];
+const MOCK_PLACES = [
+  "Westlands, Nairobi", "Industrial Area, Nairobi", "Karen, Nairobi", "Upperhill, Nairobi",
+  "Kilimani, Nairobi", "Ruaraka, Nairobi", "Mombasa Road, Nairobi", "Thika Road, Nairobi",
+];
+const MOCK_CUSTOMERS = [
+  "Amina Wanjiru", "Brian Otieno", "Grace Njoki", "Kevin Mwangi",
+  "Faith Achieng", "Daniel Kiptoo", "Mercy Wambui", "Samuel Kariuki",
+];
+
+function seededPick<T>(arr: T[], seed: number): T {
+  return arr[Math.abs(seed) % arr.length];
+}
+
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0].toUpperCase())
+    .join("");
+}
+
+// Allocation requests carry no per-item/pickup/customer data — these are
+// deterministic placeholder details for demo purposes, keyed off the request id.
+function mockRequestDetails(r: ApprovedRequest) {
+  const seed = r.id;
+  const size = getSizeFromDriverTotal(r.drivers_requested);
+  const item = seededPick(MOCK_ITEMS, seed);
+  const quantity = 5 + ((seed * 7) % 46);
+  const unitValue = 500 + ((seed * 13) % 4500);
+  const itemsValue = quantity * unitValue;
+  const pickup = seededPick(MOCK_PLACES, seed + 1);
+  const dropoffCandidate = seededPick(MOCK_PLACES, seed + 3);
+  const dropoff = dropoffCandidate === pickup ? seededPick(MOCK_PLACES, seed + 5) : dropoffCandidate;
+  const customerName = seededPick(MOCK_CUSTOMERS, seed + 2);
+  const digits = String(10000000 + ((seed * 48271) % 89999999));
+  const phone = `+254 7${digits[1]}${digits[2]} ${digits[3]}${digits[4]}${digits[5]} ${digits[6]}${digits[7]}${digits[0]}`;
+  return { size, item, quantity, itemsValue, pickup, dropoff, customerName, phone };
+}
+
 const STATUS_LABEL: Record<string, string> = {
   accepted:            "Accepted",
   partially_allocated: "In Progress",
@@ -112,6 +162,7 @@ export default function NewBusinessDeliveryModal({
   const [priority, setPriority] = useState<"standard" | "express">("standard");
   const [routeNameId, setRouteNameId] = useState<number | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [approvedRequests, setApprovedRequests] = useState<ApprovedRequest[]>([]);
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [requestsError, setRequestsError] = useState<string | null>(null);
@@ -125,6 +176,7 @@ export default function NewBusinessDeliveryModal({
     setPriority("standard");
     setRouteNameId(null);
     setSelectedIds(new Set());
+    setExpandedIds(new Set());
     setFormError(null);
   };
 
@@ -165,6 +217,14 @@ export default function NewBusinessDeliveryModal({
 
   const toggleSelect = (id: number) => {
     setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleExpand = (id: number) => {
+    setExpandedIds((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
@@ -325,14 +385,17 @@ export default function NewBusinessDeliveryModal({
                         <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">Status</th>
                         <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">Drivers</th>
                         <th className="px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">Start Date</th>
+                        <th className="w-10 px-3 py-2.5" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {approvedRequests.map((r) => {
                         const checked = selectedIds.has(r.id);
+                        const expanded = expandedIds.has(r.id);
+                        const details = expanded ? mockRequestDetails(r) : null;
                         return (
+                        <Fragment key={r.id}>
                           <tr
-                            key={r.id}
                             onClick={() => toggleSelect(r.id)}
                             className={`cursor-pointer transition-colors ${
                               checked ? "bg-emerald-50/50" : "hover:bg-gray-50/60"
@@ -377,7 +440,94 @@ export default function NewBusinessDeliveryModal({
                                 {formatDate(r.start_date)}
                               </div>
                             </td>
+                            <td className="px-3 py-3">
+                              {r.status === "accepted" && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); toggleExpand(r.id); }}
+                                  className="flex items-center justify-center h-6 w-6 rounded-md text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                                  aria-label={expanded ? "Hide details" : "Show details"}
+                                >
+                                  {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                </button>
+                              )}
+                            </td>
                           </tr>
+                          {expanded && details && (
+                            <tr className="bg-gray-50/70">
+                              <td />
+                              <td colSpan={6} className="px-3 pb-4 pt-1">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 rounded-lg border border-gray-200 bg-white p-3">
+                                  <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Size</p>
+                                    <p className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-700">
+                                      <span
+                                        className="inline-flex h-5 w-5 items-center justify-center rounded-md text-[11px] font-bold"
+                                        style={{ backgroundColor: "#f0fdf4", color: "#166534" }}
+                                      >
+                                        {details.size}
+                                      </span>
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Item</p>
+                                    <p className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-700">
+                                      <Package className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                      {details.item}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Quantity</p>
+                                    <p className="mt-0.5 text-sm text-gray-700">{details.quantity}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Items Value</p>
+                                    <p className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-700">
+                                      <Banknote className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                      KES {details.itemsValue.toLocaleString()}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Pickup</p>
+                                    <p className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-700">
+                                      <MapPin className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                      {details.pickup}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Drop-off</p>
+                                    <p className="mt-0.5 flex items-center gap-1.5 text-sm text-gray-700">
+                                      <MapPin className="h-3.5 w-3.5 text-gray-400 shrink-0" />
+                                      {details.dropoff}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400">Customer</p>
+                                    <div className="mt-1 flex items-center gap-2">
+                                      <div
+                                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold"
+                                        style={{ backgroundColor: "#f0fdf4", color: "#166534" }}
+                                      >
+                                        {initials(details.customerName)}
+                                      </div>
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-medium text-gray-800">{details.customerName}</p>
+                                        <a
+                                          href={`tel:${details.phone.replace(/\s+/g, "")}`}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="flex items-center gap-1 text-xs text-gray-500 hover:text-emerald-700"
+                                        >
+                                          <Phone className="h-3 w-3 shrink-0" />
+                                          {details.phone}
+                                        </a>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                         );
                       })}
                     </tbody>

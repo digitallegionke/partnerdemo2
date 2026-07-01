@@ -721,7 +721,7 @@ export default function BusinessDeliveriesPage() {
 
   const filterCounts = useMemo(() => {
     const counts = {} as Record<FilterKey, number>;
-    counts.all = requests.length;
+    counts.all = requests.filter((r) => r.status !== "accepted").length;
     FILTER_TABS.slice(1).forEach((t) => {
       counts[t.key] = requests.filter((r) => r.status === t.key).length;
     });
@@ -730,7 +730,9 @@ export default function BusinessDeliveriesPage() {
 
   const filtered = useMemo(() => {
     let list = requests;
-    if (activeFilter !== "all") {
+    if (activeFilter === "all") {
+      list = list.filter((r) => r.status !== "accepted");
+    } else {
       list = list.filter((r) => r.status === activeFilter);
     }
     if (search.trim()) {
